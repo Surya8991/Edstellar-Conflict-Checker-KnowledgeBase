@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { PageHeader, Card } from "@/app/components/ui";
+import { PageHeader, Card, TYPE_COLORS } from "@/app/components/ui";
 import { Pagination as SharedPagination } from "@/app/components/Pagination";
 
 interface PageRow {
@@ -21,18 +21,7 @@ interface ByType { content_type: string; n: number }
 interface ByCourseType { course_type: string; n: number }
 interface CatCount { category: string; n: number }
 
-const TYPE_COLORS: Record<string, string> = {
-  course:               "bg-indigo-100 text-indigo-700",
-  blog:                 "bg-emerald-100 text-emerald-700",
-  category:             "bg-amber-100 text-amber-700",
-  subcategory:          "bg-orange-100 text-orange-700",
-  industry:             "bg-sky-100 text-sky-700",
-  location:             "bg-fuchsia-100 text-fuchsia-700",
-  "excellence-program": "bg-purple-100 text-purple-700",
-  pillar:               "bg-purple-100 text-purple-700",
-  home:                 "bg-slate-200 text-slate-700",
-  static:               "bg-slate-100 text-slate-600",
-};
+// Type colors moved to app/components/ui.tsx and imported above.
 
 const COURSE_TYPES = ["Behavioral", "Compliance", "IT & Technical", "Leadership", "Management", "Social Impact"];
 

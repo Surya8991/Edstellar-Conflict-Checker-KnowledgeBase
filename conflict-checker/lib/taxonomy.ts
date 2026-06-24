@@ -18,7 +18,6 @@ export interface PageTags {
     | "blog"
     | "category"
     | "subcategory"
-    | "industry"
     | "location"
     | "excellence-program"
     | "pillar"
@@ -224,27 +223,16 @@ export function tagUrl(url: string, title?: string | null): PageTags {
     };
   }
 
-  // 8. Industry / who-we-serve
+  // 8. Industry / who-we-serve pages — classified as static per current policy,
+  //    but we keep the industry slug as a tag so they can still be filtered.
   if (INDUSTRY_PATTERNS.some((p) => path.includes(p))) {
     const seg = path.split("/").filter(Boolean).pop() || "";
     const label = titleCase(cleanSlug(seg));
-    return {
-      contentType: "industry",
-      courseType: null,
-      category: null,
-      subcategory: null,
-      tags: uniq([label, "industry"]),
-    };
+    return base("static", [label, "industry", "static"]);
   }
   for (const kw of INDUSTRY_KEYWORDS) {
     if (path.includes(kw)) {
-      return {
-        contentType: "industry",
-        courseType: null,
-        category: null,
-        subcategory: null,
-        tags: uniq([titleCase(kw), "industry"]),
-      };
+      return base("static", [titleCase(kw), "industry", "static"]);
     }
   }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { PageHeader, Card, ConflictBadge, ScoreBar } from "@/app/components/ui";
+import { PageHeader, Card, ConflictBadge, ScoreBar, TypeChip, TYPE_COLORS } from "@/app/components/ui";
 import { Pagination } from "@/app/components/Pagination";
 
 interface Match {
@@ -260,12 +260,23 @@ export default function ConflictCheckerPage() {
                   onClick={() => setTypeFilter("")}
                   className={`rounded px-2 py-1 ${typeFilter === "" ? "bg-slate-900 text-white" : "border border-slate-300 bg-white text-slate-600"}`}
                 >all</button>
-                {typesInResult.map((t) => (
-                  <button key={t} onClick={() => setTypeFilter(typeFilter === t ? "" : t)}
-                    className={`rounded px-2 py-1 capitalize ${typeFilter === t ? "bg-slate-900 text-white" : "border border-slate-300 bg-white text-slate-600"}`}>
-                    {t}
-                  </button>
-                ))}
+                {typesInResult.map((t) => {
+                  const active = typeFilter === t;
+                  const colorClass = TYPE_COLORS[t] ?? "bg-slate-100 text-slate-600";
+                  return (
+                    <button
+                      key={t}
+                      onClick={() => setTypeFilter(active ? "" : t)}
+                      className={`rounded px-2 py-1 capitalize ${
+                        active
+                          ? "bg-slate-900 text-white ring-2 ring-slate-900 ring-offset-1"
+                          : `${colorClass} hover:opacity-80`
+                      }`}
+                    >
+                      {t.replace("-", " ")}
+                    </button>
+                  );
+                })}
                 <span className="ml-2 text-slate-500">Min score:</span>
                 <input type="range" min={0} max={100} value={scoreMin} onChange={(e) => setScoreMin(Number(e.target.value))} className="w-32" />
                 <span className="w-10 tabular-nums text-slate-600">{scoreMin}%</span>
@@ -415,10 +426,13 @@ function MatchCard({
     <Card>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <a href={m.url} target="_blank" rel="noreferrer" className="block truncate text-sm font-medium text-slate-900 hover:underline">
-            {m.title || m.url}
-          </a>
-          <div className="truncate text-xs text-slate-400">{m.url}</div>
+          <div className="flex items-center gap-2">
+            <TypeChip type={m.contentType} />
+            <a href={m.url} target="_blank" rel="noreferrer" className="truncate text-sm font-medium text-slate-900 hover:underline">
+              {m.title || m.url}
+            </a>
+          </div>
+          <div className="mt-1 truncate text-xs text-slate-400">{m.url}</div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
           <ScoreBar score={m.conflictScore} />
@@ -444,7 +458,6 @@ function MatchCard({
       ) : null}
       <div className="mt-2 text-xs text-slate-400">
         vector similarity {(m.similarity * 100).toFixed(1)}%
-        {m.contentType ? ` · ${m.contentType}` : ""}
       </div>
 
       {/* GSC enrichment */}
