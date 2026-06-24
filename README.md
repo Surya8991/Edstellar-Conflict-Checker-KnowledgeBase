@@ -93,7 +93,8 @@ This repo is a single Next.js app at the root — Vercel will auto-detect it.
    npm run db:setup
    npm run ingest
    ```
-5. **Crons** — [`vercel.json`](vercel.json) registers three schedules (`/api/cron/reingest`, `/api/cron/audit-links`, `/api/cron/gsc-snapshot`). Set `CRON_SECRET` so the routes can authenticate.
+5. **Crons** — [`vercel.json`](vercel.json) registers three schedules (`/api/cron/reingest`, `/api/cron/audit-links`, `/api/cron/gsc-snapshot`). Set `CRON_SECRET` so the routes can authenticate. **Warning:** the routes fail **open** if `CRON_SECRET` is unset — anyone can trigger them. Always set it in production.
+6. **External webhook (optional)** — to gate `POST /api/check` from a CMS pre-publish hook, set `WEBHOOK_API_KEY`; callers must then send `X-API-Key: <value>`.
 
 ## Repository layout
 

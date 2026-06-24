@@ -44,53 +44,52 @@ index hosted on Neon.
 | Charts | `recharts` | Lightweight, React-native |
 | Background work | Plain Node scripts (`tsx scripts/*.ts`); future cron via `vercel.json` | No queue infra needed yet |
 
-**Folder layout**
+**Folder layout** (flattened in a later session; the historical sub-layout is preserved below for context)
 ```
-Conflict Checker/                                ← outer repo root
-├── Edstellar_Intelligence_Hub_v2_updated.html   ← original strategic mockup
-├── sitemap-urls.csv                             ← raw sitemap export (2,479 URLs)
+Edstellar-Conflict-Checker-KnowledgeBase/        ← repo root (Next.js app lives here directly)
 ├── PROJECTLOG.md                                ← THIS FILE
-├── .gitignore
-└── conflict-checker/                            ← Next.js app
-    ├── app/
-    │   ├── (dashboard)/<route>/page.tsx         ← every visible page
-    │   └── api/<route>/route.ts                 ← every API endpoint
-    ├── lib/
-    │   ├── ai/                                  ← embed + chat provider abstraction
-    │   ├── db/                                  ← drizzle schema + client
-    │   ├── extract.ts                           ← HTML → main text
-    │   ├── search.ts                            ← cosine search helpers
-    │   ├── score.ts                             ← cosine + LLM → 0–100 blend
-    │   ├── taxonomy.ts                          ← URL → tags (uses data/taxonomy/)
-    │   ├── gsc.ts                               ← Google OAuth + Search Analytics
-    │   ├── gsc-insights.ts                      ← derived GSC views
-    │   ├── competitors.ts                       ← Serper + LLM
-    │   └── sitemap.ts                           ← read sitemap CSV
-    ├── scripts/
-    │   ├── db-setup.ts                          ← apply drizzle/*.sql migrations
-    │   ├── ingest.ts                            ← crawl + embed sitemap
-    │   ├── backfill-tags.ts                     ← retag existing rows
-    │   ├── catalog-conflicts.ts                 ← all-pairs precompute
-    │   ├── extract-taxonomy.py                  ← pull JSON blobs out of HTML mockup
-    │   └── test-embed.ts                        ← embed smoke test
-    ├── drizzle/
-    │   ├── 0000_init.sql                        ← pgvector + 7 tables
-    │   └── 0001_tags.sql                        ← tags TEXT[] + course_type
-    ├── data/
-    │   ├── sitemap-urls.csv                     ← copy used at runtime
-    │   └── taxonomy/                            ← extracted from HTML mockup
-    │       ├── courses.json                     ← 1,698 courses
-    │       ├── blogs.json                       ← 500 blog posts
-    │       ├── course-types.json
-    │       ├── competitors.json
-    │       ├── synonyms.json
-    │       ├── underserved-categories.json
-    │       ├── gsc-pipeline-seed.json
-    │       └── course-to-blog.json
-    ├── .env                                     ← LOCAL ONLY — gitignored
-    ├── .env.example
-    ├── SETUP_GUIDE.html / .md                   ← onboarding doc with links
-    └── package.json
+├── README.md / SETUP_GUIDE.md
+├── .env.example / .gitignore / vercel.json
+├── package.json / tsconfig.json / next.config.ts / drizzle.config.ts
+├── docs/                                        ← domain knowledge base
+├── reference/                                   ← static artifacts (Intelligence Hub HTML)
+├── app/
+│   ├── (dashboard)/<route>/page.tsx             ← every visible page
+│   └── api/<route>/route.ts                     ← every API endpoint
+├── lib/
+│   ├── ai/                                      ← embed + chat provider abstraction
+│   ├── db/                                      ← drizzle schema + client
+│   ├── extract.ts                               ← HTML → main text
+│   ├── search.ts                                ← cosine search helpers
+│   ├── score.ts                                 ← cosine + LLM → 0–100 blend
+│   ├── taxonomy.ts                              ← URL → tags (uses data/taxonomy/)
+│   ├── gsc.ts                                   ← Google OAuth + Search Analytics
+│   ├── gsc-insights.ts                          ← derived GSC views
+│   ├── competitors.ts                           ← Serper + LLM
+│   └── sitemap.ts                               ← read sitemap CSV
+├── scripts/
+│   ├── db-setup.ts                              ← apply drizzle/*.sql migrations
+│   ├── ingest.ts                                ← crawl + embed sitemap
+│   ├── backfill-tags.ts                         ← retag existing rows
+│   ├── catalog-conflicts.ts                     ← all-pairs precompute
+│   ├── extract-taxonomy.py                      ← pull JSON blobs out of HTML mockup
+│   └── test-embed.ts                            ← embed smoke test
+├── drizzle/
+│   ├── 0000_init.sql                            ← pgvector + 7 tables
+│   ├── 0001_tags.sql                            ← tags TEXT[] + course_type
+│   └── 0002_audit.sql                           ← internal-link audit tables
+├── data/
+│   ├── sitemap-urls.csv                         ← copy used at runtime
+│   └── taxonomy/                                ← extracted from HTML mockup
+│       ├── courses.json                         ← 1,698 courses
+│       ├── blogs.json                           ← 500 blog posts
+│       ├── course-types.json
+│       ├── competitors.json
+│       ├── synonyms.json
+│       ├── underserved-categories.json
+│       ├── gsc-pipeline-seed.json
+│       └── course-to-blog.json
+└── public/                                      ← static assets
 ```
 
 ---
@@ -147,13 +146,12 @@ app/(dashboard)/corpus/page.tsx
 courses added to it):
 
 ```bash
-cd conflict-checker
 python scripts/extract-taxonomy.py     # rewrites data/taxonomy/*.json
 npm run backfill:tags                  # re-tags all 2,479 pages, no re-embed
 ```
 
 No HTML download required at runtime — the JSON files are committed to
-`conflict-checker/data/taxonomy/`.
+`data/taxonomy/`.
 
 ## 3. Data model
 
@@ -432,7 +430,6 @@ WEBHOOK_API_KEY=                             # require this in X-API-Key on /api
 ## 7. Operational commands
 
 ```bash
-cd conflict-checker
 npm run dev                  # localhost:3000
 
 # Database

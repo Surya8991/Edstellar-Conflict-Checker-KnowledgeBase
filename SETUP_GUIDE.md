@@ -2,10 +2,28 @@
 
 Follow these steps in order. Each step says **what to do**, **where to click**, and **what to paste into `.env`**.
 
-Your `.env` file lives at:
-`C:\Users\E-Learning(Ranjith)\Desktop\Conflict Checker\conflict-checker\.env`
+Your `.env` file lives at the repo root next to [`.env.example`](.env.example). If it doesn't exist yet:
 
-Already done ✅ — `GROQ_API_KEY` is set.
+```bash
+cp .env.example .env
+```
+
+For Vercel, paste the same keys into **Project → Settings → Environment Variables** instead.
+
+---
+
+## STEP 0 — Pick a chat provider (REQUIRED, ~1 min)
+
+The app needs at least one chat key to summarize and classify. Cheapest path is **Groq** (free tier, very fast).
+
+1. Open https://console.groq.com/keys → **Create API Key**.
+2. Paste into `.env`:
+   ```
+   GROQ_API_KEY=gsk_...
+   AI_CHAT_PROVIDER=groq
+   ```
+
+(Skip if you'd rather use Claude — set `ANTHROPIC_API_KEY` and `AI_CHAT_PROVIDER=claude` in STEP 4 instead.)
 
 ---
 
@@ -28,8 +46,11 @@ Without this, nothing gets saved and the Conflict Checker can't compare against 
    ```
    DATABASE_URL=postgresql://neondb_owner:...
    ```
-6. Save the file.
-7. Tell me **"Neon done"** — I'll run `npm run db:setup` to enable pgvector and create the tables, then start ingesting your 2,478 sitemap URLs.
+6. Save the file, then:
+   ```bash
+   npm run db:setup       # enables pgvector + creates all tables
+   npm run ingest         # crawls the 2,478 sitemap URLs (re-runnable)
+   ```
 
 ---
 
@@ -58,17 +79,20 @@ Only needed if you want the Search Console dashboard. Skip if you only care abou
    Direct link: https://console.cloud.google.com/apis/credentials
    - Click **"+ Create Credentials"** → **"OAuth client ID"**.
    - Application type: **Web application**
-   - Name: `Conflict Checker Local`
-   - **Authorized redirect URIs** → Add URI:
+   - Name: `Conflict Checker`
+   - **Authorized redirect URIs** → Add **both**:
      ```
      http://localhost:3000/api/gsc/callback
+     https://<your-vercel-domain>/api/gsc/callback
      ```
    - Click **Create**.
 8. A popup shows **Client ID** and **Client Secret**. Copy both.
-9. Paste into `.env`:
+9. Paste into `.env` (and set the redirect URI to whichever environment you're running):
    ```
    GOOGLE_CLIENT_ID=xxxxxxxxxx.apps.googleusercontent.com
    GOOGLE_CLIENT_SECRET=GOCSPX-xxxxxxxx
+   GOOGLE_REDIRECT_URI=http://localhost:3000/api/gsc/callback
+   GSC_SITE_URL=https://www.edstellar.com/
    ```
 10. Save the file. The "Connect Google" button on the Search Console tab will now work.
 
@@ -90,9 +114,9 @@ Powers the Competitors tab by running Google searches for a topic. Free tier = 2
 
 ---
 
-## STEP 4 — (Optional) Claude API for better summaries
+## STEP 4 — (Optional) Claude for higher-quality summaries
 
-You already have Groq (fast, free-ish). Claude is slower but writes higher-quality summaries.
+Groq is fast and free; Claude is slower but writes sharper summaries.
 
 1. Open https://console.anthropic.com/
 2. Sign up → **Settings → API Keys** → **Create Key**.
@@ -100,17 +124,14 @@ You already have Groq (fast, free-ish). Claude is slower but writes higher-quali
 4. Paste into `.env`:
    ```
    ANTHROPIC_API_KEY=sk-ant-...
-   ```
-5. To actually use Claude instead of Groq, also change:
-   ```
    AI_CHAT_PROVIDER=claude
    ```
 
 ---
 
-## STEP 5 — (Skip for now) OpenAI
+## STEP 5 — (Optional) OpenAI embeddings
 
-The codebase has OpenAI adapters wired up but inactive. When you get a key later:
+The codebase has OpenAI adapters wired up but inactive. Switching embeddings to OpenAI requires re-ingesting the whole corpus because the vector dimension changes (384 → 1536).
 
 1. Get key at https://platform.openai.com/api-keys
 2. Paste into `.env`:
@@ -118,7 +139,19 @@ The codebase has OpenAI adapters wired up but inactive. When you get a key later
    OPENAI_API_KEY=sk-...
    AI_EMBED_PROVIDER=openai
    ```
-3. Ask me to run the re-embed migration (switches vectors from 384-dim local → 1536-dim OpenAI).
+3. Run the re-embed migration (SQL in [README.md](README.md) → "Switching embeddings"), then `npm run ingest -- --force`.
+
+---
+
+## STEP 6 — Production hardening (Vercel)
+
+Required before exposing the app publicly:
+
+1. `CRON_SECRET` — set a long random string. **The cron routes fail open if it's unset**, so anyone could trigger `/api/cron/reingest` and rack up DB + LLM costs.
+2. `WEBHOOK_API_KEY` (optional) — gate `POST /api/check` for external callers. When set, callers must send `X-API-Key: <value>`.
+3. `APP_BASE_URL` — set to your `https://<project>.vercel.app` (or custom domain). Used to build absolute URLs in cron jobs and OAuth flows.
+4. `GOOGLE_REDIRECT_URI` — switch to the prod URL `https://<domain>/api/gsc/callback` (and add it to the Google OAuth client's allowed redirect URIs).
+5. `BRAND_TERMS` — comma-separated brand/keyword terms the checker treats as house terms (default `edstellar,edstellar.com`).
 
 ---
 
@@ -128,7 +161,7 @@ The dev server **auto-reloads `.env`** — no restart needed. Just save the file
 
 If you ever need to restart it manually:
 - Stop: Ctrl+C in the dev terminal
-- Start: `cd conflict-checker && npm run dev`
+- Start: `npm run dev`
 
 ---
 
@@ -136,10 +169,10 @@ If you ever need to restart it manually:
 
 | Want to use… | Minimum required |
 |---|---|
-| Just paste a topic and see a summary | ✅ Already done (Groq key) |
-| Conflict scoring against Edstellar pages | **Step 1** (Neon) |
-| Search Console dashboard | **Steps 1 + 2** |
-| Competitor research | **Steps 1 + 3** |
-| Everything | Steps 1, 2, 3 |
+| Just paste a topic and see a summary | STEP 0 (chat key) |
+| Conflict scoring against Edstellar pages | STEPs 0 + 1 |
+| Search Console dashboard | STEPs 0 + 1 + 2 |
+| Competitor research | STEPs 0 + 1 + 3 |
+| Everything | STEPs 0–3 (+ 6 for prod) |
 
-**Start with Step 1.** Tell me "Neon done" when the connection string is in `.env` and I'll take it from there.
+**Start with STEP 0 + STEP 1** — they unlock the headline tool. Add the rest as you need them.
