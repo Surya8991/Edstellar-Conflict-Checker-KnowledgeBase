@@ -1,0 +1,362 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { PageHeader, Card, ConflictBadge, ScoreBar } from "@/app/components/ui";
+
+interface Match {
+  url: string;
+  title: string | null;
+  contentType: string | null;
+  similarity: number;
+  conflictScore: number;
+  conflictType: string;
+  rationale: string;
+}
+interface CheckResult {
+  inputType: string;
+  inputValue: string;
+  summary: string;
+  keywords: string[];
+  topScore: number;
+  matches: Match[];
+}
+
+interface PageStat {
+  url: string;
+  m6:  { clicks: number; impressions: number; ctr: number; position: number };
+  m12: { clicks: number; impressions: number; ctr: number; position: number };
+  topQueries: { query: string; clicks: number; impressions: number; ctr: number; position: number }[];
+}
+interface EnrichData {
+  stats: PageStat[];
+  serp: any;
+  gap: string[];
+  gscError?: string;
+}
+
+export default function ConflictCheckerPage() {
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<CheckResult | null>(null);
+
+  // Enrichment is lazy: we kick it off after a check completes.
+  const [enrich, setEnrich] = useState<EnrichData | null>(null);
+  const [enriching, setEnriching] = useState(false);
+
+  // Filters for the match list.
+  const [scoreMin, setScoreMin] = useState(0);
+  const [typeFilter, setTypeFilter] = useState<string>("");
+  const [sortBy, setSortBy] = useState<"score" | "similarity">("score");
+
+  // New-content suggestions panel (on-demand).
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestions, setSuggestions] = useState<any>(null);
+
+  async function run(e: React.FormEvent) {
+    e.preventDefault();
+    if (!input.trim()) return;
+    setLoading(true); setError(null); setResult(null); setEnrich(null); setSuggestions(null);
+    try {
+      const res = await fetch("/api/check", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ input }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Check failed");
+      setResult(data);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Auto-enrich once we have matches.
+  useEffect(() => {
+    if (!result || !result.matches.length) return;
+    let cancelled = false;
+    (async () => {
+      setEnriching(true);
+      try {
+        const urls = result.matches.slice(0, 8).map((m) => m.url);
+        const res = await fetch("/api/check/enrich", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            urls,
+            topic: result.keywords?.[0] || result.inputValue,
+            withSerp: true,
+          }),
+        });
+        const data = await res.json();
+        if (!cancelled) setEnrich(data);
+      } finally {
+        if (!cancelled) setEnriching(false);
+      }
+    })();
+    return () => { cancelled = true };
+  }, [result]);
+
+  async function fetchSuggestions() {
+    if (!result) return;
+    setSuggesting(true);
+    try {
+      const res = await fetch("/api/suggestions/new-content", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          topic: result.keywords?.[0] || result.inputValue,
+          url: result.inputType === "url" ? result.inputValue : undefined,
+        }),
+      });
+      setSuggestions(await res.json());
+    } finally {
+      setSuggesting(false);
+    }
+  }
+
+  // Apply filters / sort to the match list.
+  const filtered = result?.matches
+    .filter((m) => m.conflictScore >= scoreMin)
+    .filter((m) => !typeFilter || m.contentType === typeFilter)
+    .slice()
+    .sort((a, b) =>
+      sortBy === "score" ? b.conflictScore - a.conflictScore : b.similarity - a.similarity,
+    ) ?? [];
+
+  // Distinct content types present in current matches (for the chip filter).
+  const typesInResult = Array.from(
+    new Set(result?.matches.map((m) => m.contentType).filter(Boolean) as string[]),
+  );
+
+  const statByUrl = new Map<string, PageStat>();
+  for (const s of enrich?.stats ?? []) statByUrl.set(s.url, s);
+
+  return (
+    <div>
+      <PageHeader
+        title="Conflict Checker"
+        subtitle="Paste a URL or a topic. We summarize it, score it (0–100%), and enrich each match with GSC + competitor data."
+      />
+      <div className="p-8 space-y-6">
+        <form onSubmit={run} className="flex gap-3">
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="https://www.edstellar.com/blog/...  or  a topic like 'procurement management training'"
+            className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-slate-900"
+          />
+          <button type="submit" disabled={loading}
+            className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50">
+            {loading ? "Checking…" : "Check"}
+          </button>
+        </form>
+
+        {error && <Card className="border-red-200 bg-red-50 text-sm text-red-700">{error}</Card>}
+
+        {result && (
+          <>
+            <Card>
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-slate-900">
+                  Summary <span className="ml-1 text-xs font-normal text-slate-400">({result.inputType})</span>
+                </h2>
+                <div className="flex items-center gap-2 text-xs text-slate-500">
+                  Highest conflict
+                  <span className="font-semibold text-slate-900">{result.topScore}%</span>
+                </div>
+              </div>
+              <p className="text-sm leading-relaxed text-slate-700">{result.summary || "—"}</p>
+              {result.keywords?.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {result.keywords.map((k) => (
+                    <span key={k} className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{k}</span>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            {/* Filters */}
+            {result.matches.length > 1 && (
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-slate-500">Filter:</span>
+                <button
+                  onClick={() => setTypeFilter("")}
+                  className={`rounded px-2 py-1 ${typeFilter === "" ? "bg-slate-900 text-white" : "border border-slate-300 bg-white text-slate-600"}`}
+                >all types</button>
+                {typesInResult.map((t) => (
+                  <button key={t} onClick={() => setTypeFilter(typeFilter === t ? "" : t)}
+                    className={`rounded px-2 py-1 capitalize ${typeFilter === t ? "bg-slate-900 text-white" : "border border-slate-300 bg-white text-slate-600"}`}>
+                    {t}
+                  </button>
+                ))}
+                <span className="ml-2 text-slate-500">Min score:</span>
+                <input type="range" min={0} max={100} value={scoreMin} onChange={(e) => setScoreMin(Number(e.target.value))} className="w-32" />
+                <span className="tabular-nums text-slate-600">{scoreMin}%</span>
+                <span className="ml-2 text-slate-500">Sort:</span>
+                <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} className="rounded border border-slate-300 bg-white px-2 py-1">
+                  <option value="score">by score</option>
+                  <option value="similarity">by similarity</option>
+                </select>
+                <span className="ml-auto text-slate-400">{filtered.length} of {result.matches.length}</span>
+              </div>
+            )}
+
+            <div>
+              <h2 className="mb-3 text-sm font-semibold text-slate-900">
+                Most similar existing pages
+                {enriching && <span className="ml-2 text-xs font-normal text-slate-400">· fetching GSC + competitor data…</span>}
+              </h2>
+              {filtered.length === 0 ? (
+                <Card className="text-sm text-slate-500">No matches at current filter.</Card>
+              ) : (
+                <div className="space-y-3">
+                  {filtered.map((m) => (
+                    <MatchCard key={m.url} m={m} stat={statByUrl.get(m.url)} />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Competitor + keyword gap */}
+            {enrich && enrich.serp && enrich.serp.organic && (
+              <Card>
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-slate-900">Competitor SERP for "{result.keywords?.[0] || result.inputValue}"</h3>
+                  {enrich.serp.edstellarRank
+                    ? <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">Edstellar #{enrich.serp.edstellarRank}</span>
+                    : <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">Not in top 10</span>}
+                </div>
+                <table className="w-full text-sm">
+                  <thead><tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
+                    <th className="py-2 pr-3 font-medium">#</th>
+                    <th className="py-2 pr-3 font-medium">Domain</th>
+                    <th className="py-2 font-medium">Title</th>
+                  </tr></thead>
+                  <tbody>
+                    {enrich.serp.organic.slice(0, 8).map((r: any) => (
+                      <tr key={r.rank} className={`border-b border-slate-100 ${r.isEdstellar ? "bg-emerald-50" : ""}`}>
+                        <td className="py-2 pr-3 tabular-nums">{r.rank}</td>
+                        <td className="py-2 pr-3 text-slate-700">{r.domain}{r.isKnown && <span className="ml-1 rounded bg-indigo-100 px-1 py-0.5 text-[10px] text-indigo-700">known</span>}</td>
+                        <td className="max-w-md truncate py-2"><a href={r.url} target="_blank" rel="noreferrer" className="text-slate-600 hover:underline">{r.title}</a></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {enrich.gap?.length > 0 && (
+                  <div className="mt-3 border-t border-slate-100 pt-3">
+                    <div className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Keyword gap (mentioned by competitors, not in your top queries)</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {enrich.gap.map((k) => (
+                        <span key={k} className="rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-800">{k}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </Card>
+            )}
+
+            {/* New-content suggestions trigger */}
+            <Card>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">Net-new content suggestions</h3>
+                  <p className="text-xs text-slate-500">LLM proposes angles based on competitors, AI Overview, recent Google updates, and AI platforms.</p>
+                </div>
+                <button onClick={fetchSuggestions} disabled={suggesting}
+                  className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50">
+                  {suggesting ? "Thinking…" : suggestions ? "Re-run" : "Suggest"}
+                </button>
+              </div>
+              {suggestions?.suggestions?.angles && (
+                <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  {suggestions.suggestions.angles.map((a: any, i: number) => (
+                    <div key={i} className="rounded-lg border border-slate-200 p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="font-medium text-slate-900">{a.title}</div>
+                        <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] capitalize text-slate-600">{a.format}</span>
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">Audience: {a.audience}</div>
+                      <div className="text-xs text-slate-500">Keyword: <span className="font-mono">{a.primaryKeyword}</span></div>
+                      <p className="mt-2 text-xs text-slate-600">{a.differentiation}</p>
+                      {a.trigger && <span className="mt-2 inline-block rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] capitalize text-indigo-700">{a.trigger.replace("-", " ")}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {suggestions?.suggestions?.raw && (
+                <pre className="mt-3 max-h-60 overflow-y-auto rounded bg-slate-50 p-3 text-xs text-slate-600">{suggestions.suggestions.raw}</pre>
+              )}
+              {suggestions?.error && <div className="mt-3 text-sm text-red-600">{suggestions.error}</div>}
+            </Card>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MatchCard({ m, stat }: { m: Match; stat?: PageStat }) {
+  return (
+    <Card>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <a href={m.url} target="_blank" rel="noreferrer" className="block truncate text-sm font-medium text-slate-900 hover:underline">
+            {m.title || m.url}
+          </a>
+          <div className="truncate text-xs text-slate-400">{m.url}</div>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <ScoreBar score={m.conflictScore} />
+          <ConflictBadge type={m.conflictType} />
+        </div>
+      </div>
+      {m.rationale && (
+        <p className="mt-3 border-t border-slate-100 pt-3 text-sm text-slate-600">{m.rationale}</p>
+      )}
+      <div className="mt-2 text-xs text-slate-400">
+        vector similarity {(m.similarity * 100).toFixed(1)}%
+        {m.contentType ? ` · ${m.contentType}` : ""}
+      </div>
+
+      {/* GSC enrichment */}
+      {stat && (
+        <div className="mt-3 grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 md:grid-cols-2">
+          <div>
+            <div className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Last 6 months · Last 12 months</div>
+            <table className="w-full text-xs">
+              <thead><tr className="text-slate-400">
+                <th className="text-left font-medium"></th>
+                <th className="pr-2 text-right font-medium">6m</th>
+                <th className="text-right font-medium">12m</th>
+              </tr></thead>
+              <tbody className="text-slate-700">
+                <tr><td>Clicks</td><td className="pr-2 text-right tabular-nums">{stat.m6.clicks}</td><td className="text-right tabular-nums">{stat.m12.clicks}</td></tr>
+                <tr><td>Impressions</td><td className="pr-2 text-right tabular-nums">{stat.m6.impressions.toLocaleString()}</td><td className="text-right tabular-nums">{stat.m12.impressions.toLocaleString()}</td></tr>
+                <tr><td>CTR</td><td className="pr-2 text-right tabular-nums">{(stat.m6.ctr*100).toFixed(2)}%</td><td className="text-right tabular-nums">{(stat.m12.ctr*100).toFixed(2)}%</td></tr>
+                <tr><td>Avg pos</td><td className="pr-2 text-right tabular-nums">{stat.m6.position.toFixed(1)}</td><td className="text-right tabular-nums">{stat.m12.position.toFixed(1)}</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <div className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Top 3 ranking keywords</div>
+            {stat.topQueries.length === 0 ? (
+              <div className="text-xs text-slate-400">No GSC data for this URL.</div>
+            ) : (
+              <ul className="space-y-1 text-xs">
+                {stat.topQueries.map((q) => (
+                  <li key={q.query} className="flex items-center justify-between gap-2">
+                    <span className="truncate text-slate-700">{q.query}</span>
+                    <span className="shrink-0 text-slate-500 tabular-nums">pos {q.position.toFixed(1)} · {q.clicks} clk · {q.impressions} impr</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
