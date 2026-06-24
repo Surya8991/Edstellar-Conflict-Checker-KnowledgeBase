@@ -12,6 +12,8 @@ interface Match {
   conflictScore: number;
   conflictType: string;
   rationale: string;
+  overlap?: string[];
+  issue?: string;
 }
 interface CheckResult {
   inputType: string;
@@ -160,6 +162,8 @@ export default function ConflictCheckerPage() {
       conflictScore: ex.conflictScore ?? m.conflictScore,
       conflictType:  ex.conflictType  ?? m.conflictType,
       rationale:     ex.rationale     ?? m.rationale,
+      overlap:       ex.overlap       ?? m.overlap,
+      issue:         ex.issue         ?? m.issue,
     };
   });
 
@@ -444,7 +448,7 @@ function MatchCard({
         </div>
       </div>
 
-      {/* Collapsible summary / rationale */}
+      {/* Collapsible summary — personalised: shared topics, then issue, then rationale. */}
       {hasRationale ? (
         <div className="mt-3 border-t border-slate-100 pt-3">
           <button
@@ -454,10 +458,37 @@ function MatchCard({
             aria-expanded={open}
           >
             <span className={`inline-block transition-transform ${open ? "rotate-90" : ""}`}>▸</span>
-            {open ? "Hide summary" : "Show summary"}
+            {open ? "Hide details" : "Show why this conflicts"}
           </button>
           {open && (
-            <p className="mt-2 text-sm leading-relaxed text-slate-600">{m.rationale}</p>
+            <div className="mt-3 space-y-3">
+              {m.overlap && m.overlap.length > 0 && (
+                <div>
+                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                    Both pages cover
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {m.overlap.map((o) => (
+                      <span
+                        key={o}
+                        className="rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800"
+                      >
+                        {o}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {m.issue && (
+                <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2">
+                  <span className="mt-0.5 text-xs font-bold text-rose-600">⚠</span>
+                  <p className="text-sm leading-snug text-rose-800">{m.issue}</p>
+                </div>
+              )}
+              {m.rationale && (
+                <p className="text-sm leading-relaxed text-slate-600">{m.rationale}</p>
+              )}
+            </div>
           )}
         </div>
       ) : needsReview ? (

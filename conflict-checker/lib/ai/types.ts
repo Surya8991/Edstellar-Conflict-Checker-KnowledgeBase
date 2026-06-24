@@ -15,7 +15,12 @@ export interface ConflictVerdict {
   url: string;
   conflictScore: number; // 0..100
   conflictType: "duplicate" | "cannibalization" | "partial-overlap" | "none";
+  /** One personalised sentence naming the conflicting page. */
   rationale: string;
+  /** 2-4 short phrases (keywords / sub-topics / sections) that BOTH pages cover. */
+  overlap?: string[];
+  /** One blunt sentence on the SEO/UX problem (e.g. "splits ranking for X"). */
+  issue?: string;
 }
 
 export interface SummaryResult {

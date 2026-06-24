@@ -56,6 +56,8 @@ export async function POST(request: NextRequest) {
       conflictScore,
       conflictType,
       rationale: v?.rationale ?? "",
+      overlap: v?.overlap,
+      issue: v?.issue,
     });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });

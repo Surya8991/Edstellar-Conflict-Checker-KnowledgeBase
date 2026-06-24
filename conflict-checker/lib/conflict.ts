@@ -17,6 +17,10 @@ export interface ConflictMatchResult {
   conflictScore: number;
   conflictType: string;
   rationale: string;
+  /** 2-4 short phrases both pages cover (populated by the LLM verdict). */
+  overlap?: string[];
+  /** Plain-language SEO issue summary. */
+  issue?: string;
 }
 
 export interface ConflictCheckResult {
@@ -126,6 +130,8 @@ export async function runConflictCheck(
         conflictScore,
         conflictType,
         rationale: v?.rationale ?? "",
+        overlap: v?.overlap,
+        issue: v?.issue,
       };
     })
     .sort((a, b) => b.conflictScore - a.conflictScore);
