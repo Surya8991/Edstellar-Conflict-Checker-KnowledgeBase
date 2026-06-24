@@ -43,6 +43,7 @@ const TYPE_STYLES: Record<string, string> = {
   cannibalization: "bg-orange-100 text-orange-700",
   "partial-overlap": "bg-amber-100 text-amber-700",
   none: "bg-green-100 text-green-700",
+  "needs-review": "bg-slate-100 text-slate-500",
 };
 
 export function ConflictBadge({ type }: { type: string }) {

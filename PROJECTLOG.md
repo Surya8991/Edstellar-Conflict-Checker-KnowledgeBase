@@ -95,6 +95,66 @@ Conflict Checker/                                ← outer repo root
 
 ---
 
+## 2b. Data flow — where the categorisation on /corpus comes from
+
+When you look at /corpus and see "Course 1,698", "IT & Technical 1,046", or
+"Excellence Program 10", every number traces back to the original mockup HTML.
+The chain in full:
+
+```
+Edstellar_Intelligence_Hub_v2_updated.html
+   │  (embedded JS const ALL_COURSES = [...1,698 courses])
+   │  (embedded JS const ALL_BLOGS   = [...500 blogs])
+   │  (embedded JS const COURSE_TYPE_TAXONOMY = [6 types])
+   ▼
+scripts/extract-taxonomy.py
+   │  one-shot Python: parses each JS literal out of the HTML and
+   │  writes it as JSON. Re-run any time the mockup is updated.
+   ▼
+data/taxonomy/
+   ├── courses.json       (1,698 rows: url, name, type, category, subcategory)
+   ├── blogs.json         (500 rows: url, title, category, matchedCourse)
+   ├── course-types.json  (the 6 types + their child categories)
+   └── …
+   ▼
+lib/taxonomy.ts → tagUrl(url, title?)
+   │  on every URL: looks up in courses.json / blogs.json, derives a
+   │  contentType, courseType, category, subcategory, tags[].
+   │  • /course/<slug>     → contentType="course"            + courseType
+   │  • /blog/<slug>       → contentType="blog"              + category
+   │  • /category/...      → contentType="category"
+   │  • /topic/...         → contentType="subcategory"
+   │  • /*-excellence-programs? → contentType="excellence-program"
+   │  • /corporate-...-training-in-<city> → contentType="location"
+   │  • industry slugs     → contentType="industry"
+   │  • everything else    → contentType="static"
+   ▼
+scripts/ingest.ts  /  scripts/backfill-tags.ts
+   │  writes tagUrl() output to the pages row:
+   │  pages.content_type, pages.course_type, pages.category,
+   │  pages.subcategory, pages.tags[]
+   ▼
+app/api/pages/route.ts
+   │  GROUP BY content_type     → byType        (the cards row)
+   │  GROUP BY course_type      → byCourseType  (the 6 chips)
+   │  GROUP BY category         → topCategories (the top chips)
+   ▼
+app/(dashboard)/corpus/page.tsx
+   │  renders the breakdown + filter chips you see in the screenshot.
+```
+
+**To refresh the taxonomy after the mockup HTML changes** (or to pick up new
+courses added to it):
+
+```bash
+cd conflict-checker
+python scripts/extract-taxonomy.py     # rewrites data/taxonomy/*.json
+npm run backfill:tags                  # re-tags all 2,479 pages, no re-embed
+```
+
+No HTML download required at runtime — the JSON files are committed to
+`conflict-checker/data/taxonomy/`.
+
 ## 3. Data model
 
 `drizzle/*.sql` — idempotent, apply with `npm run db:setup`.
@@ -153,7 +213,66 @@ Conflict Checker/                                ← outer repo root
 - **Corpus UI**: type breakdown cards, color-coded type pills, tag filter
   chips, search, **pagination** (default 50/page; jump first/last/n).
 
-### Session 2 — (this batch, 2026-06-24)
+### Session 3 — 2026-06-24 (planned batches)
+
+**Trigger:** user requested every improvement listed in §5 below + "show ALL
+matching pages on Conflict Checker, not just 10, with pagination." Work is
+broken into batches; each batch ships, gets pushed, then the next starts.
+
+**Batch 1 — Conflict Checker: show all matches**
+- `lib/conflict.ts` — new params `vectorLimit` (default 100), `classifyLimit`
+  (default 15), `minSimilarity` (default 0.30). Returns every page above the
+  similarity threshold; the top `classifyLimit` get the full LLM
+  classification (cost-bounded), the rest get a similarity-derived score
+  with `conflictType="needs-review"` and no rationale.
+- `/api/check` accepts the new params.
+- Conflict Checker UI: count headline ("47 pages with conflict ≥ 30%"),
+  paginate the match list, threshold + sort filters, lazy "Explain" button
+  on un-classified matches that calls a new `/api/check/classify-one`.
+
+**Batch 2 — Save & compare drafts** (user-requested last session)
+- New `draft_snapshots` table; "Save snapshot" + "Compare" in Conflict
+  Checker; diff view of score deltas per match.
+
+**Batch 3 — Auth + cross-cutting**
+- NextAuth + Google SSO restricted to @edstellar.com
+- Rate-limit `/api/check` (Groq free-tier headroom)
+- `route_errors` table for any 500 from API routes
+
+**Batch 4 — Corpus depth**
+- Inline GSC stats + health score columns on the Corpus row
+- CSV export of current view
+- Sortable columns, semantic search, "new since" filter
+- Sitemap-drift report
+
+**Batch 5 — Internal Links + Conflict Checker: paragraph-level**
+- Embed each paragraph; surface "paragraph N could link to X"
+- Type filter, same-section exclusion
+- Reverse view (who should link to this page?)
+
+**Batch 6 — Search Console depth**
+- Custom date range picker + compare-two-ranges
+- Branded/non-branded as separate trend lines
+- Persist Index Coverage results (gsc_inspections table)
+- Click-stale → prefill Conflict Checker
+
+**Batch 7 — Audit + Catalog Conflicts depth**
+- Trigger broken-link scan from UI
+- Health-score breakdown (show contributing factors)
+- Bulk LLM title/meta rewrite
+- Catalog Conflicts: recompute button, merge recommendation, GSC
+  cannibalization cross-reference
+
+**Batch 8 — Competitors + AI**
+- Show our matching URL when Edstellar is in the SERP
+- Batch freshness, "topics from GSC", saved competitor list
+- Cost & tokens shown per check; prompt version tag; LLM cache
+
+**Batch 9 — Cluster view UI + History polish**
+- Surface `pages.cluster_id` as a browsable view
+- History: CSV export, delete, annotate, mark "published date"
+
+### Session 2 — 2026-06-24
 - **Bulk Conflict Check** — paste lines or upload CSV, run all checks
   concurrently, download verdicts as CSV.
 - **Pre-publish webhook** — `/api/check` documented; optional API-key auth via

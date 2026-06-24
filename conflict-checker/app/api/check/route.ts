@@ -29,9 +29,13 @@ export async function POST(request: NextRequest) {
     if (!input) {
       return NextResponse.json({ error: "Missing 'input'." }, { status: 400 });
     }
-    const limit = Number(body.limit) || 10;
+    const vectorLimit  = Number(body.vectorLimit)  || Number(body.limit) || 100;
+    const classifyLimit = Number(body.classifyLimit) || 15;
+    const minSimilarity = body.minSimilarity != null ? Number(body.minSimilarity) : 0.30;
     const result = await runConflictCheck(input, {
-      limit,
+      vectorLimit,
+      classifyLimit,
+      minSimilarity,
       createdBy: body.createdBy ?? null,
     });
     // verdict helper for webhook consumers
