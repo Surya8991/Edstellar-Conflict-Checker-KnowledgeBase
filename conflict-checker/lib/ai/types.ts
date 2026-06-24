@@ -15,13 +15,21 @@ export interface ConflictVerdict {
   url: string;
   conflictScore: number; // 0..100
   conflictType: "duplicate" | "cannibalization" | "partial-overlap" | "none";
+  /** One personalised sentence naming the conflicting page. */
   rationale: string;
+  /** 2-4 short phrases (keywords / sub-topics / sections) that BOTH pages cover. */
+  overlap?: string[];
+  /** One blunt sentence on the SEO/UX problem (e.g. "splits ranking for X"). */
+  issue?: string;
 }
 
 export interface SummaryResult {
   summary: string;
   keywords: string[];
   searchSynopsis: string; // dense text used for embedding/search
+  /** The single 4-8 word SEO query this page targets — used for SERP lookups.
+   *  Far more useful than keywords[0], which is usually too short/generic. */
+  primaryQuery?: string;
 }
 
 export interface ChatProvider {

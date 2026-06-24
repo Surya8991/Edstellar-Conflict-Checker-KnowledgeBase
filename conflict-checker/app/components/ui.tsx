@@ -43,6 +43,7 @@ const TYPE_STYLES: Record<string, string> = {
   cannibalization: "bg-orange-100 text-orange-700",
   "partial-overlap": "bg-amber-100 text-amber-700",
   none: "bg-green-100 text-green-700",
+  "needs-review": "bg-slate-100 text-slate-500",
 };
 
 export function ConflictBadge({ type }: { type: string }) {
@@ -53,6 +54,37 @@ export function ConflictBadge({ type }: { type: string }) {
       }`}
     >
       {type}
+    </span>
+  );
+}
+
+/** Color palette for `pages.content_type` values. Single source of truth —
+ *  reused by Corpus, Conflict Checker, and any other view that surfaces a type. */
+export const TYPE_COLORS: Record<string, string> = {
+  course:               "bg-indigo-100 text-indigo-700",
+  blog:                 "bg-emerald-100 text-emerald-700",
+  category:             "bg-amber-100 text-amber-700",
+  subcategory:          "bg-orange-100 text-orange-700",
+  location:             "bg-fuchsia-100 text-fuchsia-700",
+  "excellence-program": "bg-purple-100 text-purple-700",
+  pillar:               "bg-purple-100 text-purple-700",
+  home:                 "bg-slate-200 text-slate-700",
+  static:               "bg-slate-100 text-slate-600",
+};
+
+export function TypeChip({
+  type,
+  size = "sm",
+}: {
+  type: string | null | undefined;
+  size?: "xs" | "sm";
+}) {
+  if (!type) return null;
+  const cls = TYPE_COLORS[type] ?? "bg-slate-100 text-slate-600";
+  const sz = size === "xs" ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-0.5 text-xs";
+  return (
+    <span className={`inline-flex rounded font-medium capitalize ${sz} ${cls}`}>
+      {type.replace("-", " ")}
     </span>
   );
 }
