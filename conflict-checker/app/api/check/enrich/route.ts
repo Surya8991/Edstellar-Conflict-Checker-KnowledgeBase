@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { pageStatsBatch } from "@/lib/gsc-page-stats";
+import { pageStatsBatch, queryStats } from "@/lib/gsc-page-stats";
 import { serpOverlap } from "@/lib/competitors-extra";
 
 export const runtime = "nodejs";
@@ -40,11 +40,30 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. SERP overlap for the topic (one Serper call) — gives us competitor refs.
+    //    Also pulls Edstellar's own GSC rank for that exact keyword so we can
+    //    show our current position vs the competitors in the SERP table.
     let serp: any = null;
+    let ourRank: any = null;
     let gap: string[] = [];
     if (withSerp && topic) {
       try {
-        serp = await serpOverlap(topic);
+        const [serpRes, qStats] = await Promise.all([
+          serpOverlap(topic),
+          queryStats(topic, 1).catch(() => null),
+        ]);
+        serp = serpRes;
+        if (qStats) {
+          ourRank = {
+            query: qStats.query,
+            position6m:  qStats.m6.position,
+            clicks6m:    qStats.m6.clicks,
+            impressions6m: qStats.m6.impressions,
+            position12m: qStats.m12.position,
+            clicks12m:   qStats.m12.clicks,
+            impressions12m: qStats.m12.impressions,
+            topPage: qStats.topPages?.[0] ?? null,
+          };
+        }
         // Keyword gap: queries our existing pages rank for (from topQueries)
         //   vs keywords mentioned in the SERP titles. Very rough but useful.
         const ourQueries = new Set(
@@ -69,7 +88,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ stats, serp, gap });
+    return NextResponse.json({ stats, serp, gap, ourRank });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
