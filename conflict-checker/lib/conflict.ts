@@ -33,18 +33,42 @@ function isUrl(value: string): boolean {
   return /^https?:\/\//i.test(value.trim());
 }
 
+export interface ConflictCheckOpts {
+  /** How many vector candidates to fetch from pgvector. Default 100. */
+  vectorLimit?: number;
+  /** How many of those to send to the LLM for full classification. Default 15. */
+  classifyLimit?: number;
+  /** Drop matches below this cosine similarity. 0..1, default 0.30. */
+  minSimilarity?: number;
+  createdBy?: string;
+  persist?: boolean;
+  /** Legacy alias for vectorLimit (older callers). */
+  limit?: number;
+}
+
 /**
  * The headline flow: summarize a URL/topic, embed it, vector-search the corpus,
- * have the LLM classify each shortlisted page, blend scores, and persist.
+ * LLM-classify the top N, and persist.
+ *
+ * Why two limits? Cost. `vectorLimit` is how many candidates we *return* (cheap:
+ * one pgvector query). `classifyLimit` is how many we ask the LLM to explain
+ * (expensive: 1 chat call total but token-bounded by N).
+ * Matches between classifyLimit+1 and vectorLimit get a similarity-derived
+ * score, conflict_type="needs-review", and an empty rationale. The UI can call
+ * /api/check/classify-one to fill them in lazily.
  */
 export async function runConflictCheck(
   rawInput: string,
-  opts: { limit?: number; createdBy?: string; persist?: boolean } = {},
+  opts: ConflictCheckOpts = {},
 ): Promise<ConflictCheckResult> {
   const input = rawInput.trim();
   const inputType: "url" | "topic" = isUrl(input) ? "url" : "topic";
   const chat = getChat();
   const embedder = getEmbedder();
+
+  const vectorLimit  = opts.vectorLimit ?? opts.limit ?? 100;
+  const classifyLimit = Math.min(opts.classifyLimit ?? 15, vectorLimit);
+  const minSimilarity = opts.minSimilarity ?? 0.30;
 
   // 1. Build a summary + dense search synopsis.
   let summaryResult: SummaryResult;
@@ -63,15 +87,18 @@ export async function runConflictCheck(
   const embedText = `${summaryResult.searchSynopsis}\n${summaryResult.keywords.join(", ")}`;
   const [embedding] = await embedder.embed([embedText]);
   const nearest = await vectorSearchPages(embedding, {
-    limit: opts.limit ?? 10,
+    limit: vectorLimit,
     excludeUrl: inputType === "url" ? input : undefined,
   });
+  // Drop matches below the threshold — keeps the UI signal-to-noise sane.
+  const meaningful = nearest.filter((m) => m.similarity >= minSimilarity);
 
-  // 3. LLM judges each shortlisted page.
-  const verdicts = nearest.length
+  // 3. LLM judges only the top `classifyLimit` (cost control).
+  const toClassify = meaningful.slice(0, classifyLimit);
+  const verdicts = toClassify.length
     ? await chat.classifyConflicts({
         candidateSummary: `${summaryResult.summary}\n${summaryResult.searchSynopsis}`,
-        matches: nearest.map((m) => ({
+        matches: toClassify.map((m) => ({
           url: m.url,
           title: m.title,
           snippet: m.snippet,
@@ -81,13 +108,16 @@ export async function runConflictCheck(
     : [];
   const verdictByUrl = new Map(verdicts.map((v) => [v.url, v]));
 
-  // 4. Blend vector + LLM scores.
-  const matches: ConflictMatchResult[] = nearest
+  // 4. Blend vector + LLM scores. Un-classified matches get
+  //    a similarity-derived score and conflictType="needs-review".
+  const matches: ConflictMatchResult[] = meaningful
     .map((m) => {
       const base = similarityToBaseScore(m.similarity);
       const v = verdictByUrl.get(m.url);
       const conflictScore = blendScore(base, v?.conflictScore);
-      const conflictType = v?.conflictType ?? conflictTypeFromScore(conflictScore);
+      const conflictType = v
+        ? (v.conflictType ?? conflictTypeFromScore(conflictScore))
+        : "needs-review";
       return {
         url: m.url,
         title: m.title,

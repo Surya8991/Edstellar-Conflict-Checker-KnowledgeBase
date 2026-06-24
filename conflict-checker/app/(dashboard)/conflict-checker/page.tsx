@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { PageHeader, Card, ConflictBadge, ScoreBar } from "@/app/components/ui";
+import { Pagination } from "@/app/components/Pagination";
 
 interface Match {
   url: string;
@@ -49,6 +50,18 @@ export default function ConflictCheckerPage() {
   const [typeFilter, setTypeFilter] = useState<string>("");
   const [sortBy, setSortBy] = useState<"score" | "similarity">("score");
 
+  // Pagination — needed because runs can return 100+ matches.
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [hideNeedsReview, setHideNeedsReview] = useState(false);
+
+  // Lazy on-demand explanation cache: { [url]: {score, type, rationale, loading?} }
+  const [explained, setExplained] = useState<Record<string, any>>({});
+
+  // Deep-scan controls — let the user widen the net (more candidates / lower threshold).
+  const [vectorLimit, setVectorLimit] = useState(100);
+  const [minSimilarity, setMinSimilarity] = useState(0.30);
+
   // New-content suggestions panel (on-demand).
   const [suggesting, setSuggesting] = useState(false);
   const [suggestions, setSuggestions] = useState<any>(null);
@@ -57,11 +70,12 @@ export default function ConflictCheckerPage() {
     e.preventDefault();
     if (!input.trim()) return;
     setLoading(true); setError(null); setResult(null); setEnrich(null); setSuggestions(null);
+    setExplained({}); setPage(1);
     try {
       const res = await fetch("/api/check", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ input }),
+        body: JSON.stringify({ input, vectorLimit, minSimilarity }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Check failed");
@@ -70,6 +84,26 @@ export default function ConflictCheckerPage() {
       setError((err as Error).message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Lazy: ask the LLM to explain a single match that the initial run skipped.
+  async function explain(url: string, title: string | null, similarity: number) {
+    if (!result || explained[url]?.loading) return;
+    setExplained((e) => ({ ...e, [url]: { ...(e[url] ?? {}), loading: true } }));
+    try {
+      const res = await fetch("/api/check/classify-one", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          url, title, similarity,
+          candidateSummary: `${result.summary}\nKeywords: ${result.keywords.join(", ")}`,
+        }),
+      });
+      const json = await res.json();
+      setExplained((e) => ({ ...e, [url]: { ...json, loading: false } }));
+    } catch (err) {
+      setExplained((e) => ({ ...e, [url]: { error: (err as Error).message, loading: false } }));
     }
   }
 
@@ -117,19 +151,41 @@ export default function ConflictCheckerPage() {
     }
   }
 
+  // Merge in lazily-fetched explanations.
+  const mergedMatches = (result?.matches ?? []).map((m) => {
+    const ex = explained[m.url];
+    if (!ex || ex.loading || ex.error) return m;
+    return {
+      ...m,
+      conflictScore: ex.conflictScore ?? m.conflictScore,
+      conflictType:  ex.conflictType  ?? m.conflictType,
+      rationale:     ex.rationale     ?? m.rationale,
+    };
+  });
+
   // Apply filters / sort to the match list.
-  const filtered = result?.matches
+  const filtered = mergedMatches
     .filter((m) => m.conflictScore >= scoreMin)
     .filter((m) => !typeFilter || m.contentType === typeFilter)
+    .filter((m) => !hideNeedsReview || m.conflictType !== "needs-review")
     .slice()
     .sort((a, b) =>
       sortBy === "score" ? b.conflictScore - a.conflictScore : b.similarity - a.similarity,
-    ) ?? [];
+    );
+
+  // Reset page when filters change.
+  useEffect(() => { setPage(1) }, [scoreMin, typeFilter, sortBy, hideNeedsReview]);
+
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   // Distinct content types present in current matches (for the chip filter).
   const typesInResult = Array.from(
     new Set(result?.matches.map((m) => m.contentType).filter(Boolean) as string[]),
   );
+
+  // How many got LLM rationale vs needs-review.
+  const explainedCount = mergedMatches.filter((m) => m.conflictType !== "needs-review").length;
+  const reviewCount    = mergedMatches.filter((m) => m.conflictType === "needs-review").length;
 
   const statByUrl = new Map<string, PageStat>();
   for (const s of enrich?.stats ?? []) statByUrl.set(s.url, s);
@@ -141,17 +197,35 @@ export default function ConflictCheckerPage() {
         subtitle="Paste a URL or a topic. We summarize it, score it (0–100%), and enrich each match with GSC + competitor data."
       />
       <div className="p-8 space-y-6">
-        <form onSubmit={run} className="flex gap-3">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="https://www.edstellar.com/blog/...  or  a topic like 'procurement management training'"
-            className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-slate-900"
-          />
-          <button type="submit" disabled={loading}
-            className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50">
-            {loading ? "Checking…" : "Check"}
-          </button>
+        <form onSubmit={run} className="space-y-3">
+          <div className="flex gap-3">
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="https://www.edstellar.com/blog/...  or  a topic like 'procurement management training'"
+              className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-slate-900"
+            />
+            <button type="submit" disabled={loading}
+              className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50">
+              {loading ? "Checking…" : "Check"}
+            </button>
+          </div>
+          {/* Deep-scan controls */}
+          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+            <label className="flex items-center gap-2">
+              Scan
+              <select value={vectorLimit} onChange={(e) => setVectorLimit(Number(e.target.value))} className="rounded border border-slate-300 bg-white px-2 py-1 text-xs">
+                {[25, 50, 100, 200, 500].map((n) => <option key={n} value={n}>{n} candidates</option>)}
+              </select>
+            </label>
+            <label className="flex items-center gap-2">
+              Min similarity
+              <input type="range" min={0} max={0.9} step={0.05} value={minSimilarity}
+                onChange={(e) => setMinSimilarity(Number(e.target.value))} className="w-32" />
+              <span className="w-12 tabular-nums text-slate-700">{(minSimilarity * 100).toFixed(0)}%</span>
+            </label>
+            <span className="text-slate-400">Lower threshold = more matches returned (slower, more noise).</span>
+          </div>
         </form>
 
         {error && <Card className="border-red-200 bg-red-50 text-sm text-red-700">{error}</Card>}
@@ -178,14 +252,14 @@ export default function ConflictCheckerPage() {
               )}
             </Card>
 
-            {/* Filters */}
-            {result.matches.length > 1 && (
+            {/* Filters — visible when there's anything to filter */}
+            {result.matches.length > 0 && (
               <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-slate-500">Filter:</span>
+                <span className="text-slate-500">Type:</span>
                 <button
                   onClick={() => setTypeFilter("")}
                   className={`rounded px-2 py-1 ${typeFilter === "" ? "bg-slate-900 text-white" : "border border-slate-300 bg-white text-slate-600"}`}
-                >all types</button>
+                >all</button>
                 {typesInResult.map((t) => (
                   <button key={t} onClick={() => setTypeFilter(typeFilter === t ? "" : t)}
                     className={`rounded px-2 py-1 capitalize ${typeFilter === t ? "bg-slate-900 text-white" : "border border-slate-300 bg-white text-slate-600"}`}>
@@ -194,7 +268,11 @@ export default function ConflictCheckerPage() {
                 ))}
                 <span className="ml-2 text-slate-500">Min score:</span>
                 <input type="range" min={0} max={100} value={scoreMin} onChange={(e) => setScoreMin(Number(e.target.value))} className="w-32" />
-                <span className="tabular-nums text-slate-600">{scoreMin}%</span>
+                <span className="w-10 tabular-nums text-slate-600">{scoreMin}%</span>
+                <label className="ml-2 flex items-center gap-1 text-slate-600">
+                  <input type="checkbox" checked={hideNeedsReview} onChange={(e) => setHideNeedsReview(e.target.checked)} />
+                  hide needs-review
+                </label>
                 <span className="ml-2 text-slate-500">Sort:</span>
                 <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} className="rounded border border-slate-300 bg-white px-2 py-1">
                   <option value="score">by score</option>
@@ -205,18 +283,44 @@ export default function ConflictCheckerPage() {
             )}
 
             <div>
-              <h2 className="mb-3 text-sm font-semibold text-slate-900">
-                Most similar existing pages
-                {enriching && <span className="ml-2 text-xs font-normal text-slate-400">· fetching GSC + competitor data…</span>}
+              <h2 className="mb-3 flex flex-wrap items-baseline gap-x-3 text-sm font-semibold text-slate-900">
+                <span>{result.matches.length} pages with conflict ≥ {Math.round(minSimilarity * 100)}%</span>
+                <span className="text-xs font-normal text-slate-500">
+                  · {explainedCount} explained by LLM · {reviewCount} pending (click "Explain")
+                </span>
+                {enriching && (
+                  <span className="text-xs font-normal text-slate-400">· fetching GSC + competitor data…</span>
+                )}
               </h2>
               {filtered.length === 0 ? (
-                <Card className="text-sm text-slate-500">No matches at current filter.</Card>
+                <Card className="text-sm text-slate-500">
+                  No matches at current filter. Try lowering Min score or Min similarity.
+                </Card>
               ) : (
-                <div className="space-y-3">
-                  {filtered.map((m) => (
-                    <MatchCard key={m.url} m={m} stat={statByUrl.get(m.url)} />
-                  ))}
-                </div>
+                <>
+                  <div className="space-y-3">
+                    {paginated.map((m) => (
+                      <MatchCard
+                        key={m.url}
+                        m={m}
+                        stat={statByUrl.get(m.url)}
+                        explainState={explained[m.url]}
+                        onExplain={() => explain(m.url, m.title, m.similarity)}
+                      />
+                    ))}
+                  </div>
+                  <div className="mt-4">
+                    <Pagination
+                      page={page}
+                      pageSize={pageSize}
+                      total={filtered.length}
+                      onJump={setPage}
+                      onPageSize={setPageSize}
+                      pageSizes={[10, 25, 50, 100]}
+                      unit="matches"
+                    />
+                  </div>
+                </>
               )}
             </div>
 
@@ -298,7 +402,15 @@ export default function ConflictCheckerPage() {
   );
 }
 
-function MatchCard({ m, stat }: { m: Match; stat?: PageStat }) {
+function MatchCard({
+  m, stat, explainState, onExplain,
+}: {
+  m: Match;
+  stat?: PageStat;
+  explainState?: { loading?: boolean; error?: string; rationale?: string };
+  onExplain?: () => void;
+}) {
+  const needsReview = m.conflictType === "needs-review";
   return (
     <Card>
       <div className="flex items-start justify-between gap-4">
@@ -313,9 +425,23 @@ function MatchCard({ m, stat }: { m: Match; stat?: PageStat }) {
           <ConflictBadge type={m.conflictType} />
         </div>
       </div>
-      {m.rationale && (
+      {m.rationale ? (
         <p className="mt-3 border-t border-slate-100 pt-3 text-sm text-slate-600">{m.rationale}</p>
-      )}
+      ) : needsReview ? (
+        <div className="mt-3 border-t border-slate-100 pt-3">
+          {explainState?.error ? (
+            <div className="text-xs text-red-600">{explainState.error}</div>
+          ) : (
+            <button
+              onClick={onExplain}
+              disabled={explainState?.loading}
+              className="rounded border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              {explainState?.loading ? "Asking LLM…" : "Explain this match"}
+            </button>
+          )}
+        </div>
+      ) : null}
       <div className="mt-2 text-xs text-slate-400">
         vector similarity {(m.similarity * 100).toFixed(1)}%
         {m.contentType ? ` · ${m.contentType}` : ""}
