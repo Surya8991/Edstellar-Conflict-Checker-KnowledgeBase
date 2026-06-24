@@ -29,6 +29,7 @@ interface PageStat {
   m6:  { clicks: number; impressions: number; ctr: number; position: number };
   m12: { clicks: number; impressions: number; ctr: number; position: number };
   topQueries: { query: string; clicks: number; impressions: number; ctr: number; position: number }[];
+  potentialQueries?: { query: string; clicks: number; impressions: number; ctr: number; position: number }[];
 }
 interface EnrichData {
   stats: PageStat[];
@@ -48,7 +49,7 @@ export default function ConflictCheckerPage() {
   const [enriching, setEnriching] = useState(false);
 
   // Filters for the match list.
-  const [scoreMin, setScoreMin] = useState(0);
+  const [scoreMin, setScoreMin] = useState(80);
   const [typeFilter, setTypeFilter] = useState<string>("");
   const [sortBy, setSortBy] = useState<"score" | "similarity">("score");
 
@@ -60,9 +61,10 @@ export default function ConflictCheckerPage() {
   // Lazy on-demand explanation cache: { [url]: {score, type, rationale, loading?} }
   const [explained, setExplained] = useState<Record<string, any>>({});
 
-  // Deep-scan controls — let the user widen the net (more candidates / lower threshold).
+  // Deep-scan control — how many corpus candidates the vector search retrieves.
+  // (Server-side similarity threshold stays at 0 here; the Min score slider
+  //  in the filter row is the single user-facing cut-off.)
   const [vectorLimit, setVectorLimit] = useState(100);
-  const [minSimilarity, setMinSimilarity] = useState(0.30);
 
   // New-content suggestions panel (on-demand).
   const [suggesting, setSuggesting] = useState(false);
@@ -77,7 +79,7 @@ export default function ConflictCheckerPage() {
       const res = await fetch("/api/check", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ input, vectorLimit, minSimilarity }),
+        body: JSON.stringify({ input, vectorLimit, minSimilarity: 0 }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Check failed");
@@ -214,7 +216,7 @@ export default function ConflictCheckerPage() {
               {loading ? "Checking…" : "Check"}
             </button>
           </div>
-          {/* Deep-scan controls */}
+          {/* Deep-scan control */}
           <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
             <label className="flex items-center gap-2">
               Scan
@@ -222,13 +224,9 @@ export default function ConflictCheckerPage() {
                 {[25, 50, 100, 200, 500].map((n) => <option key={n} value={n}>{n} candidates</option>)}
               </select>
             </label>
-            <label className="flex items-center gap-2">
-              Min similarity
-              <input type="range" min={0} max={0.9} step={0.05} value={minSimilarity}
-                onChange={(e) => setMinSimilarity(Number(e.target.value))} className="w-32" />
-              <span className="w-12 tabular-nums text-slate-700">{(minSimilarity * 100).toFixed(0)}%</span>
-            </label>
-            <span className="text-slate-400">Lower threshold = more matches returned (slower, more noise).</span>
+            <span className="text-slate-400">
+              More candidates = wider search. Use the <strong>Min score</strong> filter below to cut noise.
+            </span>
           </div>
         </form>
 
@@ -338,9 +336,9 @@ export default function ConflictCheckerPage() {
 
             <div>
               <h2 className="mb-3 flex flex-wrap items-baseline gap-x-3 text-sm font-semibold text-slate-900">
-                <span>{result.matches.length} pages with conflict ≥ {Math.round(minSimilarity * 100)}%</span>
+                <span>{filtered.length} pages with conflict ≥ {scoreMin}%</span>
                 <span className="text-xs font-normal text-slate-500">
-                  · {explainedCount} explained by LLM · {reviewCount} pending (click "Explain")
+                  · of {result.matches.length} total · {explainedCount} explained by LLM · {reviewCount} pending (click "Explain")
                 </span>
                 {enriching && (
                   <span className="text-xs font-normal text-slate-400">· fetching GSC + competitor data…</span>
@@ -448,7 +446,66 @@ function MatchCard({
         </div>
       </div>
 
-      {/* Collapsible summary — personalised: shared topics, then issue, then rationale. */}
+      <div className="mt-2 text-xs text-slate-400">
+        vector similarity {(m.similarity * 100).toFixed(1)}%
+      </div>
+
+      {/* GSC enrichment */}
+      {stat && (
+        <div className="mt-3 grid grid-cols-1 gap-4 border-t border-slate-100 pt-3 lg:grid-cols-3">
+          <div>
+            <div className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Last 6 months · Last 12 months</div>
+            <table className="w-full text-xs">
+              <thead><tr className="text-slate-400">
+                <th className="text-left font-medium"></th>
+                <th className="pr-2 text-right font-medium">6m</th>
+                <th className="text-right font-medium">12m</th>
+              </tr></thead>
+              <tbody className="text-slate-700">
+                <tr><td>Clicks</td><td className="pr-2 text-right tabular-nums">{stat.m6.clicks}</td><td className="text-right tabular-nums">{stat.m12.clicks}</td></tr>
+                <tr><td>Impressions</td><td className="pr-2 text-right tabular-nums">{stat.m6.impressions.toLocaleString()}</td><td className="text-right tabular-nums">{stat.m12.impressions.toLocaleString()}</td></tr>
+                <tr><td>CTR</td><td className="pr-2 text-right tabular-nums">{(stat.m6.ctr*100).toFixed(2)}%</td><td className="text-right tabular-nums">{(stat.m12.ctr*100).toFixed(2)}%</td></tr>
+                <tr><td>Avg pos</td><td className="pr-2 text-right tabular-nums">{stat.m6.position.toFixed(1)}</td><td className="text-right tabular-nums">{stat.m12.position.toFixed(1)}</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <div className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Top 3 ranking keywords</div>
+            {stat.topQueries.length === 0 ? (
+              <div className="text-xs text-slate-400">No GSC data for this URL.</div>
+            ) : (
+              <ul className="space-y-1 text-xs">
+                {stat.topQueries.map((q) => (
+                  <li key={q.query} className="flex items-center justify-between gap-2">
+                    <span className="truncate text-slate-700">{q.query}</span>
+                    <span className="shrink-0 text-slate-500 tabular-nums">pos {q.position.toFixed(1)} · {q.clicks} clk · {q.impressions} impr</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div>
+            <div className="mb-1 flex items-center gap-1 text-xs font-medium uppercase tracking-wider text-emerald-700">
+              Potential ranking keywords
+              <span className="rounded bg-emerald-100 px-1 py-0.5 text-[9px] font-bold normal-case text-emerald-700">pos 11–30</span>
+            </div>
+            {(!stat.potentialQueries || stat.potentialQueries.length === 0) ? (
+              <div className="text-xs text-slate-400">No striking-distance opportunities yet.</div>
+            ) : (
+              <ul className="space-y-1 text-xs">
+                {stat.potentialQueries.map((q) => (
+                  <li key={q.query} className="flex items-center justify-between gap-2">
+                    <span className="truncate text-slate-700">{q.query}</span>
+                    <span className="shrink-0 text-emerald-700 tabular-nums">pos {q.position.toFixed(1)} · {q.impressions} impr</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Collapsible personalised summary — at the bottom so stats stay above the fold. */}
       {hasRationale ? (
         <div className="mt-3 border-t border-slate-100 pt-3">
           <button
@@ -506,47 +563,6 @@ function MatchCard({
           )}
         </div>
       ) : null}
-
-      <div className="mt-2 text-xs text-slate-400">
-        vector similarity {(m.similarity * 100).toFixed(1)}%
-      </div>
-
-      {/* GSC enrichment */}
-      {stat && (
-        <div className="mt-3 grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 md:grid-cols-2">
-          <div>
-            <div className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Last 6 months · Last 12 months</div>
-            <table className="w-full text-xs">
-              <thead><tr className="text-slate-400">
-                <th className="text-left font-medium"></th>
-                <th className="pr-2 text-right font-medium">6m</th>
-                <th className="text-right font-medium">12m</th>
-              </tr></thead>
-              <tbody className="text-slate-700">
-                <tr><td>Clicks</td><td className="pr-2 text-right tabular-nums">{stat.m6.clicks}</td><td className="text-right tabular-nums">{stat.m12.clicks}</td></tr>
-                <tr><td>Impressions</td><td className="pr-2 text-right tabular-nums">{stat.m6.impressions.toLocaleString()}</td><td className="text-right tabular-nums">{stat.m12.impressions.toLocaleString()}</td></tr>
-                <tr><td>CTR</td><td className="pr-2 text-right tabular-nums">{(stat.m6.ctr*100).toFixed(2)}%</td><td className="text-right tabular-nums">{(stat.m12.ctr*100).toFixed(2)}%</td></tr>
-                <tr><td>Avg pos</td><td className="pr-2 text-right tabular-nums">{stat.m6.position.toFixed(1)}</td><td className="text-right tabular-nums">{stat.m12.position.toFixed(1)}</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <div>
-            <div className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Top 3 ranking keywords</div>
-            {stat.topQueries.length === 0 ? (
-              <div className="text-xs text-slate-400">No GSC data for this URL.</div>
-            ) : (
-              <ul className="space-y-1 text-xs">
-                {stat.topQueries.map((q) => (
-                  <li key={q.query} className="flex items-center justify-between gap-2">
-                    <span className="truncate text-slate-700">{q.query}</span>
-                    <span className="shrink-0 text-slate-500 tabular-nums">pos {q.position.toFixed(1)} · {q.clicks} clk · {q.impressions} impr</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      )}
     </Card>
   );
 }
