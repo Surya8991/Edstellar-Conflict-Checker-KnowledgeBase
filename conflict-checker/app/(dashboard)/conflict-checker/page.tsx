@@ -416,6 +416,61 @@ export default function ConflictCheckerPage() {
   );
 }
 
+function KeywordList({
+  label,
+  badge,
+  accent,
+  empty,
+  rows,
+  showClicks,
+}: {
+  label: string;
+  badge?: string;
+  accent: "slate" | "emerald";
+  empty: string;
+  rows: { query: string; clicks: number; impressions: number; position: number }[];
+  showClicks?: boolean;
+}) {
+  const headerColor = accent === "emerald" ? "text-emerald-700" : "text-slate-500";
+  const metricColor = accent === "emerald" ? "text-emerald-700" : "text-slate-500";
+  const badgeColor =
+    accent === "emerald"
+      ? "bg-emerald-100 text-emerald-700"
+      : "bg-slate-100 text-slate-600";
+  return (
+    <div>
+      <div className={`mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider ${headerColor}`}>
+        <span>{label}</span>
+        {badge && (
+          <span className={`rounded px-1 py-0.5 text-[9px] font-bold normal-case ${badgeColor}`}>
+            {badge}
+          </span>
+        )}
+      </div>
+      {rows.length === 0 ? (
+        <div className="text-xs text-slate-400">{empty}</div>
+      ) : (
+        <ul className="divide-y divide-slate-100 text-xs">
+          {rows.map((q) => (
+            <li
+              key={q.query}
+              className="grid grid-cols-1 gap-x-3 py-1 sm:grid-cols-[1fr_auto] sm:items-baseline"
+            >
+              <span className="break-words text-slate-700">{q.query}</span>
+              <span className={`tabular-nums text-[11px] ${metricColor}`}>
+                pos {q.position.toFixed(1)}
+                {showClicks ? ` · ${q.clicks} clk` : ""}
+                {" · "}
+                {q.impressions.toLocaleString()} impr
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function MatchCard({
   m, stat, explainState, onExplain,
 }: {
@@ -450,57 +505,43 @@ function MatchCard({
         vector similarity {(m.similarity * 100).toFixed(1)}%
       </div>
 
-      {/* GSC enrichment */}
+      {/* GSC enrichment — two columns: compact stats on the left, keyword
+          lists stacked on the right so long queries can wrap without
+          clipping the position/impressions metrics.                       */}
       {stat && (
-        <div className="mt-3 grid grid-cols-1 gap-4 border-t border-slate-100 pt-3 lg:grid-cols-3">
-          <div>
-            <div className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Last 6 months · Last 12 months</div>
+        <div className="mt-3 grid grid-cols-1 gap-5 border-t border-slate-100 pt-3 lg:grid-cols-[minmax(180px,220px)_1fr]">
+          <div className="rounded-lg bg-slate-50 p-3">
+            <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">GSC performance</div>
             <table className="w-full text-xs">
               <thead><tr className="text-slate-400">
                 <th className="text-left font-medium"></th>
-                <th className="pr-2 text-right font-medium">6m</th>
+                <th className="px-2 text-right font-medium">6m</th>
                 <th className="text-right font-medium">12m</th>
               </tr></thead>
               <tbody className="text-slate-700">
-                <tr><td>Clicks</td><td className="pr-2 text-right tabular-nums">{stat.m6.clicks}</td><td className="text-right tabular-nums">{stat.m12.clicks}</td></tr>
-                <tr><td>Impressions</td><td className="pr-2 text-right tabular-nums">{stat.m6.impressions.toLocaleString()}</td><td className="text-right tabular-nums">{stat.m12.impressions.toLocaleString()}</td></tr>
-                <tr><td>CTR</td><td className="pr-2 text-right tabular-nums">{(stat.m6.ctr*100).toFixed(2)}%</td><td className="text-right tabular-nums">{(stat.m12.ctr*100).toFixed(2)}%</td></tr>
-                <tr><td>Avg pos</td><td className="pr-2 text-right tabular-nums">{stat.m6.position.toFixed(1)}</td><td className="text-right tabular-nums">{stat.m12.position.toFixed(1)}</td></tr>
+                <tr><td className="py-0.5">Clicks</td><td className="px-2 py-0.5 text-right tabular-nums font-medium">{stat.m6.clicks}</td><td className="py-0.5 text-right tabular-nums font-medium">{stat.m12.clicks}</td></tr>
+                <tr><td className="py-0.5">Impr</td><td className="px-2 py-0.5 text-right tabular-nums">{stat.m6.impressions.toLocaleString()}</td><td className="py-0.5 text-right tabular-nums">{stat.m12.impressions.toLocaleString()}</td></tr>
+                <tr><td className="py-0.5">CTR</td><td className="px-2 py-0.5 text-right tabular-nums">{(stat.m6.ctr*100).toFixed(2)}%</td><td className="py-0.5 text-right tabular-nums">{(stat.m12.ctr*100).toFixed(2)}%</td></tr>
+                <tr><td className="py-0.5">Avg pos</td><td className="px-2 py-0.5 text-right tabular-nums">{stat.m6.position.toFixed(1)}</td><td className="py-0.5 text-right tabular-nums">{stat.m12.position.toFixed(1)}</td></tr>
               </tbody>
             </table>
           </div>
-          <div>
-            <div className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Top 3 ranking keywords</div>
-            {stat.topQueries.length === 0 ? (
-              <div className="text-xs text-slate-400">No GSC data for this URL.</div>
-            ) : (
-              <ul className="space-y-1 text-xs">
-                {stat.topQueries.map((q) => (
-                  <li key={q.query} className="flex items-center justify-between gap-2">
-                    <span className="truncate text-slate-700">{q.query}</span>
-                    <span className="shrink-0 text-slate-500 tabular-nums">pos {q.position.toFixed(1)} · {q.clicks} clk · {q.impressions} impr</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          <div>
-            <div className="mb-1 flex items-center gap-1 text-xs font-medium uppercase tracking-wider text-emerald-700">
-              Potential ranking keywords
-              <span className="rounded bg-emerald-100 px-1 py-0.5 text-[9px] font-bold normal-case text-emerald-700">pos 11–30</span>
-            </div>
-            {(!stat.potentialQueries || stat.potentialQueries.length === 0) ? (
-              <div className="text-xs text-slate-400">No striking-distance opportunities yet.</div>
-            ) : (
-              <ul className="space-y-1 text-xs">
-                {stat.potentialQueries.map((q) => (
-                  <li key={q.query} className="flex items-center justify-between gap-2">
-                    <span className="truncate text-slate-700">{q.query}</span>
-                    <span className="shrink-0 text-emerald-700 tabular-nums">pos {q.position.toFixed(1)} · {q.impressions} impr</span>
-                  </li>
-                ))}
-              </ul>
-            )}
+
+          <div className="space-y-3">
+            <KeywordList
+              label="Top ranking keywords"
+              accent="slate"
+              empty="No GSC data for this URL."
+              rows={stat.topQueries}
+              showClicks
+            />
+            <KeywordList
+              label="Potential ranking keywords"
+              badge="pos 11–30"
+              accent="emerald"
+              empty="No striking-distance opportunities yet."
+              rows={stat.potentialQueries ?? []}
+            />
           </div>
         </div>
       )}
