@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader, Card, ScoreBar } from "@/app/components/ui";
+import { Pagination } from "@/app/components/Pagination";
 
 interface Pair {
   a_url: string;
@@ -17,13 +18,24 @@ interface Pair {
 export default function CatalogConflictsPage() {
   const [rows, setRows] = useState<Pair[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pairFilter, setPairFilter] = useState("");
+  const [minSim, setMinSim] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   useEffect(() => {
-    fetch("/api/catalog-conflicts?limit=200")
+    fetch("/api/catalog-conflicts?limit=500")
       .then((r) => r.json())
       .then((d) => setRows(d.rows ?? []))
       .finally(() => setLoading(false));
   }, []);
+  useEffect(() => { setPage(1) }, [pairFilter, minSim]);
+
+  const pairTypes = useMemo(() => Array.from(new Set(rows.map((r) => r.pair_type))).sort(), [rows]);
+  const filtered = rows
+    .filter((r) => !pairFilter || r.pair_type === pairFilter)
+    .filter((r) => r.similarity * 100 >= minSim);
+  const slice = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <div>
@@ -38,7 +50,26 @@ export default function CatalogConflictsPage() {
             <code>npm run catalog-conflicts</code> to build this report.
           </Card>
         )}
-        {rows.map((p, i) => (
+        {rows.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-slate-500">Pair type:</span>
+            <button onClick={() => setPairFilter("")} className={`rounded px-2 py-1 ${!pairFilter ? "bg-slate-900 text-white" : "border border-slate-300 bg-white text-slate-600"}`}>all ({rows.length})</button>
+            {pairTypes.map((t) => {
+              const n = rows.filter((r) => r.pair_type === t).length;
+              return (
+                <button key={t} onClick={() => setPairFilter(pairFilter === t ? "" : t)}
+                  className={`rounded px-2 py-1 capitalize ${pairFilter === t ? "bg-slate-900 text-white" : "border border-slate-300 bg-white text-slate-600"}`}>
+                  {t} ({n})
+                </button>
+              );
+            })}
+            <span className="ml-2 text-slate-500">Min similarity:</span>
+            <input type="range" min={0} max={100} value={minSim} onChange={(e) => setMinSim(Number(e.target.value))} className="w-32" />
+            <span className="tabular-nums text-slate-600">{minSim}%</span>
+            <span className="ml-auto text-slate-400">{filtered.length} of {rows.length}</span>
+          </div>
+        )}
+        {slice.map((p, i) => (
           <Card key={i}>
             <div className="flex items-center justify-between gap-4">
               <div className="grid min-w-0 flex-1 grid-cols-1 gap-2 md:grid-cols-2">
@@ -54,6 +85,9 @@ export default function CatalogConflictsPage() {
             </div>
           </Card>
         ))}
+        {rows.length > 0 && (
+          <Pagination page={page} pageSize={pageSize} total={filtered.length} onJump={setPage} onPageSize={setPageSize} unit="pairs" />
+        )}
       </div>
     </div>
   );

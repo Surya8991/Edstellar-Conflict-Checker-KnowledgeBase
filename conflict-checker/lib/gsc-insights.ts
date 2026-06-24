@@ -63,6 +63,20 @@ export interface GapRow {
   matchUrl?: string;
 }
 
+export interface BrandedSplit {
+  branded:   { clicks: number; impressions: number; ctr: number };
+  nonBranded:{ clicks: number; impressions: number; ctr: number };
+  brandTerms: string[];
+}
+
+export interface StaleRow {
+  page: string;
+  recentClicks: number;
+  priorClicks: number;
+  decline: number;       // negative number; lower = more stale
+  declinePct: number;    // -1 to 0
+}
+
 export interface Insights {
   range: RangeKey;
   startDate: string;
@@ -78,6 +92,8 @@ export interface Insights {
   gap: GapRow[];
   byCountry: GscRow[];
   byDevice: GscRow[];
+  branded: BrandedSplit;
+  stale: StaleRow[];
 }
 
 // Approximate Google CTR-by-position curve (industry benchmarks).
@@ -305,6 +321,24 @@ export async function buildInsights(range: RangeKey): Promise<Insights> {
     .sort((a, b) => b.impressions - a.impressions)
     .slice(0, 40);
 
+  // 6. Branded vs non-branded split.
+  const branded = computeBrandedSplit(byQuery);
+
+  // 7. Stale-content detector — current period vs previous period per page.
+  const prevPages = await runQuery(client, siteUrl, prev.startDate, prev.endDate, ["page"], 500);
+  const prevPageMap = new Map(prevPages.map((r) => [r.keys?.[0] ?? "", r.clicks]));
+  const stale: StaleRow[] = byPage
+    .map((r) => {
+      const page = r.keys?.[0] ?? "";
+      const prev = prevPageMap.get(page) ?? 0;
+      const decline = r.clicks - prev;
+      const declinePct = prev > 0 ? decline / prev : 0;
+      return { page, recentClicks: r.clicks, priorClicks: prev, decline, declinePct };
+    })
+    .filter((s) => s.priorClicks >= 10 && s.declinePct <= -0.3)
+    .sort((a, b) => a.decline - b.decline)
+    .slice(0, 30);
+
   return {
     range,
     startDate,
@@ -320,5 +354,80 @@ export async function buildInsights(range: RangeKey): Promise<Insights> {
     gap,
     byCountry: byCountry.slice(0, 20),
     byDevice,
+    branded,
+    stale,
   };
+}
+
+const DEFAULT_BRAND_TERMS = ["edstellar"];
+function computeBrandedSplit(byQuery: GscRow[]): BrandedSplit {
+  const terms = (process.env.BRAND_TERMS || DEFAULT_BRAND_TERMS.join(","))
+    .split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+  let b = { clicks: 0, impressions: 0 };
+  let nb = { clicks: 0, impressions: 0 };
+  for (const r of byQuery) {
+    const q = (r.keys?.[0] ?? "").toLowerCase();
+    const isBranded = terms.some((t) => q.includes(t));
+    const tgt = isBranded ? b : nb;
+    tgt.clicks += r.clicks;
+    tgt.impressions += r.impressions;
+  }
+  const ctr = (x: { clicks: number; impressions: number }) =>
+    x.impressions ? x.clicks / x.impressions : 0;
+  return {
+    branded: { ...b, ctr: ctr(b) },
+    nonBranded: { ...nb, ctr: ctr(nb) },
+    brandTerms: terms,
+  };
+}
+
+/** Page drilldown — queries / countries / devices for a single page. */
+export async function pageDrilldown(page: string, range: RangeKey) {
+  const client = await getAuthorizedClient();
+  if (!client) throw new Error("Not connected to Google Search Console.");
+  const siteUrl = process.env.GSC_SITE_URL;
+  if (!siteUrl) throw new Error("GSC_SITE_URL is not set.");
+  const { startDate, endDate } = resolveRange(range);
+  const dim = (d: string[]) =>
+    google.webmasters({ version: "v3", auth: client }).searchanalytics.query({
+      siteUrl,
+      requestBody: {
+        startDate, endDate, dimensions: d, rowLimit: 200,
+        dimensionFilterGroups: [{ filters: [{ dimension: "page", operator: "equals", expression: page }] }],
+      },
+    }).then((r) => r.data.rows ?? []);
+  const [queries, countries, devices, dates] = await Promise.all([
+    dim(["query"]), dim(["country"]), dim(["device"]), dim(["date"]),
+  ]);
+  return { page, range, startDate, endDate, queries, countries, devices, trend: dates };
+}
+
+/**
+ * Index coverage — for each sitemap URL, ask GSC if it's indexed.
+ * Quota: 600 inspections / 24h per site. Caller should batch / pass a slice.
+ */
+export async function indexCoverage(urls: string[]) {
+  const client = await getAuthorizedClient();
+  if (!client) throw new Error("Not connected to Google Search Console.");
+  const siteUrl = process.env.GSC_SITE_URL;
+  if (!siteUrl) throw new Error("GSC_SITE_URL is not set.");
+  const sc = google.searchconsole({ version: "v1", auth: client });
+  const out: { url: string; verdict: string; coverageState: string; lastCrawl?: string }[] = [];
+  for (const url of urls) {
+    try {
+      const res = await sc.urlInspection.index.inspect({
+        requestBody: { inspectionUrl: url, siteUrl },
+      });
+      const r = res.data.inspectionResult?.indexStatusResult;
+      out.push({
+        url,
+        verdict: r?.verdict ?? "UNKNOWN",
+        coverageState: r?.coverageState ?? "",
+        lastCrawl: r?.lastCrawlTime ?? undefined,
+      });
+    } catch (e) {
+      out.push({ url, verdict: "ERROR", coverageState: (e as Error).message });
+    }
+  }
+  return out;
 }

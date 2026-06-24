@@ -9,6 +9,8 @@
     "db:setup": "tsx scripts/db-setup.ts",
     "ingest": "tsx scripts/ingest.ts",
     "backfill:tags": "tsx scripts/backfill-tags.ts",
+    "audit:links": "tsx scripts/audit-links.ts",
+    "cluster": "tsx scripts/cluster.ts",
     "catalog-conflicts": "tsx scripts/catalog-conflicts.ts"
   },
   "dependencies": {

@@ -29,6 +29,8 @@ const TABS = [
   "Movers",
   "Untapped",
   "Catalog Gap",
+  "Stale Pages",
+  "Index Coverage",
 ] as const;
 type Tab = (typeof TABS)[number];
 
@@ -47,6 +49,12 @@ interface Insights {
   gap: any[];
   byCountry: any[];
   byDevice: any[];
+  branded: {
+    branded: { clicks: number; impressions: number; ctr: number };
+    nonBranded: { clicks: number; impressions: number; ctr: number };
+    brandTerms: string[];
+  };
+  stale: any[];
 }
 
 export default function SearchConsolePage() {
@@ -67,6 +75,29 @@ function SearchConsoleInner() {
   const [data, setData] = useState<Insights | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Inline lookup panel (URL or query)
+  const [lookupInput, setLookupInput] = useState("");
+  const [lookupKind, setLookupKind] = useState<"auto" | "url" | "query">("auto");
+  const [lookupData, setLookupData] = useState<any>(null);
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  async function runLookup(e?: React.FormEvent) {
+    e?.preventDefault();
+    if (!lookupInput.trim()) return;
+    setLookupLoading(true); setLookupError(null); setLookupData(null);
+    try {
+      const res = await fetch("/api/gsc/lookup", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ input: lookupInput.trim(), kind: lookupKind }),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setLookupData(json);
+    } catch (e) { setLookupError((e as Error).message) }
+    finally { setLookupLoading(false) }
+  }
 
   async function load() {
     setLoading(true);
@@ -118,6 +149,32 @@ function SearchConsoleInner() {
             Google connection failed. Check your OAuth credentials and redirect URI.
           </Card>
         )}
+
+        {/* Inline GSC lookup — search any URL or query */}
+        <Card>
+          <form onSubmit={runLookup} className="flex flex-wrap gap-2">
+            <input
+              value={lookupInput}
+              onChange={(e) => setLookupInput(e.target.value)}
+              placeholder="Lookup any URL or query — e.g. https://www.edstellar.com/blog/...  or  'leadership training'"
+              className="flex-1 min-w-[300px] rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900"
+            />
+            <select
+              value={lookupKind}
+              onChange={(e) => setLookupKind(e.target.value as any)}
+              className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-700"
+            >
+              <option value="auto">auto-detect</option>
+              <option value="url">as URL</option>
+              <option value="query">as query</option>
+            </select>
+            <button disabled={lookupLoading} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+              {lookupLoading ? "Looking up…" : "Lookup"}
+            </button>
+          </form>
+          {lookupError && <div className="mt-3 text-sm text-red-600">{lookupError}</div>}
+          {lookupData && <LookupPanel data={lookupData} />}
+        </Card>
 
         <div className="flex flex-wrap items-center gap-2">
           {RANGES.map((r) => (
@@ -183,12 +240,14 @@ function SearchConsoleInner() {
           <div className="text-sm text-slate-400">Loading…</div>
         )}
 
-        {data && tab === "Overview" && <OverviewTab data={data} />}
+        {data && tab === "Overview" && <OverviewTab data={data} range={range} />}
         {data && tab === "Cannibalization" && <CannibalTab data={data} />}
         {data && tab === "Striking Distance" && <StrikingTab data={data} />}
         {data && tab === "Movers" && <MoversTab data={data} />}
         {data && tab === "Untapped" && <UntappedTab data={data} />}
         {data && tab === "Catalog Gap" && <GapTab data={data} />}
+        {data && tab === "Stale Pages" && <StaleTab data={data} range={range} />}
+        {tab === "Index Coverage" && <IndexCoverageTab />}
       </div>
     </div>
   );
@@ -233,9 +292,38 @@ function ExportBtn({ onClick }: { onClick: () => void }) {
 
 // ---- Tabs ---------------------------------------------------------------
 
-function OverviewTab({ data }: { data: Insights }) {
+function OverviewTab({ data, range }: { data: Insights; range: string }) {
+  const [pageDetail, setPageDetail] = useState<any>(null);
+  const [pdLoading, setPdLoading] = useState(false);
+  async function drilldown(page: string) {
+    setPdLoading(true); setPageDetail({ page });
+    const res = await fetch("/api/gsc/page-detail", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ page, range }),
+    });
+    const json = await res.json();
+    setPageDetail(json);
+    setPdLoading(false);
+  }
+  const totalQueryClicks = data.branded.branded.clicks + data.branded.nonBranded.clicks;
+  const brandPct = totalQueryClicks ? (data.branded.branded.clicks / totalQueryClicks) * 100 : 0;
   return (
     <>
+      <Card>
+        <h3 className="mb-3 text-sm font-semibold text-slate-900">Branded vs non-branded</h3>
+        <p className="mb-2 text-xs text-slate-500">
+          Brand terms: <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px]">{data.branded.brandTerms.join(", ") || "—"}</code>
+        </p>
+        <div className="flex h-6 w-full overflow-hidden rounded-lg bg-slate-100">
+          <div className="bg-slate-900" style={{ width: `${brandPct}%` }} title={`Branded ${brandPct.toFixed(1)}%`} />
+          <div className="bg-emerald-500 grow" title={`Non-branded ${(100 - brandPct).toFixed(1)}%`} />
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-4 text-xs text-slate-600">
+          <div><span className="inline-block h-2 w-2 rounded-full bg-slate-900" /> <strong>Branded:</strong> {fmt(data.branded.branded.clicks)} clicks · {fmt(data.branded.branded.impressions)} impr · CTR {(data.branded.branded.ctr*100).toFixed(1)}%</div>
+          <div><span className="inline-block h-2 w-2 rounded-full bg-emerald-500" /> <strong>Non-branded:</strong> {fmt(data.branded.nonBranded.clicks)} clicks · {fmt(data.branded.nonBranded.impressions)} impr · CTR {(data.branded.nonBranded.ctr*100).toFixed(1)}%</div>
+        </div>
+      </Card>
+
       <Card>
         <h3 className="mb-3 text-sm font-semibold text-slate-900">
           Clicks &amp; impressions over time
@@ -279,7 +367,7 @@ function OverviewTab({ data }: { data: Insights }) {
         </Card>
         <Card>
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-900">Top pages</h3>
+            <h3 className="text-sm font-semibold text-slate-900">Top pages <span className="text-xs font-normal text-slate-400">(click for drilldown)</span></h3>
             <ExportBtn
               onClick={() =>
                 downloadCsv("top-pages.csv",
@@ -288,20 +376,30 @@ function OverviewTab({ data }: { data: Insights }) {
               }
             />
           </div>
-          <SimpleTable
-            cols={["Page","Clicks","Impr","CTR","Pos"]}
-            rows={data.topPages.slice(0, 25).map((r: any) => [
-              shortenUrl(r.keys?.[0] ?? ""),
-              fmt(r.clicks),
-              fmt(r.impressions),
-              (r.ctr * 100).toFixed(1) + "%",
-              r.position.toFixed(1),
-            ])}
-            linkColumn={0}
-            linkValues={data.topPages.slice(0, 25).map((r: any) => r.keys?.[0] ?? "")}
-          />
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
+                  {["Page","Clicks","Impr","CTR","Pos"].map((c) => <th key={c} className="py-2 pr-4 font-medium">{c}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {data.topPages.slice(0, 25).map((r: any, i: number) => (
+                  <tr key={i} className="cursor-pointer border-b border-slate-100 hover:bg-slate-50" onClick={() => drilldown(r.keys?.[0] ?? "")}>
+                    <td className="max-w-md truncate py-2 pr-4 text-slate-700">{shortenUrl(r.keys?.[0] ?? "")}</td>
+                    <td className="py-2 pr-4 tabular-nums">{fmt(r.clicks)}</td>
+                    <td className="py-2 pr-4 tabular-nums">{fmt(r.impressions)}</td>
+                    <td className="py-2 pr-4 tabular-nums">{(r.ctr * 100).toFixed(1)}%</td>
+                    <td className="py-2 tabular-nums">{r.position.toFixed(1)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Card>
       </div>
+
+      {pageDetail && <PageDetailModal data={pageDetail} loading={pdLoading} onClose={() => setPageDetail(null)} />}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
@@ -579,4 +677,204 @@ function shortenUrl(u: string): string {
   } catch {
     return u;
   }
+}
+
+function StaleTab({ data, range }: { data: Insights; range: string }) {
+  if (!data.stale.length)
+    return <EmptyState text="No stale pages detected — none have lost ≥30% clicks vs the previous period." />;
+  return (
+    <Card>
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900">Stale pages</h3>
+          <p className="text-xs text-slate-500">Pages whose clicks dropped ≥30% vs the previous {range} window — refresh candidates.</p>
+        </div>
+        <button
+          onClick={() => downloadCsv("stale-pages.csv",
+            ["page","recent_clicks","prior_clicks","decline","decline_pct"],
+            data.stale.map((r: any) => [r.page, r.recentClicks, r.priorClicks, r.decline, (r.declinePct*100).toFixed(1)+"%"]))}
+          className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+        >Export CSV</button>
+      </div>
+      <SimpleTable
+        cols={["Page","Recent","Prior","Δ","Δ %"]}
+        rows={data.stale.map((r: any) => [
+          shortenUrl(r.page),
+          fmt(r.recentClicks),
+          fmt(r.priorClicks),
+          <span key="d" className="text-rose-600">{fmt(r.decline)}</span>,
+          <span key="p" className="text-rose-600">{(r.declinePct * 100).toFixed(1)}%</span>,
+        ])}
+        linkColumn={0}
+        linkValues={data.stale.map((r: any) => r.page)}
+      />
+    </Card>
+  );
+}
+
+function IndexCoverageTab() {
+  const [sample, setSample] = useState(25);
+  const [type, setType] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  async function run() {
+    setLoading(true); setError(null); setData(null);
+    try {
+      const res = await fetch("/api/gsc/index-coverage", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sample, contentType: type }),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setData(json);
+    } catch (e) { setError((e as Error).message) }
+    finally { setLoading(false) }
+  }
+  return (
+    <Card>
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900">Index Coverage</h3>
+          <p className="text-xs text-slate-500">Random sample of your corpus → GSC URL Inspection API. Quota: 600 calls / 24h.</p>
+        </div>
+        <div className="grow" />
+        <label className="text-xs text-slate-600">Sample
+          <select value={sample} onChange={(e) => setSample(Number(e.target.value))} className="ml-2 rounded border border-slate-300 bg-white px-2 py-1 text-xs">
+            {[10,25,50,100].map((n) => <option key={n}>{n}</option>)}
+          </select>
+        </label>
+        <select value={type} onChange={(e) => setType(e.target.value)} className="rounded border border-slate-300 bg-white px-2 py-1 text-xs">
+          <option value="">all types</option>
+          <option>course</option><option>blog</option><option>category</option><option>subcategory</option><option>static</option>
+        </select>
+        <button onClick={run} disabled={loading} className="rounded-lg bg-slate-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-50">
+          {loading ? "Inspecting…" : "Run inspection"}
+        </button>
+      </div>
+      {error && <div className="text-sm text-red-600">{error}</div>}
+      {data && (
+        <>
+          <div className="mb-3 flex flex-wrap gap-2 text-xs">
+            {Object.entries(data.buckets as Record<string, number>).map(([k, v]) => (
+              <span key={k} className={`rounded px-2 py-1 ${k === "PASS" ? "bg-emerald-100 text-emerald-700" : k === "FAIL" ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-700"}`}>
+                {k}: {v}
+              </span>
+            ))}
+          </div>
+          <SimpleTable
+            cols={["URL","Verdict","Coverage state","Last crawl"]}
+            rows={data.results.map((r: any) => [
+              shortenUrl(r.url),
+              r.verdict,
+              r.coverageState || "—",
+              r.lastCrawl ? new Date(r.lastCrawl).toLocaleDateString() : "—",
+            ])}
+            linkColumn={0}
+            linkValues={data.results.map((r: any) => r.url)}
+          />
+        </>
+      )}
+    </Card>
+  );
+}
+
+function LookupPanel({ data }: { data: any }) {
+  if (data.kind === "url") {
+    const d = data.data;
+    return (
+      <div className="mt-4 border-t border-slate-100 pt-4">
+        <div className="mb-2 text-xs text-slate-500">
+          URL · <a href={d.url} target="_blank" rel="noreferrer" className="text-slate-700 hover:underline">{d.url}</a>
+        </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <BucketCard title="Last 6 months" b={d.m6} />
+          <BucketCard title="Last 12 months" b={d.m12} />
+        </div>
+        {d.topQueries.length > 0 && (
+          <div className="mt-3">
+            <div className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Top ranking queries (6m)</div>
+            <SimpleTable
+              cols={["Query","Clicks","Impr","CTR","Pos"]}
+              rows={d.topQueries.map((q: any) => [q.query, fmt(q.clicks), fmt(q.impressions), (q.ctr*100).toFixed(1)+"%", q.position.toFixed(1)])}
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
+  const d = data.data;
+  return (
+    <div className="mt-4 border-t border-slate-100 pt-4">
+      <div className="mb-2 text-xs text-slate-500">Query · <span className="font-mono text-slate-700">{d.query}</span></div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <BucketCard title="Last 6 months" b={d.m6} />
+        <BucketCard title="Last 12 months" b={d.m12} />
+      </div>
+      {d.topPages.length > 0 && (
+        <div className="mt-3">
+          <div className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Top pages ranking for this query (6m)</div>
+          <SimpleTable
+            cols={["Page","Clicks","Impr","CTR","Pos"]}
+            rows={d.topPages.map((p: any) => [shortenUrl(p.url), fmt(p.clicks), fmt(p.impressions), (p.ctr*100).toFixed(1)+"%", p.position.toFixed(1)])}
+            linkColumn={0}
+            linkValues={d.topPages.map((p: any) => p.url)}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+function BucketCard({ title, b }: { title: string; b: { clicks: number; impressions: number; ctr: number; position: number } }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <div className="text-xs uppercase tracking-wider text-slate-500">{title}</div>
+      <div className="mt-2 grid grid-cols-4 gap-2 text-center">
+        <div><div className="text-[10px] uppercase text-slate-400">Clicks</div><div className="text-sm font-semibold tabular-nums">{fmt(b.clicks)}</div></div>
+        <div><div className="text-[10px] uppercase text-slate-400">Impr</div><div className="text-sm font-semibold tabular-nums">{fmt(b.impressions)}</div></div>
+        <div><div className="text-[10px] uppercase text-slate-400">CTR</div><div className="text-sm font-semibold tabular-nums">{(b.ctr*100).toFixed(1)}%</div></div>
+        <div><div className="text-[10px] uppercase text-slate-400">Pos</div><div className="text-sm font-semibold tabular-nums">{b.position.toFixed(1)}</div></div>
+      </div>
+    </div>
+  );
+}
+
+function PageDetailModal({ data, loading, onClose }: { data: any; loading: boolean; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="max-h-[85vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <div className="text-xs text-slate-500">Page drilldown</div>
+            <div className="font-mono text-sm text-slate-700">{shortenUrl(data.page)}</div>
+            {data.startDate && <div className="text-xs text-slate-400">{data.startDate} → {data.endDate}</div>}
+          </div>
+          <button onClick={onClose} className="rounded-lg border border-slate-300 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50">Close</button>
+        </div>
+        {loading ? <div className="py-8 text-center text-sm text-slate-400">Loading…</div> : (
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <div>
+              <h4 className="mb-2 text-xs uppercase tracking-wider text-slate-400">Top queries</h4>
+              <SimpleTable
+                cols={["Query","Clicks","Impr","Pos"]}
+                rows={(data.queries ?? []).slice(0, 20).map((r: any) => [r.keys?.[0] ?? "", fmt(r.clicks), fmt(r.impressions), r.position.toFixed(1)])}
+              />
+            </div>
+            <div>
+              <h4 className="mb-2 text-xs uppercase tracking-wider text-slate-400">By country</h4>
+              <SimpleTable
+                cols={["Country","Clicks","Impr"]}
+                rows={(data.countries ?? []).slice(0, 8).map((r: any) => [r.keys?.[0] ?? "", fmt(r.clicks), fmt(r.impressions)])}
+              />
+              <h4 className="mb-2 mt-4 text-xs uppercase tracking-wider text-slate-400">By device</h4>
+              <SimpleTable
+                cols={["Device","Clicks","Impr","CTR"]}
+                rows={(data.devices ?? []).map((r: any) => [(r.keys?.[0] ?? "").toLowerCase(), fmt(r.clicks), fmt(r.impressions), (r.ctr*100).toFixed(1)+"%"])}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }

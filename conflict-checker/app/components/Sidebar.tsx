@@ -5,6 +5,10 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   ScanSearch,
+  Layers,
+  Link2,
+  ClipboardCheck,
+  History,
   LineChart,
   Swords,
   Database,
@@ -12,12 +16,16 @@ import {
 } from "lucide-react";
 
 const NAV = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/conflict-checker", label: "Conflict Checker", icon: ScanSearch },
-  { href: "/catalog-conflicts", label: "Catalog Conflicts", icon: GitCompareArrows },
-  { href: "/search-console", label: "Search Console", icon: LineChart },
-  { href: "/competitors", label: "Competitors", icon: Swords },
-  { href: "/corpus", label: "Corpus", icon: Database },
+  { href: "/",                   label: "Dashboard",         icon: LayoutDashboard },
+  { href: "/conflict-checker",   label: "Conflict Checker",  icon: ScanSearch },
+  { href: "/bulk-check",         label: "Bulk Check",        icon: Layers },
+  { href: "/internal-links",     label: "Internal Links",    icon: Link2 },
+  { href: "/audit",              label: "Content Audit",     icon: ClipboardCheck },
+  { href: "/history",            label: "Score History",     icon: History },
+  { href: "/catalog-conflicts",  label: "Catalog Conflicts", icon: GitCompareArrows },
+  { href: "/search-console",     label: "Search Console",    icon: LineChart },
+  { href: "/competitors",        label: "Competitors",       icon: Swords },
+  { href: "/corpus",             label: "Corpus",            icon: Database },
 ];
 
 export default function Sidebar() {

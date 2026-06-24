@@ -20,6 +20,8 @@ export interface PageTags {
     | "subcategory"
     | "industry"
     | "location"
+    | "excellence-program"
+    | "pillar"
     | "home"
     | "static";
   courseType: string | null;
@@ -177,6 +179,30 @@ export function tagUrl(url: string, title?: string | null): PageTags {
       category: null,
       subcategory: label,
       tags: uniq([label, "subcategory"]),
+    };
+  }
+
+  // 5b. Excellence-program landing pages
+  //     /quality-management-excellence-programs, /sales-excellence-program, etc.
+  //     Plus the umbrella /excellence-programs.
+  const excellence = path.match(/^\/([a-z-]+)-excellence-programs?\/?$/);
+  if (excellence) {
+    const pillar = titleCase(excellence[1]);
+    return {
+      contentType: "excellence-program",
+      courseType: null,
+      category: pillar,
+      subcategory: null,
+      tags: uniq([pillar, "excellence-program", "pillar"]),
+    };
+  }
+  if (path === "/excellence-programs" || path === "/excellence-programs/") {
+    return {
+      contentType: "excellence-program",
+      courseType: null,
+      category: null,
+      subcategory: null,
+      tags: uniq(["Excellence Programs", "pillar", "umbrella"]),
     };
   }
 
