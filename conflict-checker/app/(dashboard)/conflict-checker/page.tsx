@@ -252,6 +252,45 @@ export default function ConflictCheckerPage() {
               )}
             </Card>
 
+            {/* Competitor SERP + keyword gap — sits right under the Summary
+                so the user sees external context before drilling into matches. */}
+            {enrich && enrich.serp && enrich.serp.organic && (
+              <Card>
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-slate-900">Competitor SERP for "{result.keywords?.[0] || result.inputValue}"</h3>
+                  {enrich.serp.edstellarRank
+                    ? <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">Edstellar #{enrich.serp.edstellarRank}</span>
+                    : <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">Not in top 10</span>}
+                </div>
+                <table className="w-full text-sm">
+                  <thead><tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
+                    <th className="py-2 pr-3 font-medium">#</th>
+                    <th className="py-2 pr-3 font-medium">Domain</th>
+                    <th className="py-2 font-medium">Title</th>
+                  </tr></thead>
+                  <tbody>
+                    {enrich.serp.organic.slice(0, 8).map((r: any) => (
+                      <tr key={r.rank} className={`border-b border-slate-100 ${r.isEdstellar ? "bg-emerald-50" : ""}`}>
+                        <td className="py-2 pr-3 tabular-nums">{r.rank}</td>
+                        <td className="py-2 pr-3 text-slate-700">{r.domain}{r.isKnown && <span className="ml-1 rounded bg-indigo-100 px-1 py-0.5 text-[10px] text-indigo-700">known</span>}</td>
+                        <td className="max-w-md truncate py-2"><a href={r.url} target="_blank" rel="noreferrer" className="text-slate-600 hover:underline">{r.title}</a></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {enrich.gap?.length > 0 && (
+                  <div className="mt-3 border-t border-slate-100 pt-3">
+                    <div className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Keyword gap (mentioned by competitors, not in your top queries)</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {enrich.gap.map((k) => (
+                        <span key={k} className="rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-800">{k}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </Card>
+            )}
+
             {/* Filters — visible when there's anything to filter */}
             {result.matches.length > 0 && (
               <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -334,44 +373,6 @@ export default function ConflictCheckerPage() {
                 </>
               )}
             </div>
-
-            {/* Competitor + keyword gap */}
-            {enrich && enrich.serp && enrich.serp.organic && (
-              <Card>
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-slate-900">Competitor SERP for "{result.keywords?.[0] || result.inputValue}"</h3>
-                  {enrich.serp.edstellarRank
-                    ? <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">Edstellar #{enrich.serp.edstellarRank}</span>
-                    : <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">Not in top 10</span>}
-                </div>
-                <table className="w-full text-sm">
-                  <thead><tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
-                    <th className="py-2 pr-3 font-medium">#</th>
-                    <th className="py-2 pr-3 font-medium">Domain</th>
-                    <th className="py-2 font-medium">Title</th>
-                  </tr></thead>
-                  <tbody>
-                    {enrich.serp.organic.slice(0, 8).map((r: any) => (
-                      <tr key={r.rank} className={`border-b border-slate-100 ${r.isEdstellar ? "bg-emerald-50" : ""}`}>
-                        <td className="py-2 pr-3 tabular-nums">{r.rank}</td>
-                        <td className="py-2 pr-3 text-slate-700">{r.domain}{r.isKnown && <span className="ml-1 rounded bg-indigo-100 px-1 py-0.5 text-[10px] text-indigo-700">known</span>}</td>
-                        <td className="max-w-md truncate py-2"><a href={r.url} target="_blank" rel="noreferrer" className="text-slate-600 hover:underline">{r.title}</a></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {enrich.gap?.length > 0 && (
-                  <div className="mt-3 border-t border-slate-100 pt-3">
-                    <div className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Keyword gap (mentioned by competitors, not in your top queries)</div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {enrich.gap.map((k) => (
-                        <span key={k} className="rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-800">{k}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </Card>
-            )}
 
             {/* New-content suggestions trigger */}
             <Card>
