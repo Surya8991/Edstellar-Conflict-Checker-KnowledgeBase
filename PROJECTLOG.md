@@ -213,7 +213,68 @@ No HTML download required at runtime — the JSON files are committed to
 - **Corpus UI**: type breakdown cards, color-coded type pills, tag filter
   chips, search, **pagination** (default 50/page; jump first/last/n).
 
-### Session 3 — 2026-06-24 (planned batches)
+### Session 3 — 2026-06-24 (shipped log)
+
+Every batch in this session was committed to `main` on
+`github.com/Corporatetrends/Edstellar-Conflict-Checker-KnowledgeBase`. Each
+bullet ends with the short SHA so you can `git show <sha>`.
+
+- **Conflict Checker returns ALL matches above the threshold, paginated.**
+  `lib/conflict.ts` gains `vectorLimit` (default 100), `classifyLimit`
+  (default 15, LLM-bounded), `minSimilarity`. The first 15 get full LLM
+  classification; the rest get `conflictType="needs-review"` + a similarity
+  score, and a new `/api/check/classify-one` route lets the user lazy-load
+  the LLM rationale per row. UI: count headline, pagination 10/25/50/100,
+  filter row. Also patched the History page parse error from session 2.
+  `3446f61`
+- **Industry pages reclassified as static + shared TypeChip.**
+  32 `/who-we-serve`/industry pages folded into `static` per policy
+  (industry kept as a tag for filtering). New `TYPE_COLORS` + `<TypeChip/>`
+  in `app/components/ui.tsx` is the single source of truth — both Corpus
+  and Conflict Checker import it. Filter chips in Conflict Checker colored
+  by type to match. `2c30f15`
+- **Competitor SERP card moved directly under Summary** so the user sees
+  external context before drilling into matches. `98d72ea`
+- **Per-match summary collapsed behind a Show/Hide toggle.** Cleaner
+  default view; keeps stats + keywords above the fold. `725a422`
+- **Personalised per-match summary with shared topics + issue callout.**
+  `ConflictVerdict` gains `overlap[]` and `issue` fields; prompt rewritten
+  to ban generic boilerplate (`"Be specific — name the actual topics that
+  overlap; never use generic phrases like 'both pages discuss similar
+  topics'"`) and demand per-page rationale. UI renders amber chips for
+  shared topics, a rose-bordered warning callout for the issue, then the
+  rationale sentence. `ee649ba`
+- **Collapsed two redundant filters into one + added potential keywords.**
+  Removed the "Min similarity" slider; "Min score" (default 80%) is now
+  the single user-facing cut-off. `lib/gsc-page-stats.ts` also derives
+  `potentialQueries` (striking-distance pos 11–30, sorted by impressions)
+  from the same GSC call — surfaces opportunity, not just current
+  performance. `0a4b05b`
+- **Cleaner match-card layout, no more keyword truncation.** Switched from
+  3 equal columns to 2 (compact stats panel | full-width keywords). New
+  `<KeywordList/>` helper handles both Top + Potential with proper
+  wrap-not-truncate behavior. `d3193e9`
+- **SERP lookups use a page-specific primary query.** `SummaryResult`
+  gains optional `primaryQuery` — a 4–8-word long-tail SEO query the LLM
+  picks during summarisation. Shown as an indigo "Primary SEO query" pill
+  on the Summary card. `7423a05`
+- **SERP lookup switched to slug-derived primary keyword** (because the
+  blog/course slug *is* the primary keyword by convention) and the panel
+  now also shows **Google AI Overview citations** and **your own GSC rank
+  for that keyword** beside the public SERP. `pickSerpQuery()` resolution
+  order: URL slug → topic input → keywords[0] → primaryQuery. `serpOverlap`
+  parses Serper's `aiOverview`/`aiOverviews` field; `enrich` route also
+  calls `queryStats(topic)` so the UI can compare "you rank #N publicly"
+  vs "GSC says pos X.X". Each AI Overview citation flagged as `you` /
+  `known` / other. `d2b9cf4`
+- **Groq model swap.** Hit Groq's free-tier 100k TPD limit on
+  `llama-3.3-70b-versatile`. Switched the default to
+  `llama-3.1-8b-instant` (500k TPD, same quality for these prompts) via
+  the existing `GROQ_MODEL` env var. `.env` change only — not in git
+  (`.env` is gitignored on purpose). The 70b model still works; switch
+  back any time by removing the env or setting `GROQ_MODEL=llama-3.3-70b-versatile`.
+
+### Session 3 — 2026-06-24 (original plan, kept for reference)
 
 **Trigger:** user requested every improvement listed in §5 below + "show ALL
 matching pages on Conflict Checker, not just 10, with pagination." Work is
