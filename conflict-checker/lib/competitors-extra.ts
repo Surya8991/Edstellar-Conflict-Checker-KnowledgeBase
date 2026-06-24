@@ -6,8 +6,19 @@ import { KNOWN_COMPETITORS } from "@/lib/competitors";
 import { fetchAndExtract } from "@/lib/extract";
 
 interface SerpOrganic { title: string; link: string; snippet?: string; position?: number }
+interface SerpAiOverview {
+  summary?: string;
+  citations?: { title?: string; link?: string; snippet?: string }[];
+}
+interface SerperResponse {
+  organic?: SerpOrganic[];
+  /** Serper has used several field names for AI Overviews — handle both. */
+  aiOverview?: SerpAiOverview;
+  aiOverviews?: SerpAiOverview | SerpAiOverview[];
+  answerBox?: { title?: string; link?: string; snippet?: string };
+}
 
-async function serperSearch(query: string, num = 10): Promise<SerpOrganic[]> {
+async function serperSearch(query: string, num = 10): Promise<SerperResponse> {
   const key = process.env.SERPER_API_KEY;
   if (!key) throw new Error("SERPER_API_KEY is not set.");
   const res = await fetch("https://google.serper.dev/search", {
@@ -16,8 +27,14 @@ async function serperSearch(query: string, num = 10): Promise<SerpOrganic[]> {
     body: JSON.stringify({ q: query, num }),
   });
   if (!res.ok) throw new Error(`Serper failed: ${res.status}`);
-  const json = (await res.json()) as { organic?: SerpOrganic[] };
-  return json.organic ?? [];
+  return (await res.json()) as SerperResponse;
+}
+
+function pickAiOverview(r: SerperResponse): SerpAiOverview | undefined {
+  if (r.aiOverview) return r.aiOverview;
+  if (Array.isArray(r.aiOverviews)) return r.aiOverviews[0];
+  if (r.aiOverviews) return r.aiOverviews;
+  return undefined;
 }
 
 const domainOf = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, "") } catch { return "" } };
@@ -27,10 +44,18 @@ export interface SerpOverlapResult {
   topic: string;
   organic: { rank: number; url: string; domain: string; title: string; isEdstellar: boolean; isKnown: boolean }[];
   edstellarRank: number | null;
+  edstellarUrl: string | null;
   competitorsInTop10: string[];
+  /** Google AI Overview citations for this query, if Google surfaced one. */
+  aiOverview: {
+    summary: string;
+    citations: { domain: string; url: string; title: string; isEdstellar: boolean; isKnown: boolean }[];
+    edstellarCited: boolean;
+  } | null;
 }
 export async function serpOverlap(topic: string): Promise<SerpOverlapResult> {
-  const organic = await serperSearch(topic, 10);
+  const res = await serperSearch(topic, 10);
+  const organic = res.organic ?? [];
   const list = organic.map((o, i) => ({
     rank: o.position ?? i + 1,
     url: o.link,
@@ -41,7 +66,32 @@ export async function serpOverlap(topic: string): Promise<SerpOverlapResult> {
   }));
   const eds = list.find((r) => r.isEdstellar);
   const compDomains = Array.from(new Set(list.filter((r) => !r.isEdstellar).map((r) => r.domain)));
-  return { topic, organic: list, edstellarRank: eds?.rank ?? null, competitorsInTop10: compDomains };
+
+  const ai = pickAiOverview(res);
+  const aiOverview = ai
+    ? {
+        summary: ai.summary ?? "",
+        citations: (ai.citations ?? [])
+          .filter((c) => !!c.link)
+          .map((c) => ({
+            domain: domainOf(c.link!),
+            url: c.link!,
+            title: c.title ?? c.snippet ?? c.link!,
+            isEdstellar: domainOf(c.link!).includes("edstellar"),
+            isKnown: KNOWN_COMPETITORS.includes(domainOf(c.link!)),
+          })),
+        edstellarCited: (ai.citations ?? []).some((c) => c.link && domainOf(c.link).includes("edstellar")),
+      }
+    : null;
+
+  return {
+    topic,
+    organic: list,
+    edstellarRank: eds?.rank ?? null,
+    edstellarUrl: eds?.url ?? null,
+    competitorsInTop10: compDomains,
+    aiOverview,
+  };
 }
 
 /**

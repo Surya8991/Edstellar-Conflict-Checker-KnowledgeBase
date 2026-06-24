@@ -36,7 +36,28 @@ interface EnrichData {
   stats: PageStat[];
   serp: any;
   gap: string[];
+  ourRank?: any;
   gscError?: string;
+}
+
+/** Derive the primary keyword used for the SERP lookup.
+ *  Priority:
+ *   1. URL slug (blogs/courses/categories/topics — slug IS the primary keyword)
+ *   2. The topic the user typed (for topic inputs)
+ *   3. LLM keywords[0] (short head term)
+ *   4. LLM primaryQuery (long-tail, last resort)
+ */
+function pickSerpQuery(result: CheckResult): string {
+  if (result.inputType === "url") {
+    try {
+      const path = new URL(result.inputValue).pathname.toLowerCase().replace(/\/$/, "");
+      const m = path.match(/^\/(?:blog|course|category|topic|topics)\/(.+)$/);
+      if (m) return m[1].replace(/-/g, " ");
+    } catch {/* fall through */}
+  } else if (result.inputValue?.trim()) {
+    return result.inputValue.trim();
+  }
+  return result.keywords?.[0] || result.primaryQuery || result.inputValue;
 }
 
 export default function ConflictCheckerPage() {
@@ -120,14 +141,7 @@ export default function ConflictCheckerPage() {
       setEnriching(true);
       try {
         const urls = result.matches.slice(0, 8).map((m) => m.url);
-        // Pick the most specific topic for the SERP lookup. Long-tail beats
-        // single keywords every time — generic head terms ("Employee Training")
-        // return unrelated SERPs.
-        const serpTopic =
-          result.primaryQuery ||
-          (result.inputType === "topic" ? result.inputValue : null) ||
-          result.keywords?.[0] ||
-          result.inputValue;
+        const serpTopic = pickSerpQuery(result);
         const res = await fetch("/api/check/enrich", {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -276,18 +290,38 @@ export default function ConflictCheckerPage() {
               )}
             </Card>
 
-            {/* Competitor SERP + keyword gap — sits right under the Summary
-                so the user sees external context before drilling into matches. */}
+            {/* Competitor SERP + AI Overview + GSC rank + keyword gap.
+                Sits right under the Summary so the user sees external
+                context before drilling into matches. */}
             {enrich && enrich.serp && enrich.serp.organic && (
               <Card>
-                <div className="mb-3 flex items-center justify-between">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-sm font-semibold text-slate-900">
-                    Competitor SERP for "{result.primaryQuery || result.keywords?.[0] || result.inputValue}"
+                    Competitor SERP for "{enrich.serp.topic}"
                   </h3>
                   {enrich.serp.edstellarRank
-                    ? <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">Edstellar #{enrich.serp.edstellarRank}</span>
-                    : <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">Not in top 10</span>}
+                    ? <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">Edstellar #{enrich.serp.edstellarRank} on Google</span>
+                    : <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">Edstellar not in top 10</span>}
                 </div>
+
+                {/* Our GSC rank for this exact keyword (from Search Console, not SERP scrape) */}
+                {enrich.ourRank && enrich.ourRank.impressions6m > 0 && (
+                  <div className="mb-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                    <span className="font-semibold text-slate-900">Your GSC rank for this keyword:</span>{" "}
+                    pos <span className="tabular-nums font-medium">{enrich.ourRank.position6m.toFixed(1)}</span>{" "}
+                    · <span className="tabular-nums">{enrich.ourRank.clicks6m}</span> clk
+                    · <span className="tabular-nums">{enrich.ourRank.impressions6m.toLocaleString()}</span> impr <span className="text-slate-400">(6m)</span>
+                    {enrich.ourRank.topPage?.url && (
+                      <>
+                        {" "}—{" "}
+                        <a href={enrich.ourRank.topPage.url} target="_blank" rel="noreferrer" className="text-slate-600 underline-offset-2 hover:underline">
+                          {(() => { try { return new URL(enrich.ourRank.topPage.url).pathname } catch { return enrich.ourRank.topPage.url } })()}
+                        </a>
+                      </>
+                    )}
+                  </div>
+                )}
+
                 <table className="w-full text-sm">
                   <thead><tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
                     <th className="py-2 pr-3 font-medium">#</th>
@@ -298,12 +332,56 @@ export default function ConflictCheckerPage() {
                     {enrich.serp.organic.slice(0, 8).map((r: any) => (
                       <tr key={r.rank} className={`border-b border-slate-100 ${r.isEdstellar ? "bg-emerald-50" : ""}`}>
                         <td className="py-2 pr-3 tabular-nums">{r.rank}</td>
-                        <td className="py-2 pr-3 text-slate-700">{r.domain}{r.isKnown && <span className="ml-1 rounded bg-indigo-100 px-1 py-0.5 text-[10px] text-indigo-700">known</span>}</td>
+                        <td className="py-2 pr-3 text-slate-700">
+                          {r.domain}
+                          {r.isKnown && <span className="ml-1 rounded bg-indigo-100 px-1 py-0.5 text-[10px] text-indigo-700">known</span>}
+                          {r.isEdstellar && <span className="ml-1 rounded bg-emerald-100 px-1 py-0.5 text-[10px] text-emerald-700">you</span>}
+                        </td>
                         <td className="max-w-md truncate py-2"><a href={r.url} target="_blank" rel="noreferrer" className="text-slate-600 hover:underline">{r.title}</a></td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+
+                {/* AI Overview citations — Google's AI summary panel */}
+                {enrich.serp.aiOverview ? (
+                  <div className="mt-4 rounded-lg border border-violet-200 bg-violet-50 p-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-violet-700">
+                        <span>✨ AI Overview cites</span>
+                        <span className="rounded bg-violet-100 px-1 py-0.5 text-[9px] font-bold normal-case text-violet-700">Google SGE</span>
+                      </div>
+                      {enrich.serp.aiOverview.edstellarCited
+                        ? <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">Edstellar cited ✓</span>
+                        : <span className="rounded bg-rose-100 px-2 py-0.5 text-xs text-rose-700">Edstellar not cited</span>}
+                    </div>
+                    {enrich.serp.aiOverview.summary && (
+                      <p className="mb-2 text-xs leading-relaxed text-violet-900">{enrich.serp.aiOverview.summary.slice(0, 320)}{enrich.serp.aiOverview.summary.length > 320 ? "…" : ""}</p>
+                    )}
+                    {enrich.serp.aiOverview.citations?.length > 0 && (
+                      <ol className="space-y-1 text-xs">
+                        {enrich.serp.aiOverview.citations.slice(0, 8).map((c: any, i: number) => (
+                          <li key={i} className="flex items-start gap-2">
+                            <span className="shrink-0 tabular-nums text-violet-500">{i + 1}.</span>
+                            <a href={c.url} target="_blank" rel="noreferrer"
+                              className={`truncate hover:underline ${c.isEdstellar ? "font-semibold text-emerald-700" : "text-slate-700"}`}>
+                              {c.domain}
+                              {c.isKnown && <span className="ml-1 rounded bg-indigo-100 px-1 py-0.5 text-[9px] text-indigo-700">known</span>}
+                              {c.isEdstellar && <span className="ml-1 rounded bg-emerald-100 px-1 py-0.5 text-[9px] text-emerald-700">you</span>}
+                              {" — "}
+                              <span className="text-slate-500">{c.title}</span>
+                            </a>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                    No AI Overview appeared on Google for this query.
+                  </div>
+                )}
+
                 {enrich.gap?.length > 0 && (
                   <div className="mt-3 border-t border-slate-100 pt-3">
                     <div className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Keyword gap (mentioned by competitors, not in your top queries)</div>
