@@ -21,6 +21,9 @@ export interface PageStats {
   m6:  BucketTotals;
   m12: BucketTotals;
   topQueries: { query: string; clicks: number; impressions: number; ctr: number; position: number }[];
+  /** Queries this page is ranking for but in striking distance (position 11-30,
+   *  sorted by impressions). Surfacing opportunity, not current performance. */
+  potentialQueries: { query: string; clicks: number; impressions: number; ctr: number; position: number }[];
 }
 
 export interface QueryStats {
@@ -65,19 +68,29 @@ async function setup() {
 
 export async function pageStats(url: string, topN = 3): Promise<PageStats> {
   const { client, siteUrl, m6, m12 } = await setup();
+  // Pull a wider query slice (100) so we can derive BOTH the top-by-clicks
+  // and the striking-distance opportunities from the same call.
   const [d6, d12, queries] = await Promise.all([
     runQuery(client, siteUrl, m6.startDate, m6.endDate, ["date"], 200, { dimension: "page", expression: url }),
     runQuery(client, siteUrl, m12.startDate, m12.endDate, ["date"], 400, { dimension: "page", expression: url }),
-    runQuery(client, siteUrl, m6.startDate, m6.endDate, ["query"], 50, { dimension: "page", expression: url }),
+    runQuery(client, siteUrl, m6.startDate, m6.endDate, ["query"], 100, { dimension: "page", expression: url }),
   ]);
+  const mapRow = (r: GscRow) => ({
+    query: r.keys?.[0] ?? "",
+    clicks: r.clicks, impressions: r.impressions, ctr: r.ctr, position: r.position,
+  });
+  const topQueries = queries.slice(0, topN).map(mapRow);
+  const potentialQueries = queries
+    .filter((r) => r.position >= 11 && r.position <= 30 && r.impressions > 0)
+    .sort((a, b) => b.impressions - a.impressions)
+    .slice(0, topN)
+    .map(mapRow);
   return {
     url,
     m6: sum(d6),
     m12: sum(d12),
-    topQueries: queries.slice(0, topN).map((r) => ({
-      query: r.keys?.[0] ?? "",
-      clicks: r.clicks, impressions: r.impressions, ctr: r.ctr, position: r.position,
-    })),
+    topQueries,
+    potentialQueries,
   };
 }
 
