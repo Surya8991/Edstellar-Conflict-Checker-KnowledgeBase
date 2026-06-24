@@ -423,6 +423,9 @@ function MatchCard({
   onExplain?: () => void;
 }) {
   const needsReview = m.conflictType === "needs-review";
+  const [open, setOpen] = useState(false);
+  const hasRationale = !!m.rationale;
+
   return (
     <Card>
       <div className="flex items-start justify-between gap-4">
@@ -440,8 +443,23 @@ function MatchCard({
           <ConflictBadge type={m.conflictType} />
         </div>
       </div>
-      {m.rationale ? (
-        <p className="mt-3 border-t border-slate-100 pt-3 text-sm text-slate-600">{m.rationale}</p>
+
+      {/* Collapsible summary / rationale */}
+      {hasRationale ? (
+        <div className="mt-3 border-t border-slate-100 pt-3">
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            className="flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-900"
+            aria-expanded={open}
+          >
+            <span className={`inline-block transition-transform ${open ? "rotate-90" : ""}`}>▸</span>
+            {open ? "Hide summary" : "Show summary"}
+          </button>
+          {open && (
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">{m.rationale}</p>
+          )}
+        </div>
       ) : needsReview ? (
         <div className="mt-3 border-t border-slate-100 pt-3">
           {explainState?.error ? (
@@ -457,6 +475,7 @@ function MatchCard({
           )}
         </div>
       ) : null}
+
       <div className="mt-2 text-xs text-slate-400">
         vector similarity {(m.similarity * 100).toFixed(1)}%
       </div>
