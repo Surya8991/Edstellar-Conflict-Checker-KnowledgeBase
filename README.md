@@ -1,27 +1,25 @@
-# Edstellar Conflict Checker — Knowledge Base
+# Edstellar Conflict Checker — Repo
 
-Reference knowledge base for the **Edstellar Conflict Checker** tool. Captures the company context, the domain model behind scheduling conflicts, and the rules the checker enforces.
+Monorepo for the **Edstellar Conflict Checker**: a tool that detects SEO content conflicts (duplication, cannibalization, partial overlap) across Edstellar's published pages **before** new content is published.
 
-## Contents
+## Layout
 
-- [About Edstellar](docs/about-edstellar.md) — company overview, offerings, audience.
-- [Domain Glossary](docs/glossary.md) — trainers, batches, training requests, modes of delivery.
-- [Conflict Types](docs/conflict-types.md) — every conflict the checker detects, with examples.
-- [Conflict Rules](docs/conflict-rules.md) — precise rules, precedence, edge cases.
-- [Examples](docs/examples.md) — worked scenarios (clean, overlap, back-to-back, timezone).
-- [Data Sources](docs/data-sources.md) — where trainer / batch / request data comes from.
+| Path | What it is |
+|------|------------|
+| [`conflict-checker/`](conflict-checker/) | The Next.js 16 app (App Router, Neon Postgres + pgvector). See its [README](conflict-checker/README.md) to run locally. |
+| [`docs/`](docs/) | Domain knowledge base — what the tool does, how scoring works, data sources, worked examples. Read this before extending the app. |
+| [`reference/`](reference/) | Static reference artifacts (e.g. the Intelligence Hub HTML). Not built or shipped. |
+| [`PROJECTLOG.md`](PROJECTLOG.md) | Session-by-session history of what shipped and why. |
 
-## Purpose
+## Quick links
 
-When a training batch is being scheduled or a trainer is being assigned, the Conflict Checker validates that:
+- **About Edstellar** — [docs/about-edstellar.md](docs/about-edstellar.md)
+- **What "conflict" means here** — [docs/conflict-types.md](docs/conflict-types.md)
+- **Scoring model** — [docs/conflict-rules.md](docs/conflict-rules.md)
+- **Glossary** — [docs/glossary.md](docs/glossary.md)
+- **Worked examples** — [docs/examples.md](docs/examples.md)
+- **Data sources & pipelines** — [docs/data-sources.md](docs/data-sources.md)
 
-1. The trainer is available for the requested window.
-2. No existing batch overlaps the proposed slot.
-3. Travel / buffer / timezone constraints are respected.
-4. Trainer competencies match the requested course.
+## One-sentence summary
 
-This repo documents **what counts as a conflict and why** — it is the source of truth the tool implements against.
-
-## Status
-
-Work in progress. Contributions welcome via PR.
+Paste a URL or topic → summarize + embed → pgvector nearest-neighbor search across the Edstellar corpus → LLM judges the top candidates → blended 0–100 conflict score with a typed verdict (`duplicate` / `cannibalization` / `partial-overlap` / `none`).

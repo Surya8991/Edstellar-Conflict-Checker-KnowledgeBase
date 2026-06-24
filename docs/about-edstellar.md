@@ -25,8 +25,14 @@ Enterprise L&D, HR, and people-operations teams at mid-market and large organiza
 ## Operational Footprint
 
 - Trainer network spans 100+ countries, 50+ languages.
-- Sessions run across most major timezones simultaneously, which makes scheduling and conflict checking a non-trivial problem (see [conflict-rules.md](conflict-rules.md)).
+- Web presence: 2,000+ course pages + a large blog covering technical, behavioural, leadership, sales, HR, and compliance topics — the surface area this Conflict Checker operates over.
 
-## Why a Conflict Checker
+## Why a (Content) Conflict Checker
 
-At Edstellar's scale — thousands of trainers, tens of thousands of batches per year, multi-timezone delivery — manual schedule validation is error-prone. A single trainer double-booked across two clients in different timezones is a customer-visible failure. The Conflict Checker exists to make that class of error impossible at booking time rather than discoverable at delivery time.
+With 2,478+ indexed URLs on edstellar.com and steady new publishing across courses, blogs, and category pages, near-duplicate and overlapping content is the single biggest SEO drag:
+
+- **Keyword cannibalization** — multiple pages competing for the same SERP slot, splitting clicks and authority.
+- **Duplicate intent** — a new blog rehashing a course page that already ranks.
+- **Drifted content** — old posts that semantically overlap newer flagship pieces.
+
+The Conflict Checker is the **pre-publish gate**: paste a URL or topic, get a scored verdict against the existing corpus before the page goes live. See [conflict-types.md](conflict-types.md) for what each verdict means and [conflict-rules.md](conflict-rules.md) for the scoring pipeline.

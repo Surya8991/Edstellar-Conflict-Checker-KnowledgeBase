@@ -1,51 +1,72 @@
-# Conflict Rules
+# Scoring Pipeline & Rules
 
-Precise rules the checker evaluates, in evaluation order. First hard conflict short-circuits; soft conflicts are accumulated and returned together.
+End-to-end flow of `runConflictCheck()` in [`conflict-checker/lib/conflict.ts`](../conflict-checker/lib/conflict.ts).
 
-## Evaluation Order
+## Pipeline
 
-1. **Trainer exists & active** — inactive trainer = `H-COMPETENCY` (treated as missing).
-2. **Competency check** — required course tags ⊆ trainer tags. If not → `H-COMPETENCY`.
-3. **Mode approval** — trainer.modes ∋ batch.mode. If not → `H-MODE`.
-4. **Blackout check** — any blackout interval intersects proposed window → `H-BLACKOUT`.
-5. **Session overlap** — any confirmed session intersects proposed window → `H-OVERLAP`.
-6. **Travel feasibility** (ILT only) — for each adjacent ILT session in a different city, compute `travel_time(city_a, city_b)`; if `gap < travel_time` → `H-TRAVEL`.
-7. **Daily load** — sum of session hours on the same trainer-local date including new session > 8 → `H-MAX-LOAD`.
-8. **Soft checks** — buffer, weekly load, timezone fatigue, language, rating. All evaluated, all returned.
+```
+input (URL or topic)
+   │
+   ▼
+┌────────────────────────────────────────┐
+│ 1. Fetch + extract (URL only)          │  fetchAndExtract()
+│    LLM summarize → { summary,          │  chat.summarize()
+│      searchSynopsis, keywords,         │
+│      primaryQuery }                    │
+└────────────────────────────────────────┘
+   │
+   ▼
+┌────────────────────────────────────────┐
+│ 2. Embed `searchSynopsis + keywords`   │  embedder.embed()
+│    Vector search corpus (top N)        │  vectorSearchPages()
+│    Filter sim < 0.30 (noise)           │
+└────────────────────────────────────────┘
+   │
+   ▼
+┌────────────────────────────────────────┐
+│ 3. LLM judge the top `classifyLimit`   │  chat.classifyConflicts()
+│    → per-match verdict                 │
+│      { conflictType, conflictScore,    │
+│        rationale, overlap, issue }     │
+└────────────────────────────────────────┘
+   │
+   ▼
+┌────────────────────────────────────────┐
+│ 4. Blend scores                        │  blendScore()
+│    base = stretch(sim, [0.55, 0.95])   │  similarityToBaseScore()
+│    final = 0.4·base + 0.6·llm          │
+│    Un-judged → conflictType =          │
+│       "needs-review"                   │
+└────────────────────────────────────────┘
+   │
+   ▼
+┌────────────────────────────────────────┐
+│ 5. Persist (best-effort)               │  INSERT checks / check_matches
+└────────────────────────────────────────┘
+```
 
-## Overlap Math
+## Defaults (`ConflictCheckOpts`)
 
-Two intervals `[a_start, a_end)` and `[b_start, b_end)` overlap iff `a_start < b_end AND b_start < a_end`. Both endpoints are UTC; comparison is half-open (touching = no overlap).
+| Option | Default | Why |
+|--------|---------|-----|
+| `vectorLimit` | 100 | Cheap (single pgvector query). Wide enough to surface long-tail matches. |
+| `classifyLimit` | 15 | Caps the expensive LLM call. Matches 16..100 get `needs-review`. |
+| `minSimilarity` | 0.30 | Anything lower is unrelated for this corpus; keeps UI signal-to-noise sane. |
+| `persist` | `true` | Stored in `checks` + `check_matches` for the history view. Best-effort — failures don't break the response. |
 
-## Travel Time Table (defaults)
+## Scoring functions
 
-| Scenario | Min gap required |
-|----------|------------------|
-| Same city, same venue | 0 (only buffer applies) |
-| Same city, different venue | 1 hr |
-| Different city, same country, < 500 km | 4 hr |
-| Different city, same country, ≥ 500 km | 8 hr (overnight) |
-| Different country | 24 hr |
+From [`conflict-checker/lib/score.ts`](../conflict-checker/lib/score.ts):
 
-Override per-trainer via `trainer.travel_overrides`.
+- `similarityToBaseScore(sim)` — clamp `sim` to `[0.55, 0.95]`, linearly map to `[0, 100]`, round.
+- `blendScore(base, llm)` — `round(0.4·base + 0.6·llm)`. If `llm` is missing → return `base` unchanged.
+- `conflictTypeFromScore(score)` — thresholds: ≥80 duplicate · ≥60 cannibalization · ≥35 partial-overlap · else none.
+- `scoreColor(score)` — UI colour ramp (red / orange / amber / green).
 
-## Buffer Defaults
+## Lazy classification
 
-| Mode | Pre | Post |
-|------|-----|------|
-| VILT | 15 min | 15 min |
-| ILT same city | 1 hr | 1 hr |
-| ILT travel day | half-day | half-day |
-| 1-on-1 coaching | 5 min | 5 min |
+Matches ranked 16+ ship with `conflict_type = "needs-review"` and an empty rationale. The UI calls `POST /api/check/classify-one` with the `checkId` + match URL to fill them on demand — keeps the headline call bounded while letting users drill deeper.
 
-## Precedence on Multiple Conflicts
+## Embedding-model assumption
 
-If both hard and soft conflicts apply to the same proposed session, return **all hard conflicts** and suppress soft ones in the response (UI shows hard first; soft only surface when zero hard).
-
-## Override Authority
-
-| Role | Can override soft | Can override hard |
-|------|-------------------|-------------------|
-| Booker | ✅ | ❌ |
-| Ops Lead | ✅ | ❌ |
-| Admin | ✅ | ✅ (with audit log + reason) |
+Default embedder is local `bge-small-en-v1.5` (384-dim). Changing to OpenAI `text-embedding-3-small` (1536-dim) requires widening `pages.embedding` and **re-ingesting the whole corpus** — old vectors are not portable. See [`conflict-checker/README.md`](../conflict-checker/README.md) for the migration SQL.

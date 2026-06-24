@@ -1,17 +1,25 @@
 # Domain Glossary
 
-Terms used throughout the conflict checker and this knowledge base.
+Terms used by the Conflict Checker and this knowledge base.
 
 | Term | Definition |
 |------|------------|
-| **Trainer** | An individual instructor in Edstellar's network, qualified to deliver one or more courses. Has a home timezone, availability calendar, and competency tags. |
-| **Course** | A catalog item (e.g. "AWS Solutions Architect Associate", "Crucial Conversations"). Has a duration in hours/days and a list of qualified trainers. |
-| **Training Request (TR)** | A client's ask: "deliver Course X to N learners between dates A and B in mode Y". State machine: `Draft → Submitted → Trainer-Assigned → Confirmed → In-Delivery → Completed`. |
-| **Batch** | A scheduled, trainer-assigned instance of a course for a specific client cohort. Has start/end datetimes (with timezone), a trainer, a mode (ILT/VILT), and a location (city for ILT, meeting URL for VILT). |
-| **Session** | A single contiguous time window within a batch (a multi-day batch has multiple sessions). Conflicts are checked at the session level, not the batch level. |
-| **Buffer** | Pre/post session time reserved for trainer prep, travel, or back-to-back recovery. Configurable per mode (default: 30 min VILT, half-day for ILT travel days). |
-| **Blackout** | Trainer-declared unavailable window (PTO, personal, public holiday). Treated as a hard conflict. |
-| **Soft Conflict** | A warning the booker can override (e.g. <2 hr gap between VILT sessions). |
-| **Hard Conflict** | A blocker the booker cannot override (e.g. overlapping sessions). |
-| **Competency Match** | Trainer has the required certification / skill tag for the course. Missing competency = hard conflict. |
-| **Timezone** | All datetimes are stored in UTC and rendered per viewer locale. Conflict math always runs in UTC. |
+| **Page** | Any ingested URL from Edstellar — blog post, course page, category, or static page. Stored in `pages` with title, extracted text, content type, and embedding. |
+| **Corpus** | The full set of ingested pages. Source list: `conflict-checker/data/sitemap-urls.csv` (~2,478 URLs). |
+| **Content type** | Classification per page: `blog`, `course`, `category`, `static`, `industry`. Used as a filter and to colour-code matches in the UI. |
+| **Candidate** | The new URL or topic being checked. Not yet in the corpus. |
+| **Summary** | LLM-generated 2–3 sentence digest of the candidate's content. Drives both the embedding and the LLM judge. |
+| **Search synopsis** | A keyword-dense paraphrase of the candidate, used as the actual embed text (cleaner vector signal than raw body). |
+| **Primary query** | The 4–8-word SEO query the LLM thinks the candidate targets. Used for SERP / GSC lookups in place of `keywords[0]`. |
+| **Embedding** | Dense vector representation. Default: local `bge-small-en-v1.5` (384-dim). Stored in `pages.embedding` as `vector(384)` in Neon + pgvector. |
+| **Similarity** | Cosine similarity between candidate and a corpus page, 0..1. Anything below ~0.55 is treated as noise. |
+| **Base score** | Similarity stretched into 0..100 (the `[0.55, 0.95]` band maps to `[0, 100]`). |
+| **LLM verdict** | The judge's structured output per shortlisted match: `conflictType`, `conflictScore` (0..100), `rationale`, `overlap[]`, `issue`. |
+| **Blended score** | `round(0.4 * base + 0.6 * llm)` — vector signal anchors the LLM in case of hallucination. |
+| **Conflict type** | `duplicate` ≥80 · `cannibalization` ≥60 · `partial-overlap` ≥35 · `none` <35 · `needs-review` (vector candidate not yet judged by the LLM). |
+| **Vector limit** | How many pgvector neighbours to fetch per check. Default 100. |
+| **Classify limit** | How many of those the LLM judges in the headline call. Default 15. The rest are scored from similarity alone and tagged `needs-review`. |
+| **Check** | A persisted run of the checker — input, summary, top score, and per-match rows in `checks` / `check_matches`. |
+| **Catalog conflict** | A precomputed near-duplicate pair across the corpus (no candidate involved). Produced by `npm run catalog-conflicts`. |
+| **GSC** | Google Search Console — clicks, impressions, CTR, position. Joined into the UI per page after OAuth connect. |
+| **Serper** | The SERP-data provider used for `/competitors` (`SERPER_API_KEY`). |

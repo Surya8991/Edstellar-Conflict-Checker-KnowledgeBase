@@ -1,55 +1,60 @@
 # Worked Examples
 
-Each example shows the input (existing schedule + proposed session) and the checker's expected output.
+Each example shows the input, what the pipeline returns, and how to read the verdict.
 
-## 1. Clean Booking
+## 1. Clean topic — no conflict
 
-**Existing:** Trainer T1 has no sessions on 2026-07-01.
-**Proposed:** VILT, 2026-07-01 09:00–13:00 UTC, course C1 (T1 certified).
-**Result:** ✅ No conflicts.
+**Input (topic):** `"how to introduce psychological safety in distributed engineering teams"`
 
-## 2. Hard Overlap
+**Top match:** existing blog "Building trust on remote teams" — similarity `0.41`, base score `0` (below 0.55 floor), no LLM verdict (filtered before classify).
 
-**Existing:** T1 confirmed VILT 09:00–12:00 UTC.
-**Proposed:** VILT 11:00–14:00 UTC.
-**Result:** ❌ `H-OVERLAP` — proposed 11:00 < existing 12:00 and existing 09:00 < proposed 14:00.
+**Verdict:** No matches above the 0.30 floor → `topScore = 0`. Safe to publish.
 
-## 3. Back-to-Back Touching (No Conflict)
+## 2. Duplicate
 
-**Existing:** T1 confirmed 09:00–12:00 UTC.
-**Proposed:** 12:00–15:00 UTC.
-**Result:** ⚠️ `S-BUFFER` (0 min gap < 15 min VILT buffer). No hard conflict — half-open intervals do not overlap at the touching endpoint.
+**Input (URL):** a draft blog "AWS Solutions Architect Associate — Complete Guide"
 
-## 4. Travel Conflict (ILT)
+**Top match:** existing course page `/courses/aws-solutions-architect-associate-saa-c03` — similarity `0.91`, base `90`, LLM `94`, blended **`92` → `duplicate`**.
 
-**Existing:** T1 confirmed ILT in Bengaluru, ends 2026-07-01 17:00 IST.
-**Proposed:** ILT in Mumbai, starts 2026-07-01 19:00 IST.
-**Result:** ❌ `H-TRAVEL` — Bengaluru↔Mumbai is intercity ≥500 km, requires 8 hr gap; only 2 hr available.
+**Verdict:** Don't publish. The course page already owns this query; a new blog will cannibalize and split rank.
 
-## 5. Missing Competency
+## 3. Cannibalization
 
-**Proposed:** Course "AWS Solutions Architect Pro" assigned to T1, whose tags include `aws-saa` but not `aws-sap`.
-**Result:** ❌ `H-COMPETENCY`.
+**Input (URL):** draft blog "Top 10 Cybersecurity Certifications for 2026"
 
-## 6. Timezone Fatigue (Soft)
+**Top matches:**
+- `/blog/best-cybersecurity-certifications` — sim `0.84`, blended **`72` → `cannibalization`**
+- `/blog/cissp-vs-ceh-which-cert-is-better` — sim `0.72`, blended **`55` → `partial-overlap`**
 
-**Existing:** T1 (home TZ: IST) ran sessions 23:00–02:00 IST on Mon and Tue.
-**Proposed:** 23:00–02:00 IST on Wed.
-**Result:** ⚠️ `S-TZ-FATIGUE` — third consecutive night-window session.
+**Verdict:** Re-scope the candidate (e.g. narrow to "for career-switchers" or "ranked by salary uplift") or merge into the existing top-10 post.
 
-## 7. Blackout
+## 4. Partial-overlap (link, don't kill)
 
-**Existing:** T1 declared PTO 2026-07-01 to 2026-07-07.
-**Proposed:** Any session in that range.
-**Result:** ❌ `H-BLACKOUT`.
+**Input (topic):** `"crucial conversations training for first-time managers"`
 
-## 8. Daily Load Cap
+**Top match:** `/courses/crucial-conversations` — sim `0.68`, blended **`48` → `partial-overlap`**.
 
-**Existing:** T1 has 6 hr of sessions on 2026-07-01.
-**Proposed:** 3 hr session same date.
-**Result:** ❌ `H-MAX-LOAD` — 6+3 = 9 > 8 hr cap.
+**Verdict:** Publish, but link the new piece to the course page (and vice versa from the course's "related" block). The intents are distinct (catalog vs. how-to-buy).
 
-## 9. Multiple Conflicts (Hard Suppresses Soft)
+## 5. Needs-review (long tail)
 
-**Existing:** Overlap + low rating apply.
-**Result:** Response includes `H-OVERLAP` only; `S-RATING` suppressed until hard conflict resolved.
+**Input (topic):** `"how to run an effective retrospective"`
+
+**Vector search** returns 47 matches above 0.30. Top 15 are LLM-judged; matches 16–47 ship with `conflict_type = "needs-review"` and similarity-derived scores.
+
+**Verdict:** Headline call returns immediately. UI lets the editor click any `needs-review` row → `POST /api/check/classify-one` → row updates in place with a full verdict.
+
+## 6. URL vs topic — what changes
+
+| Aspect | URL input | Topic input |
+|--------|-----------|-------------|
+| Source text | `fetchAndExtract(url)` → title + h1 + body | Raw topic string |
+| `excludeUrl` in vector search | The input URL itself (don't match yourself) | n/a |
+| `primaryQuery` | LLM infers from the page | LLM infers from the topic |
+
+## 7. Reading the UI
+
+- **Score colour** — red ≥80, orange ≥60, amber ≥35, green <35. Defined in [`scoreColor()`](../conflict-checker/lib/score.ts).
+- **Overlap chips** — 2–4 short phrases the LLM says both pages cover. Hover for context.
+- **Issue line** — one-sentence plain-English SEO problem (e.g. "Both pages target the query 'AWS SAA certification cost'").
+- **Show/Hide per-match summary** — collapsed by default to keep the list scannable.
