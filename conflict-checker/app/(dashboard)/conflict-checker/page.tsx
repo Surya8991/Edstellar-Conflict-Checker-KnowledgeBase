@@ -20,6 +20,7 @@ interface CheckResult {
   inputValue: string;
   summary: string;
   keywords: string[];
+  primaryQuery?: string;
   topScore: number;
   matches: Match[];
 }
@@ -119,12 +120,20 @@ export default function ConflictCheckerPage() {
       setEnriching(true);
       try {
         const urls = result.matches.slice(0, 8).map((m) => m.url);
+        // Pick the most specific topic for the SERP lookup. Long-tail beats
+        // single keywords every time — generic head terms ("Employee Training")
+        // return unrelated SERPs.
+        const serpTopic =
+          result.primaryQuery ||
+          (result.inputType === "topic" ? result.inputValue : null) ||
+          result.keywords?.[0] ||
+          result.inputValue;
         const res = await fetch("/api/check/enrich", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             urls,
-            topic: result.keywords?.[0] || result.inputValue,
+            topic: serpTopic,
             withSerp: true,
           }),
         });
@@ -141,11 +150,16 @@ export default function ConflictCheckerPage() {
     if (!result) return;
     setSuggesting(true);
     try {
+      const suggestTopic =
+        result.primaryQuery ||
+        (result.inputType === "topic" ? result.inputValue : null) ||
+        result.keywords?.[0] ||
+        result.inputValue;
       const res = await fetch("/api/suggestions/new-content", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          topic: result.keywords?.[0] || result.inputValue,
+          topic: suggestTopic,
           url: result.inputType === "url" ? result.inputValue : undefined,
         }),
       });
@@ -245,8 +259,16 @@ export default function ConflictCheckerPage() {
                 </div>
               </div>
               <p className="text-sm leading-relaxed text-slate-700">{result.summary || "—"}</p>
+              {result.primaryQuery && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Primary SEO query</span>
+                  <span className="rounded-md border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
+                    {result.primaryQuery}
+                  </span>
+                </div>
+              )}
               {result.keywords?.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-1.5">
+                <div className="mt-2 flex flex-wrap gap-1.5">
                   {result.keywords.map((k) => (
                     <span key={k} className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{k}</span>
                   ))}
@@ -259,7 +281,9 @@ export default function ConflictCheckerPage() {
             {enrich && enrich.serp && enrich.serp.organic && (
               <Card>
                 <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-slate-900">Competitor SERP for "{result.keywords?.[0] || result.inputValue}"</h3>
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    Competitor SERP for "{result.primaryQuery || result.keywords?.[0] || result.inputValue}"
+                  </h3>
                   {enrich.serp.edstellarRank
                     ? <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">Edstellar #{enrich.serp.edstellarRank}</span>
                     : <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">Not in top 10</span>}

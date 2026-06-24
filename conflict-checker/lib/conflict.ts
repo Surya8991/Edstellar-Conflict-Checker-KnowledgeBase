@@ -28,6 +28,9 @@ export interface ConflictCheckResult {
   inputValue: string;
   summary: string;
   keywords: string[];
+  /** The 4-8 word SEO query the LLM thinks this page targets. Use for SERP
+   *  lookups instead of the often-too-short keywords[0]. */
+  primaryQuery?: string;
   topScore: number;
   matches: ConflictMatchResult[];
   checkId?: number;
@@ -143,6 +146,7 @@ export async function runConflictCheck(
     inputValue: input,
     summary: summaryResult.summary,
     keywords: summaryResult.keywords,
+    primaryQuery: summaryResult.primaryQuery,
     topScore,
     matches,
   };
