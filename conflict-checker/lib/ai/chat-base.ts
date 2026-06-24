@@ -40,17 +40,28 @@ export abstract class BaseChatProvider implements ChatProvider {
     const user = input.isTopic
       ? `A content idea/topic is provided. Expand it into a search synopsis and extract keywords.
 Topic: """${input.content.slice(0, 4000)}"""
-Return JSON: {"summary": string (2-3 sentences), "keywords": string[] (5-10), "searchSynopsis": string (a dense 1-paragraph description of what this content would cover, for similarity search)}`
+Return JSON: {
+  "summary": string (2-3 sentences),
+  "keywords": string[] (5-10 short topical terms),
+  "primaryQuery": string (4-8 words — the single most specific SEO query this content should rank for; longer / more long-tail than keywords[0], e.g. "workplace training strategies for hybrid teams" rather than "training"),
+  "searchSynopsis": string (a dense 1-paragraph description of what this content would cover, for similarity search)
+}`
       : `Summarize the following page for duplicate-content detection.
 Title: ${input.title ?? "(none)"}
 Content: """${input.content.slice(0, 9000)}"""
-Return JSON: {"summary": string (3-4 sentences), "keywords": string[] (5-12 main topics/terms), "searchSynopsis": string (a dense 1-paragraph topical description for similarity search)}`;
+Return JSON: {
+  "summary": string (3-4 sentences),
+  "keywords": string[] (5-12 main topics/terms),
+  "primaryQuery": string (4-8 words — the single most specific SEO query THIS page targets / should rank for; pull from the title/H1/body, NOT a generic head term. Example: "managed training services for enterprise" rather than "training"),
+  "searchSynopsis": string (a dense 1-paragraph topical description for similarity search)
+}`;
 
     const raw = await this.complete(system, user);
     const parsed = parseJson<Partial<SummaryResult>>(raw, {});
     return {
       summary: parsed.summary ?? "",
       keywords: Array.isArray(parsed.keywords) ? parsed.keywords : [],
+      primaryQuery: typeof parsed.primaryQuery === "string" ? parsed.primaryQuery : undefined,
       searchSynopsis: parsed.searchSynopsis ?? parsed.summary ?? input.content.slice(0, 1000),
     };
   }
