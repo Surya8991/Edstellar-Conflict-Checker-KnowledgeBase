@@ -1,6 +1,6 @@
 # Scoring Pipeline & Rules
 
-End-to-end flow of `runConflictCheck()` in [`conflict-checker/lib/conflict.ts`](../conflict-checker/lib/conflict.ts).
+End-to-end flow of `runConflictCheck()` in [`lib/conflict.ts`](../lib/conflict.ts).
 
 ## Pipeline
 
@@ -56,7 +56,7 @@ input (URL or topic)
 
 ## Scoring functions
 
-From [`conflict-checker/lib/score.ts`](../conflict-checker/lib/score.ts):
+From [`lib/score.ts`](../lib/score.ts):
 
 - `similarityToBaseScore(sim)` — clamp `sim` to `[0.55, 0.95]`, linearly map to `[0, 100]`, round.
 - `blendScore(base, llm)` — `round(0.4·base + 0.6·llm)`. If `llm` is missing → return `base` unchanged.
@@ -69,4 +69,4 @@ Matches ranked 16+ ship with `conflict_type = "needs-review"` and an empty ratio
 
 ## Embedding-model assumption
 
-Default embedder is local `bge-small-en-v1.5` (384-dim). Changing to OpenAI `text-embedding-3-small` (1536-dim) requires widening `pages.embedding` and **re-ingesting the whole corpus** — old vectors are not portable. See [`conflict-checker/README.md`](../conflict-checker/README.md) for the migration SQL.
+Default embedder is local `bge-small-en-v1.5` (384-dim). Changing to OpenAI `text-embedding-3-small` (1536-dim) requires widening `pages.embedding` and **re-ingesting the whole corpus** — old vectors are not portable. See [`README.md`](../README.md) for the migration SQL.

@@ -54,7 +54,7 @@ Each example shows the input, what the pipeline returns, and how to read the ver
 
 ## 7. Reading the UI
 
-- **Score colour** — red ≥80, orange ≥60, amber ≥35, green <35. Defined in [`scoreColor()`](../conflict-checker/lib/score.ts).
+- **Score colour** — red ≥80, orange ≥60, amber ≥35, green <35. Defined in [`scoreColor()`](../lib/score.ts).
 - **Overlap chips** — 2–4 short phrases the LLM says both pages cover. Hover for context.
 - **Issue line** — one-sentence plain-English SEO problem (e.g. "Both pages target the query 'AWS SAA certification cost'").
 - **Show/Hide per-match summary** — collapsed by default to keep the list scannable.

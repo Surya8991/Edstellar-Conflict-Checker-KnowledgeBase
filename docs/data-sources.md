@@ -6,16 +6,16 @@ Where the Conflict Checker reads from and writes to.
 
 | Source | Format | Used for | Refresh |
 |--------|--------|----------|---------|
-| [`conflict-checker/data/sitemap-urls.csv`](../conflict-checker/data/sitemap-urls.csv) | CSV (~2,478 URLs) | Seed list for `npm run ingest`. | Manual — regenerate from edstellar.com sitemap when content set changes materially. |
-| [`conflict-checker/data/taxonomy/courses.json`](../conflict-checker/data/taxonomy/courses.json) | JSON | Course catalog metadata (slug, title, category). | Manual extract via `scripts/extract-taxonomy.py`. |
-| [`conflict-checker/data/taxonomy/blogs.json`](../conflict-checker/data/taxonomy/blogs.json) | JSON | Blog metadata. | Same extractor. |
-| [`conflict-checker/data/taxonomy/course-to-blog.json`](../conflict-checker/data/taxonomy/course-to-blog.json) | JSON | Pre-computed course↔blog associations. | Regenerate after re-ingest. |
-| [`conflict-checker/data/taxonomy/competitors.json`](../conflict-checker/data/taxonomy/competitors.json) | JSON | Competitor domain list for `/competitors`. | Manual edits. |
-| [`conflict-checker/data/taxonomy/synonyms.json`](../conflict-checker/data/taxonomy/synonyms.json) | JSON | Query expansion / dedupe hints. | Manual edits. |
+| [`data/sitemap-urls.csv`](../data/sitemap-urls.csv) | CSV (~2,478 URLs) | Seed list for `npm run ingest`. | Manual — regenerate from edstellar.com sitemap when content set changes materially. |
+| [`data/taxonomy/courses.json`](../data/taxonomy/courses.json) | JSON | Course catalog metadata (slug, title, category). | Manual extract via `scripts/extract-taxonomy.py`. |
+| [`data/taxonomy/blogs.json`](../data/taxonomy/blogs.json) | JSON | Blog metadata. | Same extractor. |
+| [`data/taxonomy/course-to-blog.json`](../data/taxonomy/course-to-blog.json) | JSON | Pre-computed course↔blog associations. | Regenerate after re-ingest. |
+| [`data/taxonomy/competitors.json`](../data/taxonomy/competitors.json) | JSON | Competitor domain list for `/competitors`. | Manual edits. |
+| [`data/taxonomy/synonyms.json`](../data/taxonomy/synonyms.json) | JSON | Query expansion / dedupe hints. | Manual edits. |
 
 ## Storage (Neon Postgres + pgvector)
 
-Schema lives in [`conflict-checker/lib/db/schema.ts`](../conflict-checker/lib/db/schema.ts) and is materialised by [`conflict-checker/drizzle/*.sql`](../conflict-checker/drizzle/).
+Schema lives in [`lib/db/schema.ts`](../lib/db/schema.ts) and is materialised by [`drizzle/*.sql`](../drizzle/).
 
 | Table | Purpose |
 |-------|---------|

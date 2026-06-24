@@ -1,6 +1,6 @@
 # Conflict Types
 
-The verdict the checker assigns to each match. Threshold values live in [`conflict-checker/lib/score.ts`](../conflict-checker/lib/score.ts) — if you change them, update this table in the same commit.
+The verdict the checker assigns to each match. Threshold values live in [`lib/score.ts`](../lib/score.ts) — if you change them, update this table in the same commit.
 
 | Type | Blended score | Meaning | Typical action |
 |------|---------------|---------|----------------|
@@ -12,7 +12,7 @@ The verdict the checker assigns to each match. Threshold values live in [`confli
 
 ## Why a blended score, not raw LLM?
 
-Vector similarity is a measured, reproducible signal. The LLM verdict is sharper on intent but can hallucinate. We blend `0.4 * base + 0.6 * llm` so a wild LLM number can't drift more than ~40 points from what the embeddings say. See [`blendScore`](../conflict-checker/lib/score.ts).
+Vector similarity is a measured, reproducible signal. The LLM verdict is sharper on intent but can hallucinate. We blend `0.4 * base + 0.6 * llm` so a wild LLM number can't drift more than ~40 points from what the embeddings say. See [`blendScore`](../lib/score.ts).
 
 ## Why the 0.55 – 0.95 similarity band?
 
