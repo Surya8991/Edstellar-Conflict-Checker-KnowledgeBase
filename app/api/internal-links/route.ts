@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getEmbedder, getChat } from "@/lib/ai";
 import { fetchAndExtract } from "@/lib/extract";
 import { vectorSearchPages, type VectorMatch } from "@/lib/search";
+import { fetchInboundCounts, inboundWeight } from "@/lib/inbound-links";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -71,13 +72,16 @@ function trafficWeight(clicks: number | null | undefined): number {
 function compositeScore(
   match: VectorMatch,
   linkerType: string | null,
+  inbound: number,
 ): number {
   const a = affinity(linkerType, match.contentType);
   const t = trafficWeight(match.gscClicks28d);
-  // similarity is in [0..1]; affinity in [0..1]; traffic in [1..1.4].
+  const w = inboundWeight(inbound);
+  // similarity ∈ [0..1] · affinity ∈ [0..1] · traffic ∈ [1..1.4]
+  //   · inbound-link weight ∈ [0.85..1.15]
   // Multiplicative blend means a strong similarity + good affinity + a
-  // high-traffic target tops the list.
-  return match.similarity * a * t;
+  // high-traffic target + room for more inbound links tops the list.
+  return match.similarity * a * t * w;
 }
 
 function inferContentTypeFromUrl(url: string | null | undefined): string | null {
@@ -184,9 +188,24 @@ export async function POST(request: NextRequest) {
       excludeUrl: isUrl ? body.input : body.excludeUrl,
     });
 
-    // Re-rank by composite score.
+    // Audit 10C polish (Session 9): fetch inbound-link counts for the
+    // candidate set in one query, then re-rank by composite. Pages with
+    // few inbound links get a boost; saturated pages get a penalty.
+    // See lib/inbound-links.ts for the weight curve.
+    const inbound = await fetchInboundCounts(
+      matches.map((m) => m.url),
+      isUrl ? body.input : body.excludeUrl,
+    );
+
     const ranked = matches
-      .map((m) => ({ match: m, composite: compositeScore(m, linkerType) }))
+      .map((m) => {
+        const links = inbound[m.url] ?? 0;
+        return {
+          match: m,
+          composite: compositeScore(m, linkerType, links),
+          inbound: links,
+        };
+      })
       .sort((a, b) => b.composite - a.composite)
       .slice(0, limit);
 
@@ -195,7 +214,7 @@ export async function POST(request: NextRequest) {
       ? await generateAnchorVariants(ranked.map((r) => r.match), draftContext)
       : {};
 
-    const suggestions = ranked.map(({ match: m, composite }, i) => {
+    const suggestions = ranked.map(({ match: m, composite, inbound: ib }, i) => {
       const variants = anchorMap[m.url] ?? [];
       // First non-empty variant if available, else the title, else the URL.
       const primaryAnchor = variants[0] || m.title || m.url;
@@ -208,6 +227,7 @@ export async function POST(request: NextRequest) {
         compositeScore: Number(composite.toFixed(4)),
         affinity: Number(affinity(linkerType, m.contentType).toFixed(2)),
         gscClicks28d: m.gscClicks28d,
+        inboundLinks: ib,
         anchor: primaryAnchor,
         anchorVariants: variants,
         snippet: m.snippet.slice(0, 240),

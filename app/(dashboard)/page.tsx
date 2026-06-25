@@ -2,7 +2,7 @@ import Link from "next/link";
 import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { readSitemapCsv } from "@/lib/sitemap";
-import { PageHeader, Card, ConflictBadge, TypeChip } from "@/app/components/ui";
+import { PageHeader, Card, ConflictBadge, TypeChip, Stat } from "@/app/components/ui";
 import { scoreTextColor, scoreType } from "@/lib/score-bands";
 
 export const dynamic = "force-dynamic";
@@ -114,36 +114,9 @@ async function getStats(): Promise<DashboardStats> {
   return stats;
 }
 
-function Stat({ label, value, hint, accent, href }: {
-  label: string;
-  value: number | string;
-  hint?: string;
-  accent?: "default" | "warn" | "danger" | "ok";
-  href?: string;
-}) {
-  const accentCls = {
-    default: "text-slate-900",
-    ok:      "text-emerald-700",
-    warn:    "text-amber-600",
-    danger:  "text-red-600",
-  }[accent ?? "default"];
-  const body = (
-    <>
-      <div className={`text-3xl font-semibold tracking-tight tabular-nums ${accentCls}`}>
-        {value}
-      </div>
-      <div className="mt-1 text-sm text-slate-500">{label}</div>
-      {hint && <div className="mt-2 text-xs text-slate-400">{hint}</div>}
-    </>
-  );
-  return href ? (
-    <Link href={href}>
-      <Card className="h-full transition hover:border-slate-400 hover:shadow">{body}</Card>
-    </Link>
-  ) : (
-    <Card className="h-full">{body}</Card>
-  );
-}
+// Stat moved to @/app/components/ui (Session 9 audit 10C — was duplicated
+// here and in /competitors with a different visual treatment; unified
+// behind a size="lg|sm" prop).
 
 function pctOfSitemap(n: number, total: number): string {
   if (!total) return "";

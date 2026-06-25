@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
-import { db } from "@/lib/db";
+import { db, neonRows } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
         ORDER BY last_run DESC
         LIMIT ${limit}
       `);
-      return NextResponse.json({ rows: (rows as any).rows ?? rows });
+      return NextResponse.json({ rows: neonRows(rows) });
     }
 
     const history = await db.execute(sql`
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
       ORDER BY created_at ASC
       LIMIT ${limit}
     `);
-    const histRows = (history as any).rows ?? history;
+    const histRows = neonRows(history);
     const latest = (histRows as any[])[histRows.length - 1];
     let matches: any[] = [];
     if (latest) {

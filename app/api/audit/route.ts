@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
-import { db } from "@/lib/db";
+import { db, neonRows } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
         ORDER BY content_type, id
         LIMIT ${limit}
       `);
-      const data = (rows as any).rows ?? rows;
+      const data = neonRows<Record<string, unknown>>(rows);
       const issues = data.map((r: any) => ({
         ...r,
         flags: metaFlags(r.title_len, r.meta_len, r.title, r.meta_description),
@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
       `);
       const b = ((breakdown as any).rows ?? breakdown)[0] ?? {};
       return NextResponse.json({
-        rows: (rows as any).rows ?? rows,
+        rows: neonRows(rows),
         audited: b.audited ?? 0,
         breakdown: {
           ok: b.ok ?? 0,
@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
         ORDER BY images_no_alt DESC, image_count DESC
         LIMIT ${limit}
       `);
-      return NextResponse.json({ rows: (rows as any).rows ?? rows });
+      return NextResponse.json({ rows: neonRows(rows) });
     }
 
     if (kind === "clusters") {
@@ -200,7 +200,7 @@ export async function GET(request: NextRequest) {
         ORDER BY gsc_clicks_28d ASC NULLS FIRST, lastmod ASC NULLS FIRST
         LIMIT ${limit}
       `);
-      return NextResponse.json({ rows: (rows as any).rows ?? rows });
+      return NextResponse.json({ rows: neonRows(rows) });
     }
 
     if (kind === "duplicates") {

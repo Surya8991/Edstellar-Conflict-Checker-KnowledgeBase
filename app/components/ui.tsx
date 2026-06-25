@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { scoreBarColor } from "@/lib/score-bands";
 
 export function PageHeader({
@@ -168,5 +169,76 @@ export function Button({
       {...rest}
       className={`inline-flex items-center justify-center gap-2 rounded-lg font-medium transition ${BUTTON_VARIANT[variant]} ${BUTTON_SIZE[size]} ${className}`}
     />
+  );
+}
+
+/**
+ * Audit 10C polish (Session 9): unified Stat component. Previously the
+ * dashboard rendered a big Card-shaped KPI tile and the competitors page
+ * rendered a small slate-50 inline box — both called `Stat` locally.
+ * Two variants live here so existing call sites work without contortions:
+ *
+ *   <Stat size="lg" label="..." value={n} hint="..." href="/audit" accent="warn" />
+ *     headline KPI on the dashboard — big card, optional link + accent
+ *
+ *   <Stat size="sm" label="..." value="..." />
+ *     inline sub-metric in a row — small bordered box, no link/accent
+ *
+ * `size="lg"` is the default since the dashboard cluster is the more
+ * common use. The legacy local Stat definitions in dashboard + competitors
+ * pages have been replaced with imports of this component.
+ */
+type StatAccent = "default" | "warn" | "danger" | "ok";
+type StatSize = "lg" | "sm";
+
+const STAT_ACCENT: Record<StatAccent, string> = {
+  default: "text-slate-900",
+  ok:      "text-emerald-700",
+  warn:    "text-amber-600",
+  danger:  "text-red-600",
+};
+
+export function Stat({
+  label,
+  value,
+  hint,
+  accent = "default",
+  size = "lg",
+  href,
+}: {
+  label: string;
+  value: number | string;
+  hint?: string;
+  accent?: StatAccent;
+  size?: StatSize;
+  href?: string;
+}) {
+  if (size === "sm") {
+    // Inline sub-metric — no link, no accent on the value.
+    return (
+      <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+        <div className="text-xs uppercase tracking-wider text-slate-400">{label}</div>
+        <div className="text-base font-semibold text-slate-900">{value}</div>
+      </div>
+    );
+  }
+  const body = (
+    <>
+      <div
+        className={`text-3xl font-semibold tracking-tight tabular-nums ${STAT_ACCENT[accent]}`}
+      >
+        {value}
+      </div>
+      <div className="mt-1 text-sm text-slate-500">{label}</div>
+      {hint && <div className="mt-2 text-xs text-slate-400">{hint}</div>}
+    </>
+  );
+  if (!href) return <Card className="h-full">{body}</Card>;
+  return (
+    <Link href={href} className="block">
+      <Card className="h-full transition hover:border-slate-400 hover:shadow">
+        {body}
+      </Card>
+    </Link>
   );
 }

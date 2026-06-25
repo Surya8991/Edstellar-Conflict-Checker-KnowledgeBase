@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
-import { db } from "@/lib/db";
+import { db, neonRows } from "@/lib/db";
 import { indexCoverage } from "@/lib/gsc-insights";
 
 export const runtime = "nodejs";
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       ORDER BY random()
       LIMIT ${sample}
     `);
-    const urls: string[] = ((rows as any).rows ?? rows).map((r: any) => r.url);
+    const urls: string[] = neonRows<{ url: string }>(rows).map((r) => r.url);
     const results = await indexCoverage(urls);
     const buckets: Record<string, number> = {};
     for (const r of results) buckets[r.verdict] = (buckets[r.verdict] ?? 0) + 1;

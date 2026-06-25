@@ -4,7 +4,7 @@
 > and how the system fits together. Update this file with every meaningful
 > change.
 
-**Last updated:** 2026-06-25 (Session 8 — medium-batch cleanup shipped)
+**Last updated:** 2026-06-25 (Session 9 — final polish + lightweight inbound-link signal)
 **Owner:** marketing@edstellar.com
 **Repo:** https://github.com/Layruss98266/Edstellar-Conflict-Checker-KnowledgeBase
 **Prod:** https://edstellar-conflict-checker-knowledg.vercel.app/
@@ -1407,3 +1407,32 @@ variants.
 - **Don't ask the LLM for what plain code can do.** Anchor-variant generation needed the LLM (creative writing); content-type affinity / traffic weighting / composite ranking are plain code. Mixing the two in one route is fine when each is doing what it's best at.
 - **Cache headers are framework-shaped.** Tried adding cache headers in the OG route handler itself first; the right place was `next.config.ts headers()` matching the source path — Vercel's edge picks them up uniformly.
 - **Backfill comments to match code, not the other way around.** When you find a code-comment disagreement (3A owner-bonus), trust whichever one matches documented behaviour and fix the other. Don't ship "either could be right" patches.
+
+---
+
+## 13. Session 9 — Final polish + lightweight inbound-link signal (2026-06-25)
+
+Closed out every §10C polish item plus the audit's "reciprocal/orphan
+internal-link check" via a lightweight implementation that needs no
+schema migration. One commit covering four small batches.
+
+### 13A. What landed this session
+
+| Batch | Items | What landed |
+|---|---|---|
+| 4A | Stat unification | Single `Stat` component in `ui.tsx` with `size="lg" \| "sm"`, `accent`, `hint`, `href` props. Dashboard's headline-KPI tile (size lg) and competitors' inline-metric box (size sm) both render from the same component. Local definitions deleted from both pages. |
+| 4B | `cluster.ts` polish | Added `--seed=<int>` flag (mulberry32 PRNG; falls back to `Math.random` when unset). Wrapped `TRUNCATE clusters` + per-cluster `INSERT`/`UPDATE` loop in `BEGIN/COMMIT` with `ROLLBACK` on error so a partial run doesn't leave the table empty. |
+| 4C | `neonRows<T>()` migration | All 8 sites of the `(rows as any).rows ?? rows` pattern migrated to the typed helper from Session 8 Batch 3C: `app/api/audit/route.ts` (5), `catalog-conflicts/route.ts` (1), `check/history/route.ts` (2), `gsc/index-coverage/route.ts` (1). Pattern fully retired from the codebase. |
+| 4D | Inbound-link signal (lightweight) | New `lib/inbound-links.ts` with `fetchInboundCounts()` + `inboundWeight()`. One `unnest()+ILIKE` query gives an inbound count per candidate URL by scanning `content_text` of every other row. `/api/internal-links` composite now multiplies in `inboundWeight ∈ [0.85..1.15]` — orphan pages float up (need links), already-saturated pages get a slight penalty (don't reinforce stacks). Each suggestion ships `inboundLinks` alongside `compositeScore`. |
+
+### 13B. Tradeoffs taken vs the audit's full proposal
+
+- **Inbound links as `content_text` ILIKE, not a proper inbound-links table.** The audit recommended a dedicated table the ingest pipeline populates. That's the right design at 50k+ pages, but at ~2,500 pages a per-query `unnest()+ILIKE` against the corpus (O(N · candidates)) finishes in tens of milliseconds against Neon's pooled connection. Trades a small schema/migration project for a slight ongoing query cost. Documented in `lib/inbound-links.ts` so the next person sees the tradeoff and can upgrade when scale demands.
+- **Substring match, not parsed `<a href>`.** False-positives are possible (a URL mentioned in copy without being a real anchor). For surfacing internal-linking suggestions the noise is acceptable — the downstream LLM still picks reasonable anchor variants.
+
+### 13C. What's actually left now
+
+- **Strict nonce-based CSP.** Replaces the permissive CSP from Batch 2A. Project on its own — touches every inline script/style. Defer unless threat model changes.
+- **Productization / strategic items** (§10E): rename, multi-tenant data model, CMS plugins, OpenAI embeddings switch, intent classification, SOC2 prep, in-app onboarding. None are bugs; only relevant if Edstellar externalises this tool as a product.
+
+That's it. Every red/orange/yellow item from the original audit §10A–C is closed.

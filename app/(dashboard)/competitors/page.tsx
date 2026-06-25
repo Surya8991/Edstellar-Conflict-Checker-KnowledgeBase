@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { PageHeader, Card } from "@/app/components/ui";
+import { PageHeader, Card, Stat } from "@/app/components/ui";
 import { Tabs, useActiveTab } from "@/app/components/Tabs";
 
 // Audit H15 (Session 6): tab id is the URL-stable identifier; the label
@@ -239,10 +239,10 @@ function FreshnessTab() {
       {data && (
         <Card>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            <Stat label="URLs" value={data.totalUrls.toLocaleString()} />
-            <Stat label="Updated last 90d" value={data.recent90d.toLocaleString()} />
-            <Stat label="Newest lastmod" value={data.newest ?? "—"} />
-            <Stat label="Oldest lastmod" value={data.oldest ?? "—"} />
+            <Stat size="sm" label="URLs" value={data.totalUrls.toLocaleString()} />
+            <Stat size="sm" label="Updated last 90d" value={data.recent90d.toLocaleString()} />
+            <Stat size="sm" label="Newest lastmod" value={data.newest ?? "—"} />
+            <Stat size="sm" label="Oldest lastmod" value={data.oldest ?? "—"} />
           </div>
           <h4 className="mb-2 mt-5 text-xs uppercase tracking-wider text-slate-400">Sample URLs</h4>
           <ul className="space-y-1 text-xs">
@@ -259,11 +259,5 @@ function FreshnessTab() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-      <div className="text-xs uppercase tracking-wider text-slate-400">{label}</div>
-      <div className="text-base font-semibold text-slate-900">{value}</div>
-    </div>
-  );
-}
+// Stat moved to @/app/components/ui — was a tiny inline metric box here;
+// the unified component renders this same shape with size="sm".
