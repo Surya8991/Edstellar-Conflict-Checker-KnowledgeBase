@@ -508,14 +508,33 @@ than commit order — the actual SHA trail is in `git log` between
   summarise time. Tighten further if a per-theme selector audit
   warrants it.
 
-**Still pending on the user's side:**
-- Rotate Neon DB password, Groq key, Serper key, Google OAuth client
-  secret (all pasted in chat during setup).
-- Add prod redirect URI to Google Cloud Console + set
-  `GOOGLE_REDIRECT_URI=https://edstellar-conflict-checker-knowledg.vercel.app/api/gsc/callback`
-  in Vercel env vars to unblock `/search-console`.
-- Confirm Vercel plan supports current cron config (3 crons, two
-  weekly) — Hobby caps at 2 crons + daily; needs Pro for as-is.
+**User-side wrap-up (all done per user, 2026-06-25):**
+- ✅ Secrets rotated (Neon DB password, Groq key, Serper key, Google
+  OAuth client secret).
+- ✅ Vercel env vars updated: `APP_BASE_URL`, `GOOGLE_REDIRECT_URI`
+  point at the prod Vercel URL.
+- ✅ Google Cloud Console redirect URI updated (prod + localhost both
+  whitelisted).
+- ✅ Vercel plan confirmed.
+- ✅ GSC permissions wired.
+
+**Code-side follow-ups done in the same session:**
+- `feat(dashboard)` — actionable home: attention banners (high-risk
+  checks 7d / 4xx links / thin pages / GSC unconnected), 6 stat cards
+  with color-by-signal, recent checks panel (last 8), top catalog
+  conflicts panel (5 worst), all clickable. Same SQL roundtrip budget.
+- `lib/country.ts` + GSC By-Country tables — country codes (`ind`,
+  `usa`, `phl`) now display as full names ("India", "United States of
+  America", "Philippines") via the `i18n-iso-countries` package.
+  Falls back to uppercased code for unknown values.
+- Edstellar-theme selector audit on `lib/extract.ts` — found the leaked
+  fragments from Session 4 spot-check were emitted by `.blog-tag-block`
+  ("BLOG" pill), `.update-date` (post meta line), `.bog-index-text`
+  (ToC widget — theme typo on "blog"), `.share-wrapper` /
+  `.share-articles-footer` / `.share-text`, `.authors-block` /
+  `.blog-author-block` / `.blog-authors-footer`. Added an
+  Edstellar-theme block to `NOISE_SELECTORS`. Verified against live
+  /blog/it-manager-skills — six leak patterns all clean.
 
 ---
 

@@ -12,6 +12,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { PageHeader, Card } from "@/app/components/ui";
+import { countryName } from "@/lib/country";
 
 const RANGES = [
   { key: "24h", label: "24 hours" },
@@ -407,7 +408,7 @@ function OverviewTab({ data, range }: { data: Insights; range: string }) {
           <SimpleTable
             cols={["Country","Clicks","Impr","CTR","Pos"]}
             rows={data.byCountry.map((r: any) => [
-              r.keys?.[0] ?? "",
+              countryName(r.keys?.[0]),
               fmt(r.clicks),
               fmt(r.impressions),
               (r.ctr * 100).toFixed(1) + "%",
@@ -864,7 +865,7 @@ function PageDetailModal({ data, loading, onClose }: { data: any; loading: boole
               <h4 className="mb-2 text-xs uppercase tracking-wider text-slate-400">By country</h4>
               <SimpleTable
                 cols={["Country","Clicks","Impr"]}
-                rows={(data.countries ?? []).slice(0, 8).map((r: any) => [r.keys?.[0] ?? "", fmt(r.clicks), fmt(r.impressions)])}
+                rows={(data.countries ?? []).slice(0, 8).map((r: any) => [countryName(r.keys?.[0]), fmt(r.clicks), fmt(r.impressions)])}
               />
               <h4 className="mb-2 mt-4 text-xs uppercase tracking-wider text-slate-400">By device</h4>
               <SimpleTable

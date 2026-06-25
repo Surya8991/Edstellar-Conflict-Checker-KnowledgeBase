@@ -96,6 +96,18 @@ const NOISE_SELECTORS = [
   "[class*='reading-progress']",
   "[class*='floating-cta']", "[class*='sticky-cta']",
   "[class*='print-only']", "[class*='no-print']",
+
+  // ----- Edstellar-theme specific -----
+  // Found by auditing live /blog/* HTML; class names are unique enough
+  // that an exact-substring match is safe. Group kept separate so future
+  // theme audits can extend it without touching the generic list above.
+  "[class*='blog-tag-block']",                              // 'BLOG' pill header
+  "[class*='update-date']",                                 // 'Updated On <date> 8 mins read' meta
+  "[class*='bog-index']", "[class*='blog-index']",          // ToC widget (theme typo: "bog")
+  "[class*='share-wrapper']", "[class*='share-article']",   // share row + share footer
+  "[class*='share-footer']", "[class*='share-text']",
+  "[class*='authors-block']", "[class*='blog-author']",     // author byline blocks
+  "[class*='authors-footer']",
 ];
 
 /**
