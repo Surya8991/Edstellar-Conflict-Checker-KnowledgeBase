@@ -14,6 +14,7 @@ import {
   Swords,
   Database,
   GitCompareArrows,
+  BarChart3,
   Menu,
   X,
 } from "lucide-react";
@@ -26,6 +27,7 @@ interface SidebarUser {
 
 const NAV = [
   { href: "/",                   label: "Dashboard",         icon: LayoutDashboard },
+  { href: "/manager",            label: "Manager View",      icon: BarChart3 },
   { href: "/conflict-checker",   label: "Conflict Checker",  icon: ScanSearch },
   { href: "/bulk-check",         label: "Bulk Check",        icon: Layers },
   { href: "/internal-links",     label: "Internal Links",    icon: Link2 },
