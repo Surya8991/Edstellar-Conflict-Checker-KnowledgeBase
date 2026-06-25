@@ -83,7 +83,7 @@ Only needed if you want the Search Console dashboard. Skip if you only care abou
    - **Authorized redirect URIs** → Add **both**:
      ```
      http://localhost:3000/api/gsc/callback
-     https://<your-vercel-domain>/api/gsc/callback
+     https://edstellar-conflict-checker-knowledg.vercel.app/api/gsc/callback
      ```
    - Click **Create**.
 8. A popup shows **Client ID** and **Client Secret**. Copy both.
@@ -149,8 +149,8 @@ Required before exposing the app publicly:
 
 1. `CRON_SECRET` — set a long random string. **The cron routes fail open if it's unset**, so anyone could trigger `/api/cron/reingest` and rack up DB + LLM costs.
 2. `WEBHOOK_API_KEY` (optional) — gate `POST /api/check` for external callers. When set, callers must send `X-API-Key: <value>`.
-3. `APP_BASE_URL` — set to your `https://<project>.vercel.app` (or custom domain). Used to build absolute URLs in cron jobs and OAuth flows.
-4. `GOOGLE_REDIRECT_URI` — switch to the prod URL `https://<domain>/api/gsc/callback` (and add it to the Google OAuth client's allowed redirect URIs).
+3. `APP_BASE_URL` — set to your `https://edstellar-conflict-checker-knowledg.vercel.app` (or custom domain). Used to build absolute URLs in cron jobs and OAuth flows.
+4. `GOOGLE_REDIRECT_URI` — switch to the prod URL `https://edstellar-conflict-checker-knowledg.vercel.app/api/gsc/callback` (and add it to the Google OAuth client's allowed redirect URIs).
 5. `BRAND_TERMS` — comma-separated brand/keyword terms the checker treats as house terms (default `edstellar,edstellar.com`).
 
 ---

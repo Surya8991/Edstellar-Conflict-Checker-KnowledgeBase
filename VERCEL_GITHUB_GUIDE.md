@@ -11,7 +11,7 @@ A plain-English walkthrough of every action you'll take in **GitHub** and **Verc
 | Where | What lives there | What you do there |
 |---|---|---|
 | **GitHub** (`Layruss98266/Edstellar-Conflict-Checker-KnowledgeBase`) | The source code + history. | Push changes. Code reviews. Roll back if needed. |
-| **Vercel** | The running app at `https://<your-project>.vercel.app`. Reads your GitHub repo and builds it. | Set environment variables. Watch builds. Add a custom domain. Read function logs. |
+| **Vercel** | The running app at `https://edstellar-conflict-checker-knowledg.vercel.app`. Reads your GitHub repo and builds it. | Set environment variables. Watch builds. Add a custom domain. Read function logs. |
 | **Neon** (Postgres) | The corpus + check history database. | Nothing day-to-day. You set the connection string once. |
 | **Groq / Anthropic / Google / Serper** | External APIs the app calls. | Get keys once, paste into Vercel env vars. |
 
@@ -72,7 +72,7 @@ Still on the import screen, expand **Environment Variables**. Paste each row fro
 | `GROQ_API_KEY` | A Groq API key starting `gsk_…` | <https://console.groq.com/keys> → Create API Key |
 | `AI_CHAT_PROVIDER` | `groq` | (literal value) |
 | `AI_EMBED_PROVIDER` | `local` | (literal value) |
-| `APP_BASE_URL` | `https://<your-project>.vercel.app` | Vercel will show this URL after first deploy. Add it now as a placeholder; update it after deploy if the auto-assigned name differs. |
+| `APP_BASE_URL` | `https://edstellar-conflict-checker-knowledg.vercel.app` | Vercel will show this URL after first deploy. Add it now as a placeholder; update it after deploy if the auto-assigned name differs. |
 | `CRON_SECRET` | Any long random string, e.g. `openssl rand -hex 32` | **Required for production** — cron routes fail OPEN without it; anyone could trigger your DB-writing cron jobs. |
 | `BRAND_TERMS` | `edstellar,edstellar.com` | (literal value) |
 
@@ -82,7 +82,7 @@ Still on the import screen, expand **Environment Variables**. Paste each row fro
 |---|---|---|
 | `ANTHROPIC_API_KEY` | Switching chat provider to Claude | Then also set `AI_CHAT_PROVIDER=claude` |
 | `OPENAI_API_KEY` | Switching to OpenAI for chat or embeddings | If embeddings: also do the 384→1536 column-widen migration in `README.md` and re-ingest |
-| `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` + `GOOGLE_REDIRECT_URI` + `GSC_SITE_URL` | The `/search-console` page | Follow `SETUP_GUIDE.md` STEP 2. The redirect URI for prod is `https://<your-project>.vercel.app/api/gsc/callback`. |
+| `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` + `GOOGLE_REDIRECT_URI` + `GSC_SITE_URL` | The `/search-console` page | Follow `SETUP_GUIDE.md` STEP 2. The redirect URI for prod is `https://edstellar-conflict-checker-knowledg.vercel.app/api/gsc/callback`. |
 | `SERPER_API_KEY` | The `/competitors` page | <https://serper.dev> → Sign up → Dashboard shows the key |
 | `WEBHOOK_API_KEY` | Gating `POST /api/check` from a CMS pre-publish hook | Callers must then send header `X-API-Key: <value>` |
 
@@ -90,7 +90,7 @@ Still on the import screen, expand **Environment Variables**. Paste each row fro
 
 1. Click **Deploy**.
 2. Wait ~90 seconds. You'll see the build log stream.
-3. If it goes green, you get a **Visit** button → opens `https://<your-project>.vercel.app`.
+3. If it goes green, you get a **Visit** button → opens `https://edstellar-conflict-checker-knowledg.vercel.app`.
 4. If it fails, see [§ 6. Troubleshooting](#6-troubleshooting).
 
 ### 2.4 First-deploy follow-up — seed the database
@@ -213,7 +213,7 @@ Check Vercel → project → **Logs** → look at recent invocations of `/api/ch
 
 ### `/search-console` says "Connect Google" forever
 
-The redirect URI in Google Cloud Console doesn't include your Vercel URL. In Google Cloud → **Credentials → your OAuth client → Authorized redirect URIs**, add `https://<your-vercel-domain>/api/gsc/callback`, save, retry.
+The redirect URI in Google Cloud Console doesn't include your Vercel URL. In Google Cloud → **Credentials → your OAuth client → Authorized redirect URIs**, add `https://edstellar-conflict-checker-knowledg.vercel.app/api/gsc/callback`, save, retry.
 
 ### Cron job didn't run
 
@@ -261,6 +261,6 @@ Vercel → project → **Cron Jobs** tab shows scheduled runs + invocation logs.
 **Cheat sheet of the four URLs to bookmark:**
 
 - Repo: <https://github.com/Layruss98266/Edstellar-Conflict-Checker-KnowledgeBase>
-- Vercel project: `https://vercel.com/<your-team>/edstellar-conflict-checker-knowledgebase`
+- Vercel project: `https://vercel.com/<your-team>/edstellar-conflict-checker-knowledg`
 - Neon project: <https://console.neon.tech>
-- Production app: `https://<your-project>.vercel.app`
+- Production app: `https://edstellar-conflict-checker-knowledg.vercel.app`
