@@ -672,3 +672,115 @@ npm run audit:links          # HEAD-check every URL; updates pages.http_status
   `/api/cron/reingest` and rack up DB + LLM cost. Always set in prod.
 - **Vercel cron plan limits.** Hobby = 2 crons, daily-only, 60s timeout.
   Current `vercel.json` has 3 crons (two weekly) — needs Pro.
+
+---
+
+## 9. Improvement backlog (post-launch audit, 2026-06-25)
+
+Captured for review — **nothing here is implemented yet**. Picked from a
+three-lens audit (code quality, UX, SEO/marketing/content) plus 2026
+reference research. Severity flags: 🔥 do-first · ⚙️ strategic · ✨ polish.
+
+### 9A. Code quality + security
+
+| # | Item | File / area | Sev |
+|---|---|---|---|
+| 1 | `/api/check` + `/api/check/bulk` auth is optional — anyone with the prod URL can burn LLM tokens. Require `WEBHOOK_API_KEY` OR add IP rate-limit. | `app/api/check/{route,bulk/route}.ts` | 🔥 |
+| 2 | Audit-links cron does 1,500 sequential `UPDATE`s in a loop. Batch into one `UPDATE … WHERE id = ANY($1)`. | `app/api/cron/audit-links/route.ts` | 🔥 |
+| 3 | GSC refresh tokens stored plaintext in `gsc_connections`. Use `pgcrypto.pgp_sym_encrypt` with a key from env. | `lib/gsc.ts:35-46` + migration | 🔥 |
+| 4 | Zod is in `package.json` but `grep z\\.parse` returns 0 hits. One `safeParse` per route entry kills ~80% of mystery 500s. | every `route.ts` accepting a body | 🔥 |
+| 5 | `as any` casts on `db.execute` returns hide schema-drift bugs. Use the Drizzle-typed return shape or explicit interfaces. | `lib/conflict.ts:184`, `lib/search.ts:41`, `app/api/pages/route.ts:67-71` | ⚙️ |
+| 6 | LLM JSON output not validated. If a future model hallucinates an extra field or omits `conflictScore`, code NaNs silently. | `lib/ai/chat-claude.ts`, `chat-groq.ts`, `chat-openai.ts` | ⚙️ |
+| 7 | No structured logs, no Sentry. `catch { /* swallow */ }` pattern in many routes — failures invisible until a user complains. | repo-wide | ⚙️ |
+| 8 | Missing DB indexes on filter columns (`pages.content_type`, `course_type`, `category`). Vector index already exists. | new migration | ⚙️ |
+| 9 | `/api/pages` runs 5 queries per request (rows, totalRows, byType, byCourseType, topCategories) without a CTE. Fold into a single roundtrip. | `app/api/pages/route.ts` | ⚙️ |
+| 10 | Cron loops return 200 even when partial failures occur. Either return 5xx on >5% fail rate or post to an external sink. | `app/api/cron/*/route.ts` | ⚙️ |
+| 11 | `console.log` debris in production paths. Either gate on `process.env.DEBUG` or drop. | `lib/conflict.ts:159`, `app/api/gsc/callback/route.ts:19`, `scripts/*` | ✨ |
+| 12 | `checks.created_by` column exists but no auth → always null. Either wire NextAuth + populate, or document as TODO. | `lib/db/schema.ts` | ✨ |
+
+### 9B. UX rough edges
+
+| # | Item | File / area | Sev |
+|---|---|---|---|
+| 13 | Bulk-Check shows no per-row progress while a 50-URL run takes minutes. Stream results as they complete. | `app/(dashboard)/bulk-check/page.tsx:127-132` | 🔥 |
+| 14 | Page detail modal in /search-console doesn't close on Esc. 3-line `useEffect` fix. | `app/(dashboard)/search-console/page.tsx:843` | 🔥 |
+| 15 | Long calls (enrich, suggestions) have no "still working…" message after 5s — looks frozen. | `/conflict-checker` page L141-184 | 🔥 |
+| 16 | Pagination doesn't reset to page 1 when a filter shrinks the total → user sees blank tables. | most paginated views | 🔥 |
+| 17 | Empty-state copy says "run `npm run ingest`" — marketing user has no terminal. Rephrase to "Ask your admin to refresh the corpus" + Slack-link. | `/audit`, `/corpus`, `/history`, `/catalog-conflicts` empty states | ⚙️ |
+| 18 | "Conflict score" vs "similarity" used interchangeably in the same view — undermines trust in the metric. | `/conflict-checker` form labels + match cards | ⚙️ |
+| 19 | Sidebar fixed 240px — dashboard squashes on tablet portrait / narrow Brave windows. | `app/components/Sidebar.tsx` + dashboard layout | ⚙️ |
+| 20 | Catalog Conflicts page doesn't tell users it's a precomputed snapshot. Add a "last run: 3h ago" badge + "rerun" button (admin-only). | `/catalog-conflicts` header | ⚙️ |
+| 21 | "Find link targets" button label is opaque. Rename → "Suggest pages to link to". | `/internal-links` page L78 | ✨ |
+| 22 | CSV download buttons have no disabled-while-generating state. Click twice → two downloads. | bulk-check + search-console export | ✨ |
+| 23 | Audit Health Score severity chips wrap and lose the active state on narrow viewports. | `/audit` Health tab L246-257 | ✨ |
+| 24 | GSC lookup form doesn't validate `https://` prefix client-side; users hit "invalid input" from the API. | `/search-console` lookup form | ✨ |
+
+### 9C. SEO / Marketing / Content gaps
+
+This is where the tool stops being "yet another similarity scorer" and
+becomes opinionated.
+
+**SEO — what an SEO would expect that we don't have:**
+
+| # | Item | Why it matters |
+|---|---|---|
+| 25 | **Owner-URL per topic** — let an SEO mark "/courses/aws-saa is the canonical page for `aws saa certification`". The checker then says "your new blog overlaps the OWNER — merge or redirect" instead of "73% similarity". | This is the single biggest gap vs TrueRanker / SEO AI. Editorial decisions encoded in the data, not in the editor's head. |
+| 26 | **Business-impact severity** — weight conflict score by current GSC clicks/impressions on the existing page (already in `gsc_metrics`). A 70% conflict with a 12k-clicks/mo page should outrank a 90% conflict with a dead page. | Currently a 0–100 conflict score with no context. Reference tools (Unclash AI, Incremys) all do business-weighted prioritisation. |
+| 27 | **CTR opportunity column on /search-console** — pages with high impressions + low CTR are title-rewrite candidates, not duplicates. Show position 4-10 + CTR below site-median as a separate tab. | We have the data but the metric isn't surfaced. |
+| 28 | **Stale-content detector** — pages with declining clicks over a sliding window + `lastmod` > 12 mo old. Refresh-or-prune queue. | Mentioned in §5 roadmap but never built; the data is in `gsc_daily_totals` + `pages.lastmod`. |
+| 29 | **Cannibalization confirmed by GSC** — pgvector says two pages are similar; GSC tells us if Google actually swaps them in the SERP for the same query. Join `check_matches` to `gsc_metrics` on common query, flag the ones where rank position oscillates. | Vector similarity is a *signal*; SERP behaviour is the *symptom*. Surfacing both kills false positives. |
+| 30 | **Sitemap-drift report** — diff `data/sitemap-urls.csv` against a fresh fetch of the live sitemap to surface pages published but not ingested, or removed but still in corpus. | Today the corpus drifts silently between weekly cron runs. |
+| 31 | **No SERP-feature awareness** — Serper returns People Also Ask, Featured Snippet, AI Overview blocks. We only read `organic`. Should surface "your topic targets a question — write FAQ schema" etc. | `lib/competitors-extra.ts` already parses AI Overview; PAA + FS just need wiring. |
+| 32 | **Canonical-tag check** in extractor — record `<link rel="canonical">` per page and warn when two pages claim conflicting canonicals. | Cheap to add (one cheerio selector) and a real SEO sanity check. |
+
+**Marketing — workflow gaps:**
+
+| # | Item | Why |
+|---|---|---|
+| 33 | **No user concept → no assignment, no approval, no audit trail.** A check is run by "whoever opened the URL". Add NextAuth + Google SSO @edstellar.com (already sketched in §5.workflow). | Without this, the tool can't ever be a publish gate — there's no one to gate the publish against. |
+| 34 | **No CMS integration / publish gate.** `/api/check` exists as a webhook but no Edstellar CMS hook calls it. Either a Webflow webhook or a Zapier action. | Today the tool is *advisory*. To matter, a publish in the CMS should be conditional on a passing check. |
+| 35 | **No writer brief export.** The "Net-new content suggestions" panel shows 6 angles in the UI but you can't copy/paste them into a Notion brief. Add a one-click "Export as brief (Markdown)". | Marketers ship in writer briefs, not in JSON. |
+| 36 | **No "shipped vs blocked" reporting** — leadership wants to see "we caught 27 duplicates this quarter, blocked 12 publishes, refreshed 8 stale pages." | Without this the team can't defend the tool's existence at review time. |
+| 37 | **No editorial calendar integration** (Notion / Airtable / ClickUp). Today a check result lives in the DB; the calendar doesn't know. Two-way sync would let the calendar show conflict status next to each draft. | Closes the loop with where marketers actually plan. |
+
+**Content — quality + production gaps:**
+
+| # | Item | Why |
+|---|---|---|
+| 38 | **No content-brief generator output.** The angles panel is a starting point; a brief needs target keyword, H2 skeleton, recommended word count, internal-link targets, schema suggestion. All derivable from data we have. | Saves the writer a 30-min prep step on every brief. |
+| 39 | **No FAQ / PAA extraction** from Serper → reuse in the writer brief. | Free signal we ignore. |
+| 40 | **No content-shape comparison** (target word count, H2 count, schema types) vs top-3 SERP pages. | Editors guess; tool should measure. |
+| 41 | **No alt-text / image-SEO check** in the extractor. Easy add — count `<img>` without `alt`, list them. | Quick SEO win on the audit page. |
+| 42 | **No content-type recommendation.** "This topic is searched mostly by buyers" → recommend a course landing; "by learners" → blog. Use Serper's SERP-feature mix as a signal (lots of /course/ in SERP = transactional). | Removes a frequent editorial debate. |
+| 43 | **No topic-cluster health view.** We know each course's `type`/`category`/`subcategory` (1,698/6/43/166). Surface "this cluster has 22 courses but only 4 blogs — content-debt here." | Direct from `data/taxonomy/course-types.json` — no new data needed. |
+| 44 | **No internal-link insertion suggestions** at paragraph level. `/internal-links` recommends pages; doesn't say *where in the draft* to put the anchor. | Roadmap Batch 5 sketched this; never built. |
+
+### 9D. Reference points from 2026 research
+
+What the audit confirmed we **got right** (kept here so we don't second-guess
+in future sessions):
+
+- **Pre-publish semantic similarity is the current state of the art** — every
+  2026 reference (TopicalMap, Incremys, TrueRanker, Unclash AI) uses the same
+  approach. Our `/conflict-checker` is conceptually aligned with the field.
+- **HNSW + cosine on normalised embeddings** is the right pgvector pattern for
+  text. `bge-small-en-v1.5` normalises in the embed call. Default `m=16`
+  works at our 2,461-vector scale — Neon keeps the index resident in shared
+  buffers; HNSW vs IVFFlat is irrelevant at this size.
+- **Multi-signal triangulation** (GSC + crawl + rank) is what the field
+  recommends. We have GSC + crawl; Serper covers occasional rank checks.
+  Full rank tracking (DataForSEO / Ahrefs) is the third pillar — optional
+  per §5 Tier C.
+- **Editorial rules > raw scores** is the 2026 differentiator
+  (update-before-create, owner-page assignment). Items 25 + 33 + 34 are how
+  we'd close that gap.
+
+### Sources (web research, 2026-06-25)
+
+- TopicalMap.ai — [Best Keyword Cannibalization Checker Tools 2026](https://topicalmap.ai/blog/auto/keyword-cannibalization-checker-tools-2026)
+- Incremys — [2026 Guide: How to Spot SEO Cannibalization](https://www.incremys.com/en/resources/blog/seo-cannibalization)
+- Epic Slope Partners — [Unclash AI — 5 Best Keyword Cannibalization Tools in 2026](https://www.epicslope.partners/unclash-ai/keyword-cannibalization-tools)
+- TrueRanker — [How to Fix SEO Cannibalization 2026](https://trueranker.com/blog/how-to-detect-fix-seo-cannibalization/)
+- Neon — [Understanding vector search and HNSW with pgvector](https://neon.com/blog/understanding-vector-search-and-hnsw-index-with-pgvector)
+- DBI Services — [pgvector for DBA Part 2 — Indexes (March 2026 update)](https://www.dbi-services.com/blog/pgvector-a-guide-for-dba-part-2-indexes-update-march-2026/)
+- AWS — [Optimize generative AI applications with pgvector indexing](https://aws.amazon.com/blogs/database/optimize-generative-ai-applications-with-pgvector-indexing-a-deep-dive-into-ivfflat-and-hnsw-techniques/)
