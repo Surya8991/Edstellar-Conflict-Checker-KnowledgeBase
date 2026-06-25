@@ -2,6 +2,7 @@ import Sidebar from "@/app/components/Sidebar";
 import HelpButton from "@/app/components/HelpButton";
 import SignOutButton from "@/app/components/SignOutButton";
 import { ToastViewport } from "@/app/components/Toast";
+import ProjectLogLink from "@/app/components/ProjectLogLink";
 import { auth, isAuthEnabled } from "@/auth";
 
 export default async function DashboardLayout({
@@ -24,6 +25,7 @@ export default async function DashboardLayout({
       {/* Top padding on small screens so the floating burger button doesn't
           overlap the PageHeader. Sidebar is in-flow on >= lg, drawer below. */}
       <main className="flex-1 min-w-0 pt-12 lg:pt-0">{children}</main>
+      <ProjectLogLink />
       <HelpButton />
       <ToastViewport />
     </div>

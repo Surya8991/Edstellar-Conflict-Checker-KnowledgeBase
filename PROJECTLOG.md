@@ -4,7 +4,7 @@
 > and how the system fits together. Update this file with every meaningful
 > change.
 
-**Last updated:** 2026-06-25 (Session 9 — final polish + lightweight inbound-link signal)
+**Last updated:** 2026-06-25 (Session 10 — 9-persona audit + Project log surfaced top-right)
 **Owner:** marketing@edstellar.com
 **Repo:** https://github.com/Layruss98266/Edstellar-Conflict-Checker-KnowledgeBase
 **Prod:** https://edstellar-conflict-checker-knowledg.vercel.app/
@@ -1436,3 +1436,133 @@ schema migration. One commit covering four small batches.
 - **Productization / strategic items** (§10E): rename, multi-tenant data model, CMS plugins, OpenAI embeddings switch, intent classification, SOC2 prep, in-app onboarding. None are bugs; only relevant if Edstellar externalises this tool as a product.
 
 That's it. Every red/orange/yellow item from the original audit §10A–C is closed.
+
+---
+
+## 14. Session 10 — 9-persona audit (2026-06-25)
+
+Sessions 6–9 closed every engineering-led finding. This session pivots
+to outside-in: what does the tool look like to the people who **use it**
+(editors, marketing manager, content strategist, SEO specialist, demand
+gen), the people who **inherit it** (a new engineer), and the people
+who **break it** (security re-audit, SRE 3am scenario, designer/a11y
+re-audit of post-Session 6 polish gaps)? Dispatched 9 parallel persona
+agents (~3 min wall-clock). Synthesis + the Project-log link on the
+dashboard top-right (user request: "put the log in to top right") below.
+
+### 14A. Per-persona verdicts
+
+| # | Persona | Verdict | Top 3 findings | Top fix |
+|---|---|---|---|---|
+| 1 | **Editor / marketer** (uses tool weekly to brief writers) | Solid editor microscope — but the UI uses dev jargon and lacks the "what now?" prescription | (a) `"vector match 78.4%"` next to a 82% conflict — two big numbers, no labels (`conflict-checker:691`); (b) `"first check after a deploy is the slowest (the embedder warms up)"` — `embedder`/`deploy` are dev words (`conflict-checker:264`); (c) needs-review badge says "Explain this match" but doesn't say why some were skipped or what it costs | Rename "vector match" → "topic similarity"; rewrite cold-start hint as "First check of the day takes ~10s while the AI model warms up." |
+| 2 | **New engineer (day-1 hire)** | **Onboarding score: 7.5 / 10**. Docs above average; killed by no tests, no env separation, stale JSDoc | (a) No `lint` / `typecheck` / `test` script in `package.json`; (b) `SETUP_GUIDE` points hires at the prod Neon project — first `npm run ingest` mistake re-crawls prod corpus; (c) `lib/conflict.ts:84` JSDoc says `minSimilarity` default is 0.30 — actual default is 0.50 (post-Session 6 H11) | Replace 5-line `AGENTS.md` stub with a 20-line "how to work in this repo safely" block (dev Neon branch convention, dim is encoded in 4 places, three auth gates, etc.) |
+| 3 | **Security re-auditor** (post Session 6 fixes) | Sessions 6 fixes hold; **5 new findings of meaningful blast radius**, mostly defence-in-depth | (a) **DNS-rebind TOCTOU in `assertSafeOutboundUrl`** — guard resolves DNS, then `fetch()` does a second lookup that an attacker can flip to `169.254.169.254`; (b) `/api/check/outcome` + `/api/pages/owner` + `/api/competitors` writeable with **zero auth when `WEBHOOK_API_KEY` unset**; (c) `<data>` delimiter prompt-injection bypass — attacker content can contain literal `</data>` and start their own instructions | Pin SSRF fetch to the validated IP (undici Dispatcher with custom lookup); apply `gateLlmEndpoint` to `/api/check/outcome` + `/api/pages/owner` + `/api/competitors`; randomise the `<data-${nonce}>` delimiter per call |
+| 4 | **SRE 3am on-call** | App runs because traffic is low. First real burst (50 concurrent + Neon suspend) and failure modes compound | (a) **Zero request-id, zero log drain** — forensics impossible past Vercel's 1-hour log retention; (b) `embed-local` cold-start downloads ~30 MB from HF CDN inside Lambda on every fresh function — coin-flip first request; (c) No `LLM_KILL_SWITCH`, no daily spend cap, no per-IP token budget | Wire `x-request-id` middleware + `AsyncLocalStorage` → log drain (Axiom/Better Stack). After that, ship the kill-switch env + nightly cost rollup |
+| 5 | **Designer / a11y re-audit** | Session 6 polish held; **15+ new items** mostly around hierarchy + prescriptive empty states + missing primary CTAs | (a) `/audit` is all tabs, no primary action — passive report, no "re-run audit" button or scan age; (b) `/search-console` opens to a tab with no headline KPI row (Clearscope opens with the score); (c) Conflict-checker doesn't echo URL-vs-topic mode detection before the user hits Check (5s of silence) | One reusable `<StatusBar>` component with `aria-live="polite"` consumed by every async route — closes the screen-reader gap + gives buyers the "is something happening?" affordance |
+| 6 | **Marketing manager** (defends budget to CMO) | Brilliant editor microscope. **Useless as a manager's cockpit.** Can't measure team or spend. | (a) Zero per-writer attribution — no `user_id` on `checks`; (b) Zero spend telemetry — no LLM $ per check, no Serper credits, no GSC quota meter; (c) No Friday-4pm export (PDF / Slack / email) — every weekly report is manual screenshotting | Three changes unlock everything: stamp `user_id` on `checks` → spend `usage` table → `/manager` summary route + weekly Slack/PDF export |
+| 7 | **SEO specialist** (used Clearscope/Surfer/Ahrefs) | Above-average GSC analytics + 2025-aware SERP feature tracking. Methodologically broken in 3 ways. **Not yet a Clearscope competitor.** | (a) **`inboundWeight` is substring `ILIKE`, not a real `<a href>` graph** — misleads pre-publish link suggestions; (b) No query-level cannibalization — `gsc-insights.cannibalization` and `conflict.ts` similarity never join; (c) `extract.ts` strips bylines as noise → EEAT is dead in this pipeline; no JSON-LD parsing | Build a proper `internal_links(source_url, target_url, anchor_text, rel)` table at crawl time. Closes #1, unlocks PageRank-style internal authority + anchor over-optimization detection |
+| 8 | **Content strategist** (owns calendar + taxonomy) | Strong **defensive** tool. Has no **editorial layer.** Every report is diagnostic, none prescriptive | (a) No `intentStage` (TOFU/MOFU/BOFU) anywhere — implied via `TYPE_AFFINITY` weights but never explicit, so funnel-shape report is impossible; (b) No `editorialStatus` / `owner` / `dueDate` — there's no editorial calendar; (c) Stale tab flags but never prescribes (refresh / merge / redirect / kill) | Three data-model adds: `intentStage`, `editorialStatus`+`owner`+`dueDate`, and a `refreshTrigger` enum on stale pages with a recommended-action column |
+| 9 | **Demand gen / RevOps** | Sharp SEO ops tool. **Zero CRM gravity.** Lives entirely upstream of the funnel | (a) `gsc_clicks_28d` per page is the deepest — no GA4 / form-submit / demo-request join; (b) No buyer-intent decoding (info/nav/comm/trans) on queries; (c) AI Overview citation tracked but not persisted week-over-week | Build a "competitor keyword harvest for SDR" route — pivot competitors to `domain → [keywords]` with intent tags, ship as CSV/Sheets sync. Single highest-leverage demand-gen addition |
+
+### 14B. Cross-cutting themes — what 3+ personas independently flagged
+
+These showed up in multiple audits without coordination — strongest signal:
+
+- **No intent classification on queries / pages** (SEO + Content + Demand gen). Cosine similarity treats "leadership training" (commercial) and "what is leadership" (informational) identically. Every downstream user feels this differently. **The single most leveraged data-model add this codebase could make.**
+- **No real internal-link graph** (SEO + Content + Editor). The Session 9 `inbound-links.ts` `ILIKE` proxy is honest about the tradeoff in code comments, but every persona reading SEO-grade tooling expectations finds it short. Promote to a proper `internal_links` table at crawl time.
+- **No `user_id` / assignee / ownership anywhere** (Manager + Strategist + Editor). Checks are anonymous; outcomes have no author; calendar doesn't exist. Stamping `user_id` on `checks` is one column + an `auth().user.email` read; unlocks per-writer reporting, calendar ownership, and the strategist's editorial layer.
+- **Cost telemetry doesn't exist** (Manager + SRE). LLM tokens per call are not logged anywhere — manager can't defend the spend, SRE can't see runaway bills until the credit-card alert fires. One `usage` table + a per-call `{ provider, model, prompt_tokens, completion_tokens }` log line.
+- **EEAT / schema markup invisible** (SEO + Content). `extract.ts` doesn't read `<script type="application/ld+json">`, strips bylines as noise. For a courses-heavy site, missing `Course` schema is missed free training-listing rich results. Substantial SEO leak.
+- **No prescriptive UI anywhere** (Editor + Designer + Strategist). Stale tab flags; doesn't say "refresh / merge / redirect / kill." Audit tab is all chrome, no primary action. Search Console opens to a tab, not a number. Every persona wants the verdict surfaced, not the data dump.
+- **Observability is zero** (SRE + Security + Engineer). No request id, no log drain, no metrics, no alerts, no `ingest_runs` cursor. Every persona that hits prod problems is blind. **Highest-leverage SRE addition.**
+
+### 14C. Ranked backlog (post-9-persona-audit)
+
+Ordered by **leverage × scope of personas helped**. Top items help 3+ personas at once.
+
+**🚀 Ship next (cross-cutting wins)**
+
+| # | Item | Persona unlock | Effort |
+|---|---|---|---|
+| 1 | Stamp `user_id` on `checks` + add lightweight `usage` table for token logging | Manager + Strategist + Editor + SRE | ~1 day |
+| 2 | Intent-stage tagging (`tofu/mofu/bofu`) — one LLM-classifier pass over the corpus + per-query | SEO + Content + Demand gen + Editor | ~2 days |
+| 3 | Proper `internal_links(source, target, anchor, rel)` table populated at crawl time | SEO + Content + Editor | ~3 days |
+| 4 | Request-id + log drain (Axiom or Better Stack) + `LLM_KILL_SWITCH` env | SRE + Security + Manager (cost cap) | ~1 day |
+| 5 | Editorial layer: `editorialStatus`, `owner`, `dueDate`, `nextReviewAt` on `pages` + a `/calendar` route | Strategist + Manager | ~3 days |
+
+**🟠 Security re-audit follow-ups (none ship-stoppers, all defence-in-depth)**
+
+| # | Item | Severity |
+|---|---|---|
+| 6 | DNS-rebind TOCTOU in SSRF guard — pin fetch to validated IP | High (cloud metadata reachable if attacker controls DNS) |
+| 7 | Gate `/api/check/outcome` + `/api/pages/owner` + `/api/competitors` with `gateLlmEndpoint`-style rate-limit fallback | High (writeable with no auth when `WEBHOOK_API_KEY` unset) |
+| 8 | Randomise `<data-${nonce}>` delimiter in chat-base prompts | High (prompt-injection bypass) |
+| 9 | `crypto.timingSafeEqual` in `requireCronAuth` | Medium |
+| 10 | LRU cap on `inMemoryBuckets` Map in rate-limit | Medium (slow leak) |
+| 11 | Drop CSP `'unsafe-eval'` (Next 16 doesn't need it) | Medium |
+| 12 | Strip Neon driver internals from `(e as Error).message` returns | Medium (schema fingerprinting) |
+| 13 | Restrict `inbound-links` ILIKE to URLs that exist in `pages` (prevents enumeration side-channel) | Medium |
+| 14 | `next-auth` pin to exact beta + add `npm audit` to CI | Polish |
+
+**🟡 SEO / methodology upgrades**
+
+| # | Item |
+|---|---|
+| 15 | SERP-target content brief generator (top-10 SERP → word counts / headings / entities / schema → target spec) — Clearscope's headline feature |
+| 16 | Query-level cannibalization view (join `gsc-insights.cannibalization` + `conflict.ts` similarity) |
+| 17 | Schema/EEAT extractor (JSON-LD → `page_schema` table; Course / FAQ / HowTo / Article author validation) |
+| 18 | Content-gap report (competitor top-N queries diff against our GSC queries) |
+| 19 | SERP-overlap clustering (replaces `scripts/cluster.ts` k-means for topic clusters) |
+| 20 | Orphan-page detection (4-quadrant: in-sitemap × in-index) |
+| 21 | Corpus-calibrated similarity floor (replaces hardcoded 0.55 in `similarityToBaseScore`) |
+
+**🟡 Designer / Editor polish**
+
+| # | Item |
+|---|---|
+| 22 | `<StatusBar>` reusable component with `aria-live="polite"` consumed by every async route |
+| 23 | Primary CTA on every dashboard route (Re-run audit on `/audit`, headline KPI row on `/search-console`) |
+| 24 | URL-vs-topic mode pill on conflict-checker input as the user types |
+| 25 | Unified instructional empty-state voice (one register across every empty state) |
+| 26 | Pair every range slider with a numeric input (mobile thumb precision) |
+| 27 | Replace inline button styles with `<Button>` everywhere (ESLint rule for `bg-slate-900` outside `ui.tsx`) |
+| 28 | Type ramp: PageHeader h1 → `text-2xl`, section h2 → `text-base font-semibold` (drop the xl→sm jump) |
+| 29 | Rename "vector match" → "topic similarity" + add Glossary tooltips for jargon terms |
+
+**🟡 SRE / observability**
+
+| # | Item |
+|---|---|
+| 30 | `ingest_runs(id, started_at, finished_at, last_url, status)` for resumable cron + `?since=` query param on `/api/cron/reingest` |
+| 31 | `statement_timeout` on Neon session + `p-retry` wrapper on critical DB paths |
+| 32 | Streaming + SSE on `/api/check` so user sees progressive disclosure (currently 5s of spinner) |
+| 33 | Daily LLM-cost rollup → Slack post |
+
+**🟡 Demand gen / CRM**
+
+| # | Item |
+|---|---|
+| 34 | Striking-distance retargeting export (`query, page, position, impressions, intent_stage, est_MQL_value` → CSV/Sheet) |
+| 35 | Competitor keyword harvest (`/api/competitors/keyword-inventory?domain=`) for SDR sequences |
+| 36 | CTA-presence + funnel-velocity scanner (extend `extract.ts` to detect `<a href="/demo">` / `<form>` / gated-asset patterns) |
+| 37 | HubSpot webhook on `checks.outcome = published` |
+| 38 | GA4 → BigQuery → Neon `page_conversions` table (sessions / form submits / demo requests per URL) |
+
+**🟢 Onboarding**
+
+| # | Item |
+|---|---|
+| 39 | Rewrite `AGENTS.md` from 5-line stub → 20-line "how to work in this repo safely" block |
+| 40 | Add `lint` / `typecheck` / `test` scripts to `package.json` |
+| 41 | Fix `lib/conflict.ts:84` JSDoc — `minSimilarity` default is 0.50 not 0.30 |
+| 42 | `DATABASE_URL_DEV` convention in SETUP_GUIDE so day-1 hires don't write to prod |
+
+### 14D. Lessons re-confirmed
+
+- **Outside-in audits surface what insider-engineering audits miss every time.** Sessions 6–9 (engineering-led) closed every measurable bug. Session 10 (persona-led) surfaced **5 cross-cutting product holes** that no engineer audit would have framed — because they aren't bugs, they're *missing primitives* (intent stage, ownership, ed-status, cost telemetry, prescriptive UI). Run a persona audit once per quarter.
+- **The 9 personas weren't redundant.** Each found ≥2 items no other persona found. The closest overlap was Editor + Designer on empty-state voice; even there they framed the fix differently (editor wanted "what now?", designer wanted register consistency).
+- **The cross-cutting themes are the highest-leverage product backlog.** When 3+ personas independently flag the same gap, that's a primitive missing from the data model, not a UX papercut.
+
+### 14E. UI ship in this session
+
+User asked for the project log to be surfaced "top right" of the dashboard. Added `app/components/ProjectLogLink.tsx` — a small floating link top-right (z-30, hidden below `sm:` breakpoint so it doesn't fight the mobile burger) that opens this PROJECTLOG.md on GitHub in a new tab. Sidebar-style — out of the way, but discoverable. Mounted in `app/(dashboard)/layout.tsx`.
