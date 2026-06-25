@@ -114,32 +114,52 @@ export async function GET(request: NextRequest) {
     }
 
     // --- Job 3: mark stale pages -------------------------------------------
-    // "Stale" = low 28-day traffic AND lastmod older than threshold.
-    // Reset everyone first so pages that have RECOVERED unflag.
-    await sql.query("UPDATE pages SET is_stale = false, stale_reason = NULL");
+    // Audit H7 (Session 6): formerly two UPDATEs — `SET is_stale=false`
+    // unconditionally, then `SET is_stale=true WHERE <predicate>`. Between
+    // them every page briefly flipped to is_stale=false, visible to any
+    // concurrent reader. Replaced with one atomic UPDATE that sets the
+    // flag from the predicate; pages that have RECOVERED unflag in the
+    // same statement.
+    const staleReason = `low traffic (<${STALE_CLICKS_THRESHOLD} clicks/28d) + lastmod > ${STALE_LASTMOD_DAYS}d`;
     const staleResult = (await sql.query(
       `UPDATE pages
-          SET is_stale = true,
-              stale_reason = $3
-        WHERE (gsc_clicks_28d IS NOT NULL AND gsc_clicks_28d < $1)
-          AND (lastmod IS NULL OR lastmod::date < (now() - ($2 || ' days')::interval)::date)
-          AND content_type IN ('blog','course','category','subcategory')
-        RETURNING id`,
-      [STALE_CLICKS_THRESHOLD, String(STALE_LASTMOD_DAYS), `low traffic (<${STALE_CLICKS_THRESHOLD} clicks/28d) + lastmod > ${STALE_LASTMOD_DAYS}d`],
-    )) as any[];
+          SET is_stale = (
+                content_type IN ('blog','course','category','subcategory')
+                AND gsc_clicks_28d IS NOT NULL
+                AND gsc_clicks_28d < $1
+                AND (lastmod IS NULL OR lastmod::date < (now() - make_interval(days => $2::int))::date)
+              ),
+              stale_reason = CASE
+                WHEN content_type IN ('blog','course','category','subcategory')
+                 AND gsc_clicks_28d IS NOT NULL
+                 AND gsc_clicks_28d < $1
+                 AND (lastmod IS NULL OR lastmod::date < (now() - make_interval(days => $2::int))::date)
+                  THEN $3
+                ELSE NULL
+              END
+        WHERE is_stale IS DISTINCT FROM (
+                content_type IN ('blog','course','category','subcategory')
+                AND gsc_clicks_28d IS NOT NULL
+                AND gsc_clicks_28d < $1
+                AND (lastmod IS NULL OR lastmod::date < (now() - make_interval(days => $2::int))::date)
+              )
+        RETURNING id, is_stale`,
+      [STALE_CLICKS_THRESHOLD, STALE_LASTMOD_DAYS, staleReason],
+    )) as { id: number; is_stale: boolean }[];
+    const staleCount = staleResult.filter((r) => r.is_stale).length;
 
     log.info("gsc snapshot complete", {
       date: yesterday,
       clicks: day?.clicks ?? 0,
       pages_synced: pagesSynced,
-      stale_count: staleResult.length,
+      stale_count: staleCount,
     });
     return NextResponse.json({
       date: yesterday,
       clicks: day?.clicks ?? 0,
       branded_clicks: bc,
       pages_synced: pagesSynced,
-      stale_count: staleResult.length,
+      stale_count: staleCount,
     });
   } catch (e) {
     log.error("gsc snapshot failed", { error: (e as Error).message });
