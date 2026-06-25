@@ -28,6 +28,11 @@ export const pages = pgTable(
     contentText: text("content_text"),
     // course | blog | category | subcategory | page
     contentType: text("content_type").default("page"),
+    // Audit H9 (Session 6): these columns exist in DB since
+    // drizzle/0001_tags.sql but were missing from the TS schema. Added so
+    // scripts/ingest.ts INSERTs typecheck against the schema again.
+    courseType: text("course_type"),
+    tags: text("tags").array(),
     category: text("category"),
     subcategory: text("subcategory"),
     lastmod: text("lastmod"),
@@ -93,8 +98,16 @@ export const checkMatches = pgTable(
     conflictType: text("conflict_type"), // duplicate | cannibalization | partial-overlap | none
     rationale: text("rationale"),
     rank: integer("rank"),
+    // Audit H8 (Session 6) — added in drizzle/0005_check_match_enrichment.sql.
+    overlap: text("overlap").array(),
+    issue: text("issue"),
+    ownerUrl: text("owner_url"),
+    gscClicks28d: integer("gsc_clicks_28d"),
   },
-  (t) => [index("check_matches_check_idx").on(t.checkId)],
+  (t) => [
+    index("check_matches_check_idx").on(t.checkId),
+    index("check_matches_owner_url_idx").on(t.ownerUrl),
+  ],
 );
 
 /** Stored Google Search Console OAuth tokens. */

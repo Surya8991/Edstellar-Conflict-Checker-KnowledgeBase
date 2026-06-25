@@ -215,21 +215,39 @@ async function persistCheck(
   )) as { id: number }[];
   const checkId = Number(rows[0]!.id);
 
-  let rank = 1;
-  for (const m of result.matches) {
+  // Audit H8 (Session 6): persist enrichment fields the API response already
+  // returns (overlap, issue, ownerUrl, gscClicks28d) so history reads stay
+  // faithful. Also batched into a single UNNEST INSERT — the prior N+1 loop
+  // generated len(matches) round-trips per check.
+  if (result.matches.length) {
+    const len = result.matches.length;
+    const checkIds = new Array<number>(len).fill(checkId);
+    const urls = result.matches.map((m) => m.url);
+    const titles = result.matches.map((m) => m.title);
+    const sims = result.matches.map((m) => m.similarity);
+    const scores = result.matches.map((m) => m.conflictScore);
+    const types = result.matches.map((m) => m.conflictType);
+    const rationales = result.matches.map((m) => m.rationale);
+    const ranks = Array.from({ length: len }, (_, i) => i + 1);
+    const overlaps = result.matches.map((m) =>
+      m.overlap && m.overlap.length ? m.overlap : null,
+    );
+    const issues = result.matches.map((m) => m.issue ?? null);
+    const ownerUrls = result.matches.map((m) => m.ownerUrl ?? null);
+    const clicks = result.matches.map((m) => m.gscClicks28d ?? null);
     await sql.query(
       `INSERT INTO check_matches
-         (check_id, page_url, page_title, similarity, conflict_score, conflict_type, rationale, rank)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+         (check_id, page_url, page_title, similarity, conflict_score,
+          conflict_type, rationale, rank, overlap, issue, owner_url, gsc_clicks_28d)
+       SELECT * FROM unnest(
+         $1::int[], $2::text[], $3::text[], $4::real[], $5::int[],
+         $6::text[], $7::text[], $8::int[], $9::text[][], $10::text[],
+         $11::text[], $12::int[]
+       )`,
       [
-        checkId,
-        m.url,
-        m.title,
-        m.similarity,
-        m.conflictScore,
-        m.conflictType,
-        m.rationale,
-        rank++,
+        checkIds, urls, titles, sims, scores,
+        types, rationales, ranks, overlaps, issues,
+        ownerUrls, clicks,
       ],
     );
   }
