@@ -2,21 +2,69 @@
  * POST /api/suggestions/new-content
  * Body: { topic: string, url?: string }
  *
- * Returns a structured list of net-new content angles synthesized from:
+ * Returns 6 structured net-new content angles synthesised from:
  *   - competitor SERP titles for this topic (Serper)
- *   - LLM knowledge of recent AI Overviews / Google algorithm updates /
- *     AI platforms (ChatGPT, Claude, Gemini, Perplexity) that surface
- *     this kind of content
+ *   - LLM knowledge of AI Overviews, recent Google updates, AI assistants
  *
  * Used by the Conflict Checker "what should we publish instead?" panel.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { serpOverlap } from "@/lib/competitors-extra";
 import { getChat } from "@/lib/ai";
+import { parseJson } from "@/lib/ai/chat-base";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
+
+const SYSTEM = `You are a senior SEO content strategist for Edstellar, a B2B corporate-training company.
+Return ONLY compact JSON matching the requested schema. No preamble, no explanation, no markdown fences.
+Every field has a strict word/char cap — respect it. Prefer concrete, specific phrasing over generic SEO clichés
+("ultimate guide", "everything you need to know", "key insights" are banned).`;
+
+interface Angle {
+  title: string;
+  format: "blog" | "guide" | "course" | "landing";
+  audience: string;
+  primaryKeyword: string;
+  differentiation: string;
+  trigger: "competitors" | "ai-overview" | "google-update" | "ai-platform" | "emerging-topic";
+}
+interface Suggestions {
+  headline: string;
+  angles: Angle[];
+}
+
+function buildPrompt(topic: string, url: string, competitorSnippets: string): string {
+  return `TOPIC: ${topic}
+${url ? `EXISTING URL: ${url}\n` : ""}
+Top competitors currently ranking:
+${competitorSnippets || "(no SERP data available — treat as greenfield)"}
+
+Produce 6 NEW content angles Edstellar should publish that:
+  • Don't repeat any competitor's framing above.
+  • Address post-2024 shifts: AI Overviews, Google's helpful-content/EEAT/hidden-gems updates,
+    and the rise of AI assistants (ChatGPT/Claude/Gemini/Perplexity) as discovery surfaces.
+  • Are realistic for a B2B corporate-training brand to write authoritatively.
+
+Return STRICT JSON, no other text:
+{
+  "headline": string,          // ≤14 words. ONE sentence stating the strategic opening.
+                               //   Bad:  "The topic of skills gaps is a pressing concern…"
+                               //   Good: "Competitors flood the SERP with generic checklists — own the AI-assisted variant instead."
+  "angles": [                  // exactly 6 items
+    {
+      "title":           string,  // ≤9 words. Working headline. No "ultimate", "guide to", "everything", "complete".
+      "format":          "blog" | "guide" | "course" | "landing",
+      "audience":        string,  // ≤6 words. Role + seniority. e.g. "L&D leads at mid-market firms".
+      "primaryKeyword":  string,  // 4-8 words. The exact SEO query this targets.
+      "differentiation": string,  // ≤18 words. ONE concrete reason this beats the top-ranking competitor.
+                                  //   Must reference a specific gap, not "more depth" / "better examples".
+      "trigger":         "competitors" | "ai-overview" | "google-update" | "ai-platform" | "emerging-topic"
+    }
+  ]
+}`;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,42 +82,24 @@ export async function POST(request: NextRequest) {
       .map((r: any) => `- ${r.title} (${r.domain})`)
       .join("\n");
 
-    const prompt =
-`You are a senior content strategist for Edstellar, a corporate training company.
+    const raw = await getChat().generate({
+      system: SYSTEM,
+      prompt: buildPrompt(topic, url, competitorSnippets),
+    });
 
-TOPIC: ${topic}
-${url ? `EXISTING URL: ${url}\n` : ""}
-What competitors currently rank in the top 10:
-${competitorSnippets || "(no SERP data available)"}
+    const parsed = parseJson<Partial<Suggestions>>(raw, {});
+    const angles = Array.isArray(parsed.angles) ? parsed.angles.slice(0, 6) : [];
+    const suggestions: Suggestions = {
+      headline: parsed.headline?.trim() || "",
+      angles: angles as Angle[],
+    };
 
-Produce 6 NEW content angles for Edstellar to publish that:
-1. Are clearly different from each competitor result above
-2. Reflect post-2024 shifts the topic should address — specifically:
-   - Google AI Overviews surfacing for this query (what AI summaries already say, and gaps)
-   - Recent Google algorithm updates (helpful content, EEAT, hidden gems)
-   - The rise of AI assistants as discovery surfaces (ChatGPT, Claude, Gemini, Perplexity) — what gets cited
-   - Emerging AI platforms or workflows that change how this topic is taught/applied
-3. Are realistic for a B2B corporate-training brand to write authoritatively
-
-Return strict JSON only, of the form:
-{
-  "angles": [
-    { "title": string, "format": "blog|guide|course|landing", "audience": string,
-      "primaryKeyword": string, "differentiation": string, "trigger": "competitors"|"ai-overview"|"google-update"|"ai-platform"|"emerging-topic" }
-  ],
-  "summary": string
-}
-`;
-
-    const r = await getChat().summarize({ content: prompt, isTopic: true });
-    let parsed: any = null;
-    try { parsed = JSON.parse(r.searchSynopsis) } catch {
-      try { parsed = JSON.parse(r.summary) } catch { /* keep null */ }
-    }
     return NextResponse.json({
       topic,
-      serp: serp?.organic ? { edstellarRank: serp.edstellarRank, competitors: serp.organic } : null,
-      suggestions: parsed ?? { raw: r.summary },
+      serp: serp?.organic
+        ? { edstellarRank: serp.edstellarRank, competitors: serp.organic }
+        : null,
+      suggestions,
     });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });

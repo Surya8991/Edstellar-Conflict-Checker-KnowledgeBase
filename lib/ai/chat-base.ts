@@ -30,6 +30,12 @@ export abstract class BaseChatProvider implements ChatProvider {
   abstract readonly name: string;
   protected abstract complete(system: string, user: string): Promise<string>;
 
+  /** Public passthrough to the underlying chat primitive for callers that
+   *  don't fit summarize/classify/competitor. JSON mode is on per-adapter. */
+  async generate(input: { system: string; prompt: string }): Promise<string> {
+    return this.complete(input.system, input.prompt);
+  }
+
   async summarize(input: {
     title?: string;
     content: string;

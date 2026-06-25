@@ -34,6 +34,11 @@ export interface SummaryResult {
 
 export interface ChatProvider {
   readonly name: string;
+  /** Raw chat completion for prompts that don't fit the summarize/classify
+   *  specialisations — e.g. generating content angles, rewrite suggestions.
+   *  Providers run in JSON-mode at the adapter level, so the returned string
+   *  is typically a JSON object the caller parses itself. */
+  generate(input: { system: string; prompt: string }): Promise<string>;
   /** Summarize a URL/topic's content and extract keywords + a search synopsis. */
   summarize(input: {
     title?: string;

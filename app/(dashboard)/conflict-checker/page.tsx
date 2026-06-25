@@ -490,8 +490,11 @@ export default function ConflictCheckerPage() {
                   {suggesting ? "Thinking…" : suggestions ? "Re-run" : "Suggest"}
                 </button>
               </div>
-              {suggestions?.suggestions?.angles && (
-                <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+              {suggestions?.suggestions?.headline && (
+                <p className="mt-4 text-sm font-medium text-slate-800">{suggestions.suggestions.headline}</p>
+              )}
+              {suggestions?.suggestions?.angles?.length > 0 && (
+                <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
                   {suggestions.suggestions.angles.map((a: any, i: number) => (
                     <div key={i} className="rounded-lg border border-slate-200 p-3">
                       <div className="flex items-start justify-between gap-2">
@@ -506,8 +509,8 @@ export default function ConflictCheckerPage() {
                   ))}
                 </div>
               )}
-              {suggestions?.suggestions?.raw && (
-                <pre className="mt-3 max-h-60 overflow-y-auto rounded bg-slate-50 p-3 text-xs text-slate-600">{suggestions.suggestions.raw}</pre>
+              {suggestions && !suggestions?.suggestions?.angles?.length && !suggestions?.error && (
+                <p className="mt-3 text-xs text-slate-500">No angles returned — the LLM response wasn't parseable. Try Re-run.</p>
               )}
               {suggestions?.error && <div className="mt-3 text-sm text-red-600">{suggestions.error}</div>}
             </Card>
