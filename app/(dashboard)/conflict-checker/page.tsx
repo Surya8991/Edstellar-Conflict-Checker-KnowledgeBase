@@ -635,14 +635,26 @@ function MatchCard({
   const [open, setOpen] = useState(false);
   const hasRationale = !!m.rationale;
 
+  const scoreBarColor =
+    m.conflictScore >= 80 ? "bg-red-500"
+    : m.conflictScore >= 60 ? "bg-orange-500"
+    : m.conflictScore >= 35 ? "bg-amber-500"
+    : "bg-emerald-500";
+  const scoreTextColor =
+    m.conflictScore >= 80 ? "text-red-600"
+    : m.conflictScore >= 60 ? "text-orange-600"
+    : m.conflictScore >= 35 ? "text-amber-600"
+    : "text-emerald-600";
+
   return (
-    <Card>
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
+    <Card className="transition hover:border-slate-300 hover:shadow-sm">
+      {/* ── HEADER ─────────────────────────────────────────────────
+          Two columns: identity on the left, score on the right.
+          Identity stack: chips → title → URL → meta strip. */}
+      <div className="flex items-start justify-between gap-5">
+        <div className="min-w-0 flex-1">
+          <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
             <TypeChip type={m.contentType} />
-            {/* Owner badge — present only when this page IS the editorial
-                owner OR has an owner set elsewhere. (#25) */}
             {m.ownerUrl && m.ownerUrl === m.url && (
               <span className="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700">
                 Owner
@@ -653,62 +665,97 @@ function MatchCard({
                 Non-owner
               </span>
             )}
-            <a href={m.url} target="_blank" rel="noreferrer" className="truncate text-sm font-medium text-slate-900 hover:underline">
-              {m.title || m.url}
-            </a>
           </div>
-          <div className="mt-1 truncate text-xs text-slate-400">{m.url}</div>
-          {/* Business-impact line — only show if we have 28d clicks. (#26) */}
-          {m.gscClicks28d != null && m.gscClicks28d > 0 && (
-            <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-md bg-amber-50 px-2 py-0.5 text-[11px] text-amber-800">
-              <span className="font-semibold tabular-nums">{m.gscClicks28d.toLocaleString()}</span>
-              <span className="text-amber-700">clicks · 28 days</span>
-              {m.gscImpressions28d != null && m.gscImpressions28d >= 1000 && (
-                <span className="text-amber-600">· {Math.round(m.gscImpressions28d/1000)}k impr</span>
-              )}
-            </div>
-          )}
-          {/* Editorial-action hint when this match is a non-owner. */}
-          {m.ownerUrl && m.ownerUrl !== m.url && (
-            <div className="mt-1 text-[11px] text-slate-500">
-              Suggested action: redirect this page to{" "}
-              <a href={m.ownerUrl} target="_blank" rel="noreferrer" className="text-slate-700 underline">the owner</a>.
-            </div>
-          )}
+          <a
+            href={m.url}
+            target="_blank"
+            rel="noreferrer"
+            className="block truncate text-base font-semibold text-slate-900 hover:underline"
+            title={m.title || m.url}
+          >
+            {m.title || m.url}
+          </a>
+          <div className="mt-0.5 truncate text-xs text-slate-400">{m.url}</div>
+
+          {/* Meta strip — similarity + impact + action hint live on one line
+              so the card stays compact and the score column has more room. */}
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px]">
+            <span className="text-slate-500">
+              <span className="font-semibold text-slate-700 tabular-nums">{(m.similarity * 100).toFixed(1)}%</span>
+              <span className="ml-1 text-slate-400">vector match</span>
+            </span>
+            {m.gscClicks28d != null && m.gscClicks28d > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-amber-800">
+                <strong className="tabular-nums">{m.gscClicks28d.toLocaleString()}</strong>
+                <span className="text-amber-700">clicks · 28d</span>
+                {m.gscImpressions28d != null && m.gscImpressions28d >= 1000 && (
+                  <span className="text-amber-600">· {Math.round(m.gscImpressions28d / 1000)}k impr</span>
+                )}
+              </span>
+            )}
+            {m.ownerUrl && m.ownerUrl !== m.url && (
+              <a
+                href={m.ownerUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-indigo-700 hover:bg-indigo-100"
+                title="Redirect this page to its editorial owner"
+              >
+                → redirect to owner
+              </a>
+            )}
+          </div>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-2">
-          <ScoreBar score={m.conflictScore} />
+
+        {/* Score column — large numeric for the eye, slim bar for context,
+            badge for the editorial verdict. */}
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <div className="flex items-center gap-2.5">
+            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-100">
+              <div className={`h-full ${scoreBarColor}`} style={{ width: `${m.conflictScore}%` }} />
+            </div>
+            <span className={`w-12 text-right text-xl font-bold tabular-nums leading-none ${scoreTextColor}`}>
+              {m.conflictScore}%
+            </span>
+          </div>
           <ConflictBadge type={m.conflictType} />
         </div>
       </div>
 
-      <div className="mt-2 text-xs text-slate-400">
-        vector similarity {(m.similarity * 100).toFixed(1)}%
-      </div>
-
-      {/* GSC enrichment — two columns: compact stats on the left, keyword
-          lists stacked on the right so long queries can wrap without
-          clipping the position/impressions metrics.                       */}
+      {/* ── GSC ENRICHMENT ─────────────────────────────────────────
+          Inline 3-col grid for the stats panel (no heavy boxed table)
+          + keyword lists on the right. Both share the same top divider
+          rule so they read as one section. */}
       {stat && (
-        <div className="mt-3 grid grid-cols-1 gap-5 border-t border-slate-100 pt-3 lg:grid-cols-[minmax(180px,220px)_1fr]">
-          <div className="rounded-lg bg-slate-50 p-3">
-            <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">GSC performance</div>
-            <table className="w-full text-xs">
-              <thead><tr className="text-slate-400">
-                <th className="text-left font-medium"></th>
-                <th className="px-2 text-right font-medium">6m</th>
-                <th className="text-right font-medium">12m</th>
-              </tr></thead>
-              <tbody className="text-slate-700">
-                <tr><td className="py-0.5">Clicks</td><td className="px-2 py-0.5 text-right tabular-nums font-medium">{stat.m6.clicks}</td><td className="py-0.5 text-right tabular-nums font-medium">{stat.m12.clicks}</td></tr>
-                <tr><td className="py-0.5">Impr</td><td className="px-2 py-0.5 text-right tabular-nums">{stat.m6.impressions.toLocaleString()}</td><td className="py-0.5 text-right tabular-nums">{stat.m12.impressions.toLocaleString()}</td></tr>
-                <tr><td className="py-0.5">CTR</td><td className="px-2 py-0.5 text-right tabular-nums">{(stat.m6.ctr*100).toFixed(2)}%</td><td className="py-0.5 text-right tabular-nums">{(stat.m12.ctr*100).toFixed(2)}%</td></tr>
-                <tr><td className="py-0.5">Avg pos</td><td className="px-2 py-0.5 text-right tabular-nums">{stat.m6.position.toFixed(1)}</td><td className="py-0.5 text-right tabular-nums">{stat.m12.position.toFixed(1)}</td></tr>
-              </tbody>
-            </table>
+        <div className="mt-4 grid grid-cols-1 gap-x-8 gap-y-4 border-t border-slate-100 pt-4 lg:grid-cols-[200px_1fr]">
+          <div>
+            <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+              GSC performance
+            </div>
+            <dl className="grid grid-cols-[1fr_auto_auto] items-baseline gap-x-3 gap-y-1.5 text-xs">
+              <dt></dt>
+              <dt className="text-right font-medium text-slate-400">6m</dt>
+              <dt className="text-right font-medium text-slate-400">12m</dt>
+
+              <dt className="text-slate-500">Clicks</dt>
+              <dd className="text-right font-semibold tabular-nums text-slate-900">{stat.m6.clicks}</dd>
+              <dd className="text-right font-semibold tabular-nums text-slate-900">{stat.m12.clicks}</dd>
+
+              <dt className="text-slate-500">Impressions</dt>
+              <dd className="text-right tabular-nums text-slate-700">{stat.m6.impressions.toLocaleString()}</dd>
+              <dd className="text-right tabular-nums text-slate-700">{stat.m12.impressions.toLocaleString()}</dd>
+
+              <dt className="text-slate-500">CTR</dt>
+              <dd className="text-right tabular-nums text-slate-700">{(stat.m6.ctr * 100).toFixed(2)}%</dd>
+              <dd className="text-right tabular-nums text-slate-700">{(stat.m12.ctr * 100).toFixed(2)}%</dd>
+
+              <dt className="text-slate-500">Position</dt>
+              <dd className="text-right tabular-nums text-slate-700">{stat.m6.position.toFixed(1)}</dd>
+              <dd className="text-right tabular-nums text-slate-700">{stat.m12.position.toFixed(1)}</dd>
+            </dl>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-3.5">
             <KeywordList
               label="Top ranking keywords"
               accent="slate"
@@ -727,13 +774,13 @@ function MatchCard({
         </div>
       )}
 
-      {/* Collapsible personalised summary — at the bottom so stats stay above the fold. */}
+      {/* ── DETAILS ──────────────────────────────────────────────── */}
       {hasRationale ? (
-        <div className="mt-3 border-t border-slate-100 pt-3">
+        <div className="mt-4 border-t border-slate-100 pt-3">
           <button
             type="button"
             onClick={() => setOpen((o) => !o)}
-            className="flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-900"
+            className="-mx-1 -my-0.5 inline-flex items-center gap-1.5 rounded px-1 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900"
             aria-expanded={open}
           >
             <span className={`inline-block transition-transform ${open ? "rotate-90" : ""}`}>▸</span>
@@ -742,25 +789,23 @@ function MatchCard({
           {open && (
             <div className="mt-3 space-y-3">
               {m.overlap && m.overlap.length > 0 && (
-                <div>
-                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                    Both pages cover
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {m.overlap.map((o) => (
-                      <span
-                        key={o}
-                        className="rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800"
-                      >
-                        {o}
-                      </span>
-                    ))}
-                  </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="mr-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                    Both cover
+                  </span>
+                  {m.overlap.map((o) => (
+                    <span
+                      key={o}
+                      className="rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800"
+                    >
+                      {o}
+                    </span>
+                  ))}
                 </div>
               )}
               {m.issue && (
-                <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2">
-                  <span className="mt-0.5 text-xs font-bold text-rose-600">⚠</span>
+                <div className="flex items-start gap-2.5 rounded-md border border-rose-200 bg-rose-50 px-3 py-2.5">
+                  <span className="mt-0.5 shrink-0 text-sm leading-none text-rose-600">⚠</span>
                   <p className="text-sm leading-snug text-rose-800">{m.issue}</p>
                 </div>
               )}
@@ -771,14 +816,14 @@ function MatchCard({
           )}
         </div>
       ) : needsReview ? (
-        <div className="mt-3 border-t border-slate-100 pt-3">
+        <div className="mt-4 border-t border-slate-100 pt-3">
           {explainState?.error ? (
             <div className="text-xs text-red-600">{explainState.error}</div>
           ) : (
             <button
               onClick={onExplain}
               disabled={explainState?.loading}
-              className="rounded border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
               {explainState?.loading ? "Asking LLM…" : "Explain this match"}
             </button>
