@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { PageHeader, Card } from "@/app/components/ui";
 import { Pagination } from "@/app/components/Pagination";
 
-const TABS = ["Meta", "Broken Links", "Duplicates", "Health Score"] as const;
+const TABS = ["Meta", "Broken Links", "Duplicates", "Health Score", "Canonical", "Images", "Stale"] as const;
 type Tab = typeof TABS[number];
 
 export default function AuditPage() {
@@ -15,8 +15,16 @@ export default function AuditPage() {
 
   async function load() {
     setLoading(true);
-    const kind = { Meta: "meta", "Broken Links": "links", Duplicates: "duplicates", "Health Score": "health" }[tab];
-    const res = await fetch(`/api/audit?kind=${kind}&limit=1000`);
+    const kindMap: Record<Tab, string> = {
+      "Meta": "meta",
+      "Broken Links": "links",
+      "Duplicates": "duplicates",
+      "Health Score": "health",
+      "Canonical": "canonical",
+      "Images": "images",
+      "Stale": "stale",
+    };
+    const res = await fetch(`/api/audit?kind=${kindMap[tab]}&limit=1000`);
     const json = await res.json();
     setData(json);
     setLoading(false);
@@ -53,6 +61,9 @@ export default function AuditPage() {
         {tab === "Broken Links" && data?.rows && <LinksTab rows={data.rows} audited={data.audited} />}
         {tab === "Duplicates" && data && <DupesTab data={data} />}
         {tab === "Health Score" && data?.rows && <HealthTab rows={data.rows} />}
+        {tab === "Canonical" && data?.rows && <CanonicalTab rows={data.rows} />}
+        {tab === "Images" && data?.rows && <ImagesTab rows={data.rows} />}
+        {tab === "Stale" && data?.rows && <StaleTab rows={data.rows} />}
       </div>
     </div>
   );
@@ -324,6 +335,147 @@ function HealthTab({ rows }: { rows: any[] }) {
         )}
       </Card>
       <Pagination page={page} pageSize={pageSize} total={filtered.length} onJump={setPage} onPageSize={setPageSize} unit="pages" />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Batch E SEO audit tabs — Canonical / Images / Stale
+// ─────────────────────────────────────────────────────────────────────────
+
+function CanonicalTab({ rows }: { rows: any[] }) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const missing = rows.filter((r) => r.canonical_state === "missing");
+  const cross   = rows.filter((r) => r.canonical_state === "cross-canonical");
+  const slice = rows.slice((page - 1) * pageSize, page * pageSize);
+  if (!rows.length) return <Card className="text-sm text-emerald-700">✓ Every page declares a self-canonical.</Card>;
+  return (
+    <div className="space-y-3">
+      <div className="text-xs text-slate-500">
+        <strong className="text-red-600">{missing.length}</strong> missing canonical · {" "}
+        <strong className="text-amber-700">{cross.length}</strong> point to another URL.
+      </div>
+      <Card className="p-0">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
+              <th className="px-4 py-3 font-medium">URL</th>
+              <th className="px-4 py-3 font-medium">Type</th>
+              <th className="px-4 py-3 font-medium">State</th>
+              <th className="px-4 py-3 font-medium">Canonical target</th>
+            </tr>
+          </thead>
+          <tbody>
+            {slice.map((r) => (
+              <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50">
+                <td className="max-w-md truncate px-4 py-2">
+                  <a href={r.url} target="_blank" rel="noreferrer" className="text-slate-700 hover:underline">{r.title || r.url}</a>
+                </td>
+                <td className="px-4 py-2 capitalize text-slate-500">{r.content_type}</td>
+                <td className="px-4 py-2">
+                  <span className={`rounded px-2 py-0.5 text-xs font-medium ${r.canonical_state === "missing" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
+                    {r.canonical_state}
+                  </span>
+                </td>
+                <td className="max-w-md truncate px-4 py-2 text-xs text-slate-500">
+                  {r.canonical_url ? (
+                    <a href={r.canonical_url} target="_blank" rel="noreferrer" className="hover:underline">{r.canonical_url}</a>
+                  ) : <span className="text-slate-300">—</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+      <Pagination page={page} pageSize={pageSize} total={rows.length} onJump={setPage} onPageSize={setPageSize} unit="pages" />
+    </div>
+  );
+}
+
+function ImagesTab({ rows }: { rows: any[] }) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const slice = rows.slice((page - 1) * pageSize, page * pageSize);
+  if (!rows.length) return <Card className="text-sm text-emerald-700">✓ Every image in the corpus has alt text. Nice.</Card>;
+  const totalMissing = rows.reduce((s, r) => s + (r.images_no_alt ?? 0), 0);
+  return (
+    <div className="space-y-3">
+      <div className="text-xs text-slate-500">
+        <strong className="text-red-600">{totalMissing.toLocaleString()}</strong> images missing alt across <strong>{rows.length}</strong> pages.
+      </div>
+      <Card className="p-0">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
+              <th className="px-4 py-3 font-medium">URL</th>
+              <th className="px-4 py-3 font-medium">Type</th>
+              <th className="px-4 py-3 font-medium text-right">Missing alt</th>
+              <th className="px-4 py-3 font-medium text-right">Total images</th>
+              <th className="px-4 py-3 font-medium text-right">% missing</th>
+            </tr>
+          </thead>
+          <tbody>
+            {slice.map((r) => (
+              <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50">
+                <td className="max-w-md truncate px-4 py-2">
+                  <a href={r.url} target="_blank" rel="noreferrer" className="text-slate-700 hover:underline">{r.title || r.url}</a>
+                </td>
+                <td className="px-4 py-2 capitalize text-slate-500">{r.content_type}</td>
+                <td className="px-4 py-2 text-right tabular-nums text-red-700">{r.images_no_alt}</td>
+                <td className="px-4 py-2 text-right tabular-nums text-slate-500">{r.image_count}</td>
+                <td className="px-4 py-2 text-right tabular-nums text-slate-700">{Math.round(Number(r.pct_missing) * 100)}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+      <Pagination page={page} pageSize={pageSize} total={rows.length} onJump={setPage} onPageSize={setPageSize} unit="pages" />
+    </div>
+  );
+}
+
+function StaleTab({ rows }: { rows: any[] }) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const slice = rows.slice((page - 1) * pageSize, page * pageSize);
+  if (!rows.length) return (
+    <Card className="text-sm text-slate-600">
+      No stale content yet. Stale = low 28-day GSC clicks AND lastmod older than 12 months. Populated daily by the gsc-snapshot cron once GSC is connected.
+    </Card>
+  );
+  return (
+    <div className="space-y-3">
+      <div className="text-xs text-slate-500">
+        <strong className="text-amber-700">{rows.length.toLocaleString()}</strong> pages flagged stale — refresh or prune candidates, sorted by lowest traffic first.
+      </div>
+      <Card className="p-0">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
+              <th className="px-4 py-3 font-medium">URL</th>
+              <th className="px-4 py-3 font-medium">Type</th>
+              <th className="px-4 py-3 font-medium text-right">Clicks 28d</th>
+              <th className="px-4 py-3 font-medium text-right">Impr 28d</th>
+              <th className="px-4 py-3 font-medium">Last modified</th>
+            </tr>
+          </thead>
+          <tbody>
+            {slice.map((r) => (
+              <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50">
+                <td className="max-w-md truncate px-4 py-2">
+                  <a href={r.url} target="_blank" rel="noreferrer" className="text-slate-700 hover:underline">{r.title || r.url}</a>
+                </td>
+                <td className="px-4 py-2 capitalize text-slate-500">{r.content_type}</td>
+                <td className="px-4 py-2 text-right tabular-nums">{r.gsc_clicks_28d ?? 0}</td>
+                <td className="px-4 py-2 text-right tabular-nums text-slate-500">{(r.gsc_impressions_28d ?? 0).toLocaleString()}</td>
+                <td className="px-4 py-2 text-xs text-slate-500">{r.lastmod ?? <span className="text-slate-300">—</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+      <Pagination page={page} pageSize={pageSize} total={rows.length} onJump={setPage} onPageSize={setPageSize} unit="pages" />
     </div>
   );
 }

@@ -15,6 +15,16 @@ interface PageRow {
   tags: string[] | null;
   lastmod: string | null;
   embedded: boolean;
+  // Batch D SEO columns
+  owner_url: string | null;
+  gsc_clicks_28d: number | null;
+  gsc_impressions_28d: number | null;
+  gsc_position_28d: number | null;
+  canonical_url: string | null;
+  image_count: number | null;
+  images_no_alt: number | null;
+  is_stale: boolean | null;
+  stale_reason: string | null;
 }
 
 interface ByType { content_type: string; n: number }
@@ -188,7 +198,8 @@ export default function CorpusPage() {
                 <th className="px-4 py-3 font-medium">Title</th>
                 <th className="px-4 py-3 font-medium">Type</th>
                 <th className="px-4 py-3 font-medium">Category</th>
-                <th className="px-4 py-3 font-medium">Tags</th>
+                <th className="px-4 py-3 font-medium text-right">Clicks 28d</th>
+                <th className="px-4 py-3 font-medium">Signals</th>
                 <th className="px-4 py-3 font-medium">Modified</th>
               </tr>
             </thead>
@@ -221,21 +232,43 @@ export default function CorpusPage() {
                     <div>{r.category || <span className="text-slate-300">—</span>}</div>
                     {r.subcategory && <div className="text-xs text-slate-400">{r.subcategory}</div>}
                   </td>
+                  <td className="px-4 py-2.5 text-right text-sm tabular-nums">
+                    {r.gsc_clicks_28d != null ? (
+                      <span className={r.gsc_clicks_28d >= 100 ? "font-semibold text-slate-900" : "text-slate-500"}>
+                        {r.gsc_clicks_28d.toLocaleString()}
+                      </span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-2.5">
-                    <div className="flex flex-wrap gap-1">
-                      {(r.tags ?? []).slice(0, 4).map((t) => (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {r.owner_url && r.owner_url === r.url && (
+                        <span className="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700">Owner</span>
+                      )}
+                      {r.is_stale && (
+                        <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800" title={r.stale_reason ?? "Stale"}>Stale</span>
+                      )}
+                      {r.images_no_alt != null && r.images_no_alt > 0 && (
+                        <span className="inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-medium text-orange-700" title={`${r.images_no_alt} of ${r.image_count} images missing alt`}>
+                          alt: {r.images_no_alt}
+                        </span>
+                      )}
+                      {r.canonical_url && r.canonical_url !== r.url && (
+                        <span className="inline-flex items-center rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-medium text-rose-700" title={`canonical → ${r.canonical_url}`}>
+                          canonical
+                        </span>
+                      )}
+                      {(r.tags ?? []).slice(0, 2).map((t) => (
                         <button
                           key={t}
                           onClick={() => setTag(t)}
-                          className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 hover:bg-slate-200"
+                          className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600 hover:bg-slate-200"
                           title="Filter by this tag"
                         >
                           {t}
                         </button>
                       ))}
-                      {r.tags && r.tags.length > 4 && (
-                        <span className="px-1 py-0.5 text-xs text-slate-400">+{r.tags.length - 4}</span>
-                      )}
                     </div>
                   </td>
                   <td className="px-4 py-2.5 text-xs text-slate-500">{r.lastmod}</td>
@@ -243,7 +276,7 @@ export default function CorpusPage() {
               ))}
               {!loading && rows.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+                  <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
                     No pages match. Try clearing the active filters above.
                   </td>
                 </tr>

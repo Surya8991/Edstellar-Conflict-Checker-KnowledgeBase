@@ -58,6 +58,55 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    if (kind === "canonical") {
+      // Pages whose <link rel="canonical"> points somewhere else (or is missing
+      // entirely). Two flavours:
+      //   - 'self-canonical missing' — no canonical at all.
+      //   - 'cross-canonical' — canonical_url != page url. Both either valid
+      //     redirect signals OR a CMS bug. SEO eyeballs which.
+      const rows = await db.execute(sql`
+        SELECT id, url, title, content_type, canonical_url,
+               CASE
+                 WHEN canonical_url IS NULL THEN 'missing'
+                 WHEN canonical_url <> url  THEN 'cross-canonical'
+                 ELSE 'self'
+               END AS canonical_state
+        FROM pages
+        WHERE canonical_url IS NULL
+           OR canonical_url <> url
+        ORDER BY content_type, id
+        LIMIT ${limit}
+      `);
+      return NextResponse.json({ rows: (rows as any).rows ?? rows });
+    }
+
+    if (kind === "images") {
+      // Pages with images missing alt text (#41).
+      const rows = await db.execute(sql`
+        SELECT id, url, title, content_type, image_count, images_no_alt,
+               CASE WHEN image_count > 0 THEN images_no_alt::float / image_count
+                    ELSE 0 END AS pct_missing
+        FROM pages
+        WHERE images_no_alt IS NOT NULL AND images_no_alt > 0
+        ORDER BY images_no_alt DESC, image_count DESC
+        LIMIT ${limit}
+      `);
+      return NextResponse.json({ rows: (rows as any).rows ?? rows });
+    }
+
+    if (kind === "stale") {
+      // Stale-content snapshot (#28) — populated by gsc-snapshot cron.
+      const rows = await db.execute(sql`
+        SELECT id, url, title, content_type, lastmod,
+               gsc_clicks_28d, gsc_impressions_28d, gsc_position_28d, stale_reason
+        FROM pages
+        WHERE is_stale = true
+        ORDER BY gsc_clicks_28d ASC NULLS FIRST, lastmod ASC NULLS FIRST
+        LIMIT ${limit}
+      `);
+      return NextResponse.json({ rows: (rows as any).rows ?? rows });
+    }
+
     if (kind === "duplicates") {
       const titles = await db.execute(sql`
         SELECT title, count(*)::int AS n,

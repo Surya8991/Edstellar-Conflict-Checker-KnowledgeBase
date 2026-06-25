@@ -14,6 +14,9 @@ interface Match {
   rationale: string;
   overlap?: string[];
   issue?: string;
+  ownerUrl?: string | null;
+  gscClicks28d?: number | null;
+  gscImpressions28d?: number | null;
 }
 interface CheckResult {
   inputType: string;
@@ -606,13 +609,42 @@ function MatchCard({
     <Card>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <TypeChip type={m.contentType} />
+            {/* Owner badge — present only when this page IS the editorial
+                owner OR has an owner set elsewhere. (#25) */}
+            {m.ownerUrl && m.ownerUrl === m.url && (
+              <span className="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700">
+                Owner
+              </span>
+            )}
+            {m.ownerUrl && m.ownerUrl !== m.url && (
+              <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600" title={`Owner: ${m.ownerUrl}`}>
+                Non-owner
+              </span>
+            )}
             <a href={m.url} target="_blank" rel="noreferrer" className="truncate text-sm font-medium text-slate-900 hover:underline">
               {m.title || m.url}
             </a>
           </div>
           <div className="mt-1 truncate text-xs text-slate-400">{m.url}</div>
+          {/* Business-impact line — only show if we have 28d clicks. (#26) */}
+          {m.gscClicks28d != null && m.gscClicks28d > 0 && (
+            <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-md bg-amber-50 px-2 py-0.5 text-[11px] text-amber-800">
+              <span className="font-semibold tabular-nums">{m.gscClicks28d.toLocaleString()}</span>
+              <span className="text-amber-700">clicks · 28 days</span>
+              {m.gscImpressions28d != null && m.gscImpressions28d >= 1000 && (
+                <span className="text-amber-600">· {Math.round(m.gscImpressions28d/1000)}k impr</span>
+              )}
+            </div>
+          )}
+          {/* Editorial-action hint when this match is a non-owner. */}
+          {m.ownerUrl && m.ownerUrl !== m.url && (
+            <div className="mt-1 text-[11px] text-slate-500">
+              Suggested action: redirect this page to{" "}
+              <a href={m.ownerUrl} target="_blank" rel="noreferrer" className="text-slate-700 underline">the owner</a>.
+            </div>
+          )}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
           <ScoreBar score={m.conflictScore} />
