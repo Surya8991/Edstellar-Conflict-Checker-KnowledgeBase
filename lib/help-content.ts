@@ -149,7 +149,7 @@ export const HELP: Record<string, HelpEntry> = {
       "On Canonical: red 'missing' rows have no canonical tag; amber 'cross-canonical' rows point to another URL (often a CMS template bug).",
       "On Images: rows are sorted by absolute missing-alt count. Click each URL to fix in the CMS.",
       "On Stale: the gsc-snapshot cron flags pages with <5 clicks/28d AND lastmod > 12 mo. Refresh or prune candidates.",
-      "On Clusters: each row is a (course type × category) bucket with course/blog/subcategory counts + content debt (where there's lots of product pages but not enough awareness content).",
+      "On Clusters: two tables. Course clusters by (course type × category) with content-debt score. Blog clusters by blog category (separate taxonomy) with traffic + stale ratio. Blog count in the course table is mostly 0 because the two corpora use different category vocabularies — that's expected, not a bug.",
     ],
     readingIt: [
       "Health Score breakdown: -20 missing title, -8 title-too-short, -15 missing meta, -6 meta-too-short, -10 not-embedded, -10 thin body, -30 4xx/5xx status, -8 low token count.",

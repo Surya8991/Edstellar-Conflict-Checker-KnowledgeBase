@@ -65,7 +65,7 @@ export default function AuditPage() {
         {tab === "Canonical" && data?.rows && <CanonicalTab rows={data.rows} />}
         {tab === "Images" && data?.rows && <ImagesTab rows={data.rows} />}
         {tab === "Stale" && data?.rows && <StaleTab rows={data.rows} />}
-        {tab === "Clusters" && data?.rows && <ClustersTab rows={data.rows} />}
+        {tab === "Clusters" && data?.rows && <ClustersTab rows={data.rows} blogRows={data.blogRows ?? []} />}
       </div>
     </div>
   );
@@ -566,8 +566,19 @@ interface ClusterRow {
   stale_pages: number;
 }
 
-function ClustersTab({ rows }: { rows: ClusterRow[] }) {
-  if (!rows.length) return <Card className="text-sm text-slate-500">No clusters to show — corpus may not be tagged yet.</Card>;
+interface BlogClusterRow {
+  category: string;
+  blogs: number;
+  clicks_28d: number;
+  impressions_28d: number;
+  stale_pages: number;
+  avg_position: number;
+}
+
+function ClustersTab({ rows, blogRows }: { rows: ClusterRow[]; blogRows: BlogClusterRow[] }) {
+  if (!rows.length && !blogRows.length) {
+    return <Card className="text-sm text-slate-500">No clusters to show — corpus may not be tagged yet.</Card>;
+  }
 
   // Editorial-debt score: a cluster with many courses and few blogs is
   // 'thin' — the team has product pages but no awareness/discovery content.
@@ -583,57 +594,133 @@ function ClustersTab({ rows }: { rows: ClusterRow[] }) {
     byType.get(r.course_type)!.push(r);
   }
 
+  // Blog corpus uses its own taxonomy (broader buckets — "Training &
+  // Development", "Leadership & Management"). Most blogs have a category
+  // that doesn't overlap with the course catalogue, so the 'Blogs' column
+  // in the course table is mostly 0 and we surface them separately here.
+  // Stale ratio = stale / total; impressions/clicks already in absolute.
+  const blogTotal = blogRows.reduce((s, b) => s + b.blogs, 0);
+  const blogStale = blogRows.reduce((s, b) => s + b.stale_pages, 0);
+  const blogClicks = blogRows.reduce((s, b) => s + b.clicks_28d, 0);
+
   return (
-    <div className="space-y-4">
-      <Card className="bg-slate-50 text-xs text-slate-600">
-        <strong>How to read:</strong> Each row is a (course type, category) cluster.
-        Content debt = max(0, courses/3 - blogs) — a rough target of 1 blog per 3 courses.
-        Sort within each type is by debt descending so the worst clusters come first.
-      </Card>
-      {[...byType.entries()].map(([type, clusters]) => (
-        <Card key={type} className="p-0">
-          <div className="border-b border-slate-200 px-5 py-3">
-            <h3 className="text-sm font-semibold text-slate-900">{type}</h3>
-            <div className="text-xs text-slate-500">
-              {clusters.length} categories · {clusters.reduce((s, c) => s + c.courses, 0).toLocaleString()} courses · {clusters.reduce((s, c) => s + c.blogs, 0).toLocaleString()} blogs
+    <div className="space-y-6">
+      {/* ── COURSE CLUSTERS ─────────────────────────────────────── */}
+      {enriched.length > 0 && (
+        <div className="space-y-4">
+          <Card className="bg-slate-50 text-xs text-slate-600">
+            <strong>Course clusters · how to read:</strong> each row is a
+            (course type, category) bucket. Content debt = max(0, courses/3 - blogs).
+            The Blogs column counts only blogs whose category exactly matches the
+            course category — most blogs live under a different taxonomy and
+            appear in the Blog clusters table below.
+          </Card>
+          {[...byType.entries()].map(([type, clusters]) => (
+            <Card key={type} className="p-0">
+              <div className="border-b border-slate-200 px-5 py-3">
+                <h3 className="text-sm font-semibold text-slate-900">{type}</h3>
+                <div className="text-xs text-slate-500">
+                  {clusters.length} categories · {clusters.reduce((s, c) => s + c.courses, 0).toLocaleString()} courses · {clusters.reduce((s, c) => s + c.blogs, 0).toLocaleString()} blogs
+                </div>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
+                    <th className="px-5 py-2 font-medium">Category</th>
+                    <th className="px-3 py-2 font-medium text-right">Courses</th>
+                    <th className="px-3 py-2 font-medium text-right">Blogs</th>
+                    <th className="px-3 py-2 font-medium text-right">Subs</th>
+                    <th className="px-3 py-2 font-medium text-right">Clicks 28d</th>
+                    <th className="px-3 py-2 font-medium text-right">Stale</th>
+                    <th className="px-3 py-2 font-medium text-right">Debt</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {clusters.map((c) => (
+                    <tr key={`${type}|${c.category}`} className="border-b border-slate-100 hover:bg-slate-50">
+                      <td className="px-5 py-2 text-slate-700">{c.category}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{c.courses}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums ${c.blogs === 0 ? "text-red-600 font-semibold" : ""}`}>{c.blogs}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-slate-500">{c.subcategories}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-slate-500">{c.clicks_28d.toLocaleString()}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums ${c.stale_pages > 0 ? "text-amber-600" : "text-slate-400"}`}>{c.stale_pages}</td>
+                      <td className="px-3 py-2 text-right">
+                        {c.debt > 0 ? (
+                          <span className={`inline-block rounded px-2 py-0.5 text-xs font-semibold ${c.debt >= 5 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
+                            +{c.debt}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* ── BLOG CLUSTERS ───────────────────────────────────────── */}
+      {blogRows.length > 0 && (
+        <div className="space-y-4 border-t border-slate-200 pt-6">
+          <Card className="bg-slate-50 text-xs text-slate-600">
+            <strong>Blog clusters · how to read:</strong> grouped by the blog
+            corpus's own category taxonomy (separate from course categories).
+            Sorted by total blogs descending. Stale ratio + avg position help
+            spot categories that are over-served (lots of blogs, low traffic)
+            or under-served (high impressions but few blogs).
+          </Card>
+          <Card className="p-0">
+            <div className="border-b border-slate-200 px-5 py-3">
+              <h3 className="text-sm font-semibold text-slate-900">All blog categories</h3>
+              <div className="text-xs text-slate-500">
+                {blogRows.length} categories · {blogTotal.toLocaleString()} blogs · {blogClicks.toLocaleString()} clicks/28d · <span className={blogStale > 0 ? "text-amber-600" : ""}>{blogStale} stale</span>
+              </div>
             </div>
-          </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
-                <th className="px-5 py-2 font-medium">Category</th>
-                <th className="px-3 py-2 font-medium text-right">Courses</th>
-                <th className="px-3 py-2 font-medium text-right">Blogs</th>
-                <th className="px-3 py-2 font-medium text-right">Subs</th>
-                <th className="px-3 py-2 font-medium text-right">Clicks 28d</th>
-                <th className="px-3 py-2 font-medium text-right">Stale</th>
-                <th className="px-3 py-2 font-medium text-right">Debt</th>
-              </tr>
-            </thead>
-            <tbody>
-              {clusters.map((c) => (
-                <tr key={`${type}|${c.category}`} className="border-b border-slate-100 hover:bg-slate-50">
-                  <td className="px-5 py-2 text-slate-700">{c.category}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{c.courses}</td>
-                  <td className={`px-3 py-2 text-right tabular-nums ${c.blogs === 0 ? "text-red-600 font-semibold" : ""}`}>{c.blogs}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-slate-500">{c.subcategories}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-slate-500">{c.clicks_28d.toLocaleString()}</td>
-                  <td className={`px-3 py-2 text-right tabular-nums ${c.stale_pages > 0 ? "text-amber-600" : "text-slate-400"}`}>{c.stale_pages}</td>
-                  <td className="px-3 py-2 text-right">
-                    {c.debt > 0 ? (
-                      <span className={`inline-block rounded px-2 py-0.5 text-xs font-semibold ${c.debt >= 5 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
-                        +{c.debt}
-                      </span>
-                    ) : (
-                      <span className="text-slate-300">—</span>
-                    )}
-                  </td>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
+                  <th className="px-5 py-2 font-medium">Category</th>
+                  <th className="px-3 py-2 font-medium text-right">Blogs</th>
+                  <th className="px-3 py-2 font-medium text-right">Clicks 28d</th>
+                  <th className="px-3 py-2 font-medium text-right">Impr 28d</th>
+                  <th className="px-3 py-2 font-medium text-right">Avg pos</th>
+                  <th className="px-3 py-2 font-medium text-right">Stale</th>
+                  <th className="px-3 py-2 font-medium text-right">Stale %</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
-      ))}
+              </thead>
+              <tbody>
+                {blogRows.map((b) => {
+                  const stalePct = b.blogs ? Math.round((b.stale_pages / b.blogs) * 100) : 0;
+                  return (
+                    <tr key={b.category} className="border-b border-slate-100 hover:bg-slate-50">
+                      <td className="px-5 py-2 text-slate-700">{b.category}</td>
+                      <td className="px-3 py-2 text-right tabular-nums font-medium">{b.blogs}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums ${b.clicks_28d >= 100 ? "font-semibold text-slate-900" : "text-slate-500"}`}>{b.clicks_28d.toLocaleString()}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-slate-500">{b.impressions_28d.toLocaleString()}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-slate-500">{b.avg_position > 0 ? b.avg_position.toFixed(1) : "—"}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums ${b.stale_pages > 0 ? "text-amber-600" : "text-slate-400"}`}>{b.stale_pages}</td>
+                      <td className="px-3 py-2 text-right">
+                        {stalePct >= 50 ? (
+                          <span className="inline-block rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">{stalePct}%</span>
+                        ) : stalePct >= 25 ? (
+                          <span className="inline-block rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">{stalePct}%</span>
+                        ) : stalePct > 0 ? (
+                          <span className="text-xs text-slate-500">{stalePct}%</span>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

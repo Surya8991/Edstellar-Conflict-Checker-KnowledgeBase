@@ -139,11 +139,22 @@ export async function GET(request: NextRequest) {
     }
 
     if (kind === "clusters") {
-      // Topic-cluster health (#43). For each (course_type, category) bucket
-      // in the catalog, count courses, blogs that match by category, and
-      // subcategory rows. A cluster is 'thin' if it has many courses but
-      // few blogs (no awareness content) — that's the actionable signal.
-      const rows = await db.execute(sql`
+      // Topic-cluster health (#43). Returns TWO datasets:
+      //
+      //   courseClusters — one row per (course_type, category) bucket. The
+      //     blog count column reflects blogs whose category EXACTLY matches
+      //     the course category. In practice the blog corpus uses a separate,
+      //     broader taxonomy (e.g. "Training & Development" vs "Artificial
+      //     Intelligence"), so this column is mostly 0 — that's still
+      //     useful: it surfaces clusters that have NO awareness content
+      //     under matching nomenclature.
+      //
+      //   blogClusters — one row per blog category (the blog corpus's own
+      //     taxonomy). Blogs in the corpus have `course_type IS NULL` so
+      //     they never appeared in the course view; this gives them their
+      //     own surface with traffic + staleness so the team can spot
+      //     blog-only categories that are starving / over-served.
+      const courseClusters = await db.execute(sql`
         SELECT
           course_type,
           category,
@@ -158,7 +169,25 @@ export async function GET(request: NextRequest) {
         HAVING count(*) > 0
         ORDER BY course_type, category
       `);
-      return NextResponse.json({ rows: (rows as any).rows ?? rows });
+
+      const blogClusters = await db.execute(sql`
+        SELECT
+          category,
+          count(*)::int                                AS blogs,
+          sum(coalesce(gsc_clicks_28d, 0))::int        AS clicks_28d,
+          sum(coalesce(gsc_impressions_28d, 0))::int   AS impressions_28d,
+          count(*) FILTER (WHERE is_stale = true)::int AS stale_pages,
+          avg(coalesce(gsc_position_28d, 0))::float    AS avg_position
+        FROM pages
+        WHERE content_type = 'blog' AND category IS NOT NULL
+        GROUP BY category
+        ORDER BY blogs DESC
+      `);
+
+      return NextResponse.json({
+        rows: (courseClusters as any).rows ?? courseClusters,
+        blogRows: (blogClusters as any).rows ?? blogClusters,
+      });
     }
 
     if (kind === "stale") {
