@@ -60,6 +60,42 @@ function domainOf(url: string): string {
   }
 }
 
+/** Exact root-domain match: 'edstellar.com' or any subdomain. Previously
+ *  `includes("edstellar")` would also drop legitimate competitor pages whose
+ *  URLs happened to contain the substring (e.g. "edstellar-comparison" posts). */
+function isEdstellarDomain(d: string): boolean {
+  return d === "edstellar.com" || d.endsWith(".edstellar.com");
+}
+
+/**
+ * SERP-noise destinations: video pages, social, Q&A / forums, file shares.
+ * These rank for B2B training queries but have no useful text to summarize —
+ * the extractor would return a video-player shell or user-generated chatter.
+ */
+const NOISE_DOMAINS = new Set([
+  "youtube.com", "youtu.be", "m.youtube.com",
+  "vimeo.com",
+  "facebook.com", "m.facebook.com",
+  "twitter.com", "x.com", "t.co",
+  "instagram.com",
+  "tiktok.com",
+  "pinterest.com",
+  "reddit.com",
+  "quora.com",
+  "slideshare.net",
+  "scribd.com",
+  "issuu.com",
+  "amazon.com",
+]);
+const NOISE_PATH_EXTENSIONS = /\.(?:pdf|doc|docx|ppt|pptx|xls|xlsx|zip)$/i;
+
+function isNoiseDestination(url: string): boolean {
+  if (NOISE_PATH_EXTENSIONS.test(url)) return true;
+  const d = domainOf(url);
+  if (!d) return true;
+  return NOISE_DOMAINS.has(d);
+}
+
 /** Research competitors for a topic: SERP → filter → summarize top results. */
 export async function researchCompetitors(
   topic: string,
@@ -68,10 +104,24 @@ export async function researchCompetitors(
   const limit = opts.limit ?? 6;
   const chat = getChat();
 
-  const organic = await serperSearch(`${topic} corporate training`, 12);
-  // Skip Edstellar's own results; prefer known competitors first.
+  // Ask for more than we need — Edstellar + noise + per-domain dedup eats
+  // most of the first page on corporate-training queries.
+  const organic = await serperSearch(`${topic} corporate training`, 20);
+
+  // Skip Edstellar (exact-suffix), drop SERP-noise destinations, then keep
+  // only the first result per domain — otherwise the top-N is often dominated
+  // by one large site (oreilly.com, coursera.org) and we lose competitive
+  // coverage.
+  const seenDomains = new Set<string>();
   const filtered = organic
-    .filter((o) => !domainOf(o.link).includes("edstellar"))
+    .filter((o) => {
+      const d = domainOf(o.link);
+      if (!d || isEdstellarDomain(d)) return false;
+      if (isNoiseDestination(o.link)) return false;
+      if (seenDomains.has(d)) return false;
+      seenDomains.add(d);
+      return true;
+    })
     .sort((a, b) => {
       const ak = KNOWN_COMPETITORS.includes(domainOf(a.link)) ? 0 : 1;
       const bk = KNOWN_COMPETITORS.includes(domainOf(b.link)) ? 0 : 1;
