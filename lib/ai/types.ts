@@ -40,6 +40,20 @@ export interface RewriteProposalInput {
   summary?: string;
   /** Top conflicting pages (capped at 5 by the route). */
   conflicts: { title: string; url: string; rationale?: string }[];
+  /**
+   * Audit 10C (Session 8): SERP-feature hints from /api/competitors/serp-overlap
+   * — used so the LLM knows what featured-snippet / AI-Overview shape the
+   * SERP rewards before suggesting angles. All fields optional; pass what
+   * you have.
+   */
+  serpHints?: {
+    /** Google AI Overview summary (if present on the SERP). */
+    aiOverviewSummary?: string;
+    /** "People also ask" questions surfaced for this query. */
+    peopleAlsoAsk?: string[];
+    /** Featured-snippet / answer box snippet. */
+    answerBox?: string;
+  };
 }
 
 export interface RewriteAngle {

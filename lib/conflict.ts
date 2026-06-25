@@ -51,18 +51,27 @@ function isUrl(value: string): boolean {
 
 /**
  * Impact-weighted match score. The base conflict score (0..100) gets a
- * multiplier between 1.0 and 2.0 based on the matched page's last-28-day
- * GSC clicks — so high-traffic pages float to the top of the result list
- * even when their raw similarity score is a hair lower. Owner pages get a
- * +0.25 bump on top because cannibalizing the editorial winner is the
- * worst outcome.
+ * multiplier based on the matched page's last-28-day GSC clicks and on
+ * whether the match is the (orphan) duplicate of the editorial winner.
+ *
+ * Audit 10C (Session 8): the owner-bonus condition was inverted. The
+ * comment correctly identified "cannibalizing the editorial winner is
+ * the worst outcome" — so the +0.25 should apply when the *match* is a
+ * NON-owner duplicate of the canonical winner (an orphan cannibal),
+ * not when the match IS the owner itself. The prior code applied the
+ * bonus to the legitimate owner page, ranking it above its own cannibals
+ * in the result list — visually backwards. Flipped.
  *
  * Multiplier scale (clicks → factor): 0→1.0, 100→1.25, 1000→1.5, 10k→2.0.
+ * Owner-cannibal bonus: +0.25.
  */
 function impactWeighted(m: ConflictMatchResult): number {
   const clicks = m.gscClicks28d ?? 0;
   const trafficBoost = clicks <= 0 ? 0 : Math.min(1, Math.log10(clicks + 1) / 4);
-  const ownerBoost = m.ownerUrl && m.ownerUrl === m.url ? 0.25 : 0;
+  // Bonus when this match is a duplicate of the editorial winner (NOT
+  // the winner itself). We need ownerUrl set AND it must differ from m.url.
+  const isOrphanCannibal = !!m.ownerUrl && m.ownerUrl !== m.url;
+  const ownerBoost = isOrphanCannibal ? 0.25 : 0;
   return m.conflictScore * (1 + trafficBoost + ownerBoost);
 }
 

@@ -157,10 +157,18 @@ export async function domainCompare(topics: string[]): Promise<{ topics: string[
 export interface FreshnessResult {
   domain: string;
   totalUrls: number;
+  /** From sitemap <lastmod> — useful for "how big a site is" but unreliable as
+   *  a freshness signal (WordPress/HubSpot regenerate it on every rebuild). */
   recent90d: number;
+  /** Audit 10C (Session 8): same window, but verified by sampling N pages
+   *  and reading their on-page `article:modified_time` / `<time>` instead
+   *  of trusting the sitemap. Null if the sample didn't yield enough
+   *  signal (sample size 0 or every page returned no metadata). */
+  recent90dVerified: number | null;
+  verifiedSampleSize: number;
   oldest: string | null;
   newest: string | null;
-  sample: { url: string; lastmod: string }[];
+  sample: { url: string; lastmod: string; onPageModified?: string | null }[];
 }
 export async function competitorFreshness(domain: string): Promise<FreshnessResult> {
   const root = domain.startsWith("http") ? domain : `https://${domain}`;
@@ -203,12 +211,90 @@ export async function competitorFreshness(domain: string): Promise<FreshnessResu
     return !isNaN(t) && now - t < 90 * 86_400_000;
   }).length;
   const dates = entries.map((e) => e.lastmod).filter(Boolean).sort();
+
+  // Audit 10C (Session 8): sitemap <lastmod> lies for WordPress, HubSpot,
+  // and any CMS that regenerates the sitemap on every rebuild. Sample
+  // up to FRESHNESS_SAMPLE pages, read their on-page `article:modified_time`
+  // / `<time>` / og:updated_time, and compute a verified recent-90d
+  // ratio that can be extrapolated to the whole sitemap.
+  const FRESHNESS_SAMPLE = 12;
+  const FRESHNESS_CONCURRENCY = 4;
+  const sampleEntries = entries.slice(0, FRESHNESS_SAMPLE);
+  let sampleHits = 0;
+  let sampleRecent = 0;
+  const enriched: { url: string; lastmod: string; onPageModified?: string | null }[] = [];
+
+  let cursor = 0;
+  async function worker() {
+    while (cursor < sampleEntries.length) {
+      const i = cursor++;
+      const e = sampleEntries[i];
+      if (!e) continue;
+      try {
+        const onPage = await fetchOnPageModified(e.url);
+        if (onPage) {
+          sampleHits++;
+          if (now - Date.parse(onPage) < 90 * 86_400_000) sampleRecent++;
+        }
+        enriched.push({ ...e, onPageModified: onPage });
+      } catch {
+        enriched.push({ ...e, onPageModified: null });
+      }
+    }
+  }
+  await Promise.all(
+    Array.from({ length: FRESHNESS_CONCURRENCY }, () => worker()),
+  );
+
+  let recent90dVerified: number | null = null;
+  if (sampleHits >= 3) {
+    const verifiedRatio = sampleRecent / sampleHits;
+    recent90dVerified = Math.round(verifiedRatio * entries.length);
+  }
+
   return {
     domain,
     totalUrls: entries.length,
     recent90d,
+    recent90dVerified,
+    verifiedSampleSize: sampleHits,
     oldest: dates[0] ?? null,
     newest: dates[dates.length - 1] ?? null,
-    sample: entries.slice(0, 12),
+    sample: enriched.length ? enriched : entries.slice(0, FRESHNESS_SAMPLE),
   };
+}
+
+/**
+ * Pull the most reliable on-page "modified" timestamp from a page.
+ * Returns the first match in priority order:
+ *   1. <meta property="article:modified_time"> (most common; WP, Yoast, etc.)
+ *   2. <meta property="og:updated_time">
+ *   3. <time itemprop="dateModified" datetime="…"> or <time datetime="…">
+ *   4. <meta name="last-modified">
+ * Returns null when nothing parseable is found. Lightweight — no DOM parse,
+ * just regex over the first ~256 KB of HTML.
+ */
+async function fetchOnPageModified(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(10_000),
+      headers: { accept: "text/html" },
+    });
+    if (!res.ok) return null;
+    const html = (await res.text()).slice(0, 256_000);
+    const candidates: (string | undefined)[] = [
+      html.match(/<meta[^>]+(?:property|name)=["']article:modified_time["'][^>]+content=["']([^"']+)["']/i)?.[1],
+      html.match(/<meta[^>]+(?:property|name)=["']og:updated_time["'][^>]+content=["']([^"']+)["']/i)?.[1],
+      html.match(/<time[^>]+(?:itemprop=["']dateModified["'][^>]+)?datetime=["']([^"']+)["']/i)?.[1],
+      html.match(/<meta[^>]+name=["']last-modified["'][^>]+content=["']([^"']+)["']/i)?.[1],
+    ];
+    for (const c of candidates) {
+      if (!c) continue;
+      const t = Date.parse(c);
+      if (!Number.isNaN(t)) return new Date(t).toISOString();
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }

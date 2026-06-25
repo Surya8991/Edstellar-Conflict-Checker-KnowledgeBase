@@ -12,7 +12,7 @@ The verdict the checker assigns to each match. Threshold values live in [`lib/sc
 
 ## Why a blended score, not raw LLM?
 
-Vector similarity is a measured, reproducible signal. The LLM verdict is sharper on intent but can hallucinate. We blend `0.4 * base + 0.6 * llm` so a wild LLM number can't drift more than ~40 points from what the embeddings say. See [`blendScore`](../lib/score.ts).
+Vector similarity is a measured, reproducible signal. The LLM verdict is sharper on intent but can hallucinate. We blend **`0.6 * base + 0.4 * llm`** (base-heavy as of Session 8 — was `0.4 * base + 0.6 * llm` before the audit) so a wild LLM number can't drift more than ~40 points from what the embeddings say. See [`blendScore`](../lib/score.ts).
 
 ## Why the 0.55 – 0.95 similarity band?
 

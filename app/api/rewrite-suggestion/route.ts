@@ -26,10 +26,17 @@ const ConflictSchema = z.object({
   rationale: z.string().max(2000).optional(),
 });
 
+const SerpHintsSchema = z.object({
+  aiOverviewSummary: z.string().max(2000).optional(),
+  peopleAlsoAsk: z.array(z.string().max(500)).max(10).optional(),
+  answerBox: z.string().max(2000).optional(),
+});
+
 const BodySchema = z.object({
   input: z.string().trim().min(1).max(4000),
   summary: z.string().max(2000).optional(),
   conflicts: z.array(ConflictSchema).max(20).default([]),
+  serpHints: SerpHintsSchema.optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -50,6 +57,7 @@ export async function POST(request: NextRequest) {
       input: body.input,
       summary: body.summary,
       conflicts: body.conflicts,
+      serpHints: body.serpHints,
     });
     return NextResponse.json(proposal);
   } catch (e) {

@@ -15,13 +15,20 @@ export function similarityToBaseScore(sim: number): number {
 
 /**
  * Blend the embedding-derived base score with the LLM's judgment.
- * The LLM is authoritative on intent, but we keep the vector signal so a model
- * hallucination can't wildly diverge from measured similarity.
+ *
+ * Audit 10C (Session 8): rebalanced from 0.4*base + 0.6*llm to
+ * **0.6*base + 0.4*llm**. Rationale: vector similarity is a measured,
+ * reproducible signal; the LLM verdict is sharper on intent but can
+ * hallucinate with high confidence. docs/conflict-types.md already
+ * argued for measurable-signal-heavy weighting — code now matches.
+ *
+ * A hostile LLM hallucination is now bounded to a ~40-point drift from
+ * the empirical embedding signal (was ~60 points).
  */
 export function blendScore(base: number, llmScore: number | undefined): number {
   if (llmScore == null || Number.isNaN(llmScore)) return base;
   const clampedLlm = Math.max(0, Math.min(100, llmScore));
-  return Math.round(0.4 * base + 0.6 * clampedLlm);
+  return Math.round(0.6 * base + 0.4 * clampedLlm);
 }
 
 export function conflictTypeFromScore(score: number): ConflictVerdict["conflictType"] {
