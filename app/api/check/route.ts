@@ -10,13 +10,12 @@ export const maxDuration = 120;
 
 /**
  * POST /api/check
- * Pre-publish webhook for external systems (CMS, etc.).
+ * Pre-publish webhook for external systems (CMS, etc.) and dashboard UI.
  *
- * Auth strategy:
- *   - If WEBHOOK_API_KEY is set in env, callers MUST send a matching X-API-Key
- *     header. Used to gate CMS pre-publish hooks.
- *   - If unset, the route is open BUT rate-limited per-IP (60 req/min) to
- *     prevent LLM-token burn from drive-by traffic.
+ * Auth strategy (any ONE of the following grants access):
+ *   1. Valid X-Api-Key header matching WEBHOOK_API_KEY — for CMS/webhook callers.
+ *   2. Valid NextAuth session cookie (AUTH_ENABLED=true) — for dashboard users.
+ *   3. Open (WEBHOOK_API_KEY unset, AUTH_ENABLED=false) — rate-limited per-IP.
  *
  * Response shape is stable:
  *   { inputType, inputValue, summary, keywords, topScore, matches[], checkId,
@@ -34,14 +33,26 @@ const BodySchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. Auth — explicit key first, fall through to rate-limit.
+    // 1. Auth — valid API key (CMS/webhook) OR valid session (dashboard) are both accepted.
+    // When WEBHOOK_API_KEY is set without a matching header, fall back to session auth
+    // so signed-in dashboard users are never locked out by their own webhook key.
     const required = process.env.WEBHOOK_API_KEY;
-    if (required) {
-      const sent = request.headers.get("x-api-key");
-      if (sent !== required) {
+    const sentKey = required ? request.headers.get("x-api-key") : null;
+    const hasValidKey = !!(required && sentKey === required);
+
+    let sessionEmail: string | undefined;
+    if (!hasValidKey) {
+      if (isAuthEnabled()) {
+        const session = await auth();
+        sessionEmail = session?.user?.email ?? undefined;
+        if (!sessionEmail) {
+          return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+        }
+      } else if (required) {
+        // Key required, auth disabled, no valid key → reject.
         return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
       }
-    } else {
+      // Rate-limit session and open callers; trusted key callers skip.
       const rl = await consume(clientIp(request), "check", { max: 60, windowSec: 60 });
       if (!rl.ok) return denied(rl);
     }
@@ -57,14 +68,11 @@ export async function POST(request: NextRequest) {
     }
     const body = parsed.data;
 
-    // Audit H3 (Session 6): when auth is enabled, prefer the session email.
-    // When auth is DISABLED, NEVER trust a body-supplied createdBy — it's
-    // forgeable from any caller and corrupts the audit trail. Stamp the
-    // request IP instead so we at least have a per-source attribution.
+    // createdBy: reuse session email from auth above; never trust body-supplied value
+    // (forgeable from webhook callers). Stamp anon IP when auth is disabled.
     let createdBy: string | undefined;
     if (isAuthEnabled()) {
-      const session = await auth();
-      createdBy = session?.user?.email ?? undefined;
+      createdBy = sessionEmail; // undefined for webhook callers (no session)
     } else {
       createdBy = `anon:${clientIp(request)}`;
     }

@@ -29,6 +29,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 | `CRON_SECRET` | `Authorization: Bearer` | All `/api/cron/*` routes |
 | NextAuth session cookie | `AUTH_ENABLED=true` | All dashboard pages via `proxy.ts` |
 
+**`/api/check` is special**: accepts EITHER a valid `X-Api-Key` (webhook callers) OR a valid NextAuth session (dashboard UI). When `WEBHOOK_API_KEY` is set and the header is absent, it falls back to session auth. This prevents dashboard users from being locked out when the webhook key is configured in production.
+
 New `/api/*` routes that should be cron-callable must be added to `proxy.ts PUBLIC_PATHS`.
 
 ## Key defaults that may surprise you
