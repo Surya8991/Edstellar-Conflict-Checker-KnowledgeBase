@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { PageHeader, Card } from "@/app/components/ui";
 import { Pagination } from "@/app/components/Pagination";
 
-const TABS = ["Meta", "Broken Links", "Duplicates", "Health Score", "Canonical", "Images", "Stale"] as const;
+const TABS = ["Meta", "Broken Links", "Duplicates", "Health Score", "Canonical", "Images", "Stale", "Clusters"] as const;
 type Tab = typeof TABS[number];
 
 export default function AuditPage() {
@@ -23,6 +23,7 @@ export default function AuditPage() {
       "Canonical": "canonical",
       "Images": "images",
       "Stale": "stale",
+      "Clusters": "clusters",
     };
     const res = await fetch(`/api/audit?kind=${kindMap[tab]}&limit=1000`);
     const json = await res.json();
@@ -64,6 +65,7 @@ export default function AuditPage() {
         {tab === "Canonical" && data?.rows && <CanonicalTab rows={data.rows} />}
         {tab === "Images" && data?.rows && <ImagesTab rows={data.rows} />}
         {tab === "Stale" && data?.rows && <StaleTab rows={data.rows} />}
+        {tab === "Clusters" && data?.rows && <ClustersTab rows={data.rows} />}
       </div>
     </div>
   );
@@ -476,6 +478,92 @@ function StaleTab({ rows }: { rows: any[] }) {
         </table>
       </Card>
       <Pagination page={page} pageSize={pageSize} total={rows.length} onJump={setPage} onPageSize={setPageSize} unit="pages" />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Topic-cluster health (#43)
+// ─────────────────────────────────────────────────────────────────────────
+
+interface ClusterRow {
+  course_type: string;
+  category: string;
+  courses: number;
+  blogs: number;
+  subcategories: number;
+  clicks_28d: number;
+  stale_pages: number;
+}
+
+function ClustersTab({ rows }: { rows: ClusterRow[] }) {
+  if (!rows.length) return <Card className="text-sm text-slate-500">No clusters to show — corpus may not be tagged yet.</Card>;
+
+  // Editorial-debt score: a cluster with many courses and few blogs is
+  // 'thin' — the team has product pages but no awareness/discovery content.
+  // Formula: max(0, courses/3 - blogs). Sorts the worst-debt to the top.
+  const enriched = rows.map((r) => ({
+    ...r,
+    debt: Math.max(0, Math.round(r.courses / 3 - r.blogs)),
+  })).sort((a, b) => b.debt - a.debt);
+
+  const byType = new Map<string, typeof enriched>();
+  for (const r of enriched) {
+    if (!byType.has(r.course_type)) byType.set(r.course_type, []);
+    byType.get(r.course_type)!.push(r);
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card className="bg-slate-50 text-xs text-slate-600">
+        <strong>How to read:</strong> Each row is a (course type, category) cluster.
+        Content debt = max(0, courses/3 - blogs) — a rough target of 1 blog per 3 courses.
+        Sort within each type is by debt descending so the worst clusters come first.
+      </Card>
+      {[...byType.entries()].map(([type, clusters]) => (
+        <Card key={type} className="p-0">
+          <div className="border-b border-slate-200 px-5 py-3">
+            <h3 className="text-sm font-semibold text-slate-900">{type}</h3>
+            <div className="text-xs text-slate-500">
+              {clusters.length} categories · {clusters.reduce((s, c) => s + c.courses, 0).toLocaleString()} courses · {clusters.reduce((s, c) => s + c.blogs, 0).toLocaleString()} blogs
+            </div>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
+                <th className="px-5 py-2 font-medium">Category</th>
+                <th className="px-3 py-2 font-medium text-right">Courses</th>
+                <th className="px-3 py-2 font-medium text-right">Blogs</th>
+                <th className="px-3 py-2 font-medium text-right">Subs</th>
+                <th className="px-3 py-2 font-medium text-right">Clicks 28d</th>
+                <th className="px-3 py-2 font-medium text-right">Stale</th>
+                <th className="px-3 py-2 font-medium text-right">Debt</th>
+              </tr>
+            </thead>
+            <tbody>
+              {clusters.map((c) => (
+                <tr key={`${type}|${c.category}`} className="border-b border-slate-100 hover:bg-slate-50">
+                  <td className="px-5 py-2 text-slate-700">{c.category}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{c.courses}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums ${c.blogs === 0 ? "text-red-600 font-semibold" : ""}`}>{c.blogs}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-slate-500">{c.subcategories}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-slate-500">{c.clicks_28d.toLocaleString()}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums ${c.stale_pages > 0 ? "text-amber-600" : "text-slate-400"}`}>{c.stale_pages}</td>
+                  <td className="px-3 py-2 text-right">
+                    {c.debt > 0 ? (
+                      <span className={`inline-block rounded px-2 py-0.5 text-xs font-semibold ${c.debt >= 5 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
+                        +{c.debt}
+                      </span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      ))}
     </div>
   );
 }

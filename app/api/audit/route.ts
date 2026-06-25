@@ -94,6 +94,29 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ rows: (rows as any).rows ?? rows });
     }
 
+    if (kind === "clusters") {
+      // Topic-cluster health (#43). For each (course_type, category) bucket
+      // in the catalog, count courses, blogs that match by category, and
+      // subcategory rows. A cluster is 'thin' if it has many courses but
+      // few blogs (no awareness content) — that's the actionable signal.
+      const rows = await db.execute(sql`
+        SELECT
+          course_type,
+          category,
+          count(*) FILTER (WHERE content_type = 'course')      ::int AS courses,
+          count(*) FILTER (WHERE content_type = 'blog')        ::int AS blogs,
+          count(*) FILTER (WHERE content_type = 'subcategory') ::int AS subcategories,
+          sum(coalesce(gsc_clicks_28d, 0))                     ::int AS clicks_28d,
+          count(*) FILTER (WHERE is_stale = true)              ::int AS stale_pages
+        FROM pages
+        WHERE course_type IS NOT NULL AND category IS NOT NULL
+        GROUP BY course_type, category
+        HAVING count(*) > 0
+        ORDER BY course_type, category
+      `);
+      return NextResponse.json({ rows: (rows as any).rows ?? rows });
+    }
+
     if (kind === "stale") {
       // Stale-content snapshot (#28) — populated by gsc-snapshot cron.
       const rows = await db.execute(sql`

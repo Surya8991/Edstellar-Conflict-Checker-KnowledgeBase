@@ -126,6 +126,7 @@ export const HELP: Record<string, HelpEntry> = {
       "On Canonical: red 'missing' rows have no canonical tag; amber 'cross-canonical' rows point to another URL (often a CMS template bug).",
       "On Images: rows are sorted by absolute missing-alt count. Click each URL to fix in the CMS.",
       "On Stale: the gsc-snapshot cron flags pages with <5 clicks/28d AND lastmod > 12 mo. Refresh or prune candidates.",
+      "On Clusters: each row is a (course type × category) bucket with course/blog/subcategory counts + content debt (where there's lots of product pages but not enough awareness content).",
     ],
     readingIt: [
       "Health Score breakdown: -20 missing title, -8 title-too-short, -15 missing meta, -6 meta-too-short, -10 not-embedded, -10 thin body, -30 4xx/5xx status, -8 low token count.",
