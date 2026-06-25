@@ -140,7 +140,8 @@ async function runQuery(
 // --- Catalog index for the "gap" detector ---------------------------------
 interface CourseRow { name: string; link: string; category?: string; subcategory?: string }
 interface BlogRow { url: string; title: string; category?: string | null }
-let catalogTokens: { kind: "course" | "blog" | "category" | "subcategory"; tokens: Set<string>; url: string }[] | null = null;
+type CatalogEntry = { kind: "course" | "blog" | "category" | "subcategory"; tokens: Set<string>; url: string };
+let catalogTokens: CatalogEntry[] | null = null;
 
 function readJson<T>(file: string, fallback: T): T {
   const p = join(process.cwd(), "data", "taxonomy", file);
@@ -161,7 +162,7 @@ function loadCatalog() {
   if (catalogTokens) return catalogTokens;
   const courses = readJson<CourseRow[]>("courses.json", []);
   const blogs = readJson<BlogRow[]>("blogs.json", []);
-  const out: NonNullable<typeof catalogTokens> = [];
+  const out: CatalogEntry[] = [];
   for (const c of courses) {
     out.push({ kind: "course", tokens: tokenize(c.name), url: c.link });
     if (c.category) out.push({ kind: "category", tokens: tokenize(c.category), url: c.link });

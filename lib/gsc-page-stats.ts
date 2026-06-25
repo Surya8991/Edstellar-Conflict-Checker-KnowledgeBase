@@ -132,7 +132,7 @@ export async function pageStatsBatch(urls: string[], topN = 3): Promise<PageStat
   const out: PageStats[] = [];
   for (const u of urls) {
     try { out.push(await pageStats(u, topN)) }
-    catch { out.push({ url: u, m6: sum([]), m12: sum([]), topQueries: [] }) }
+    catch { out.push({ url: u, m6: sum([]), m12: sum([]), topQueries: [], potentialQueries: [] }) }
   }
   return out;
 }

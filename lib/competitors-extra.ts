@@ -101,10 +101,14 @@ export async function serpOverlap(topic: string): Promise<SerpOverlapResult> {
 export interface DomainCompareRow { domain: string; appearances: number; topRank: number | null }
 export async function domainCompare(topics: string[]): Promise<{ topics: string[]; rows: DomainCompareRow[] }> {
   const trimmed = topics.slice(0, 8);
-  const all = await Promise.all(trimmed.map((t) => serperSearch(t, 10).catch(() => [])));
+  const all = await Promise.all(
+    trimmed.map((t) =>
+      serperSearch(t, 10).catch(() => ({ organic: [] } as SerperResponse)),
+    ),
+  );
   const tally = new Map<string, { count: number; topRank: number | null }>();
-  for (const list of all) {
-    list.forEach((o, i) => {
+  for (const resp of all) {
+    (resp.organic ?? []).forEach((o, i) => {
       const d = domainOf(o.link);
       if (!d) return;
       const e = tally.get(d) ?? { count: 0, topRank: null };

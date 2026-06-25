@@ -7,7 +7,7 @@ import re, json, os, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-HTML = ROOT.parent / "Edstellar_Intelligence_Hub_v2_updated.html"
+HTML = ROOT / "reference" / "Edstellar_Intelligence_Hub_v2.html"
 OUT  = ROOT / "data" / "taxonomy"
 OUT.mkdir(parents=True, exist_ok=True)
 
