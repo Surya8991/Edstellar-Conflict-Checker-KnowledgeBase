@@ -88,23 +88,40 @@ export async function GET(request: NextRequest) {
     if (kind === "canonical") {
       // Pages whose <link rel="canonical"> points somewhere else (or is missing
       // entirely). Two flavours:
-      //   - 'self-canonical missing' — no canonical at all.
-      //   - 'cross-canonical' — canonical_url != page url. Both either valid
-      //     redirect signals OR a CMS bug. SEO eyeballs which.
-      const rows = await db.execute(sql`
-        SELECT id, url, title, content_type, canonical_url,
-               CASE
-                 WHEN canonical_url IS NULL THEN 'missing'
-                 WHEN canonical_url <> url  THEN 'cross-canonical'
-                 ELSE 'self'
-               END AS canonical_state
+      //   - 'missing'         — no canonical tag at all.
+      //   - 'cross-canonical' — canonical points to a different URL. Either a
+      //                          valid redirect signal OR a CMS bug; SEO eyeballs
+      //                          which.
+      // We pull every page that has either no canonical OR one that differs
+      // verbatim, then filter in JS using normalizeUrl() so trivial differences
+      // (trailing slash, www, http/https, casing, fragments) don't trigger a
+      // false 'cross-canonical' flag. This matters because the live extractor
+      // captures whatever the CMS wrote, and the URL stored in `pages.url`
+      // came from the sitemap CSV — the two often differ by one of those
+      // tokens even though they resolve to the same page.
+      const rows = (await db.execute(sql`
+        SELECT id, url, title, content_type, canonical_url
         FROM pages
         WHERE canonical_url IS NULL
            OR canonical_url <> url
         ORDER BY content_type, id
         LIMIT ${limit}
-      `);
-      return NextResponse.json({ rows: (rows as any).rows ?? rows });
+      `)) as any;
+      const data = (rows.rows ?? rows) as Array<{
+        id: number; url: string; title: string | null;
+        content_type: string | null; canonical_url: string | null;
+      }>;
+      const { normalizeUrl } = await import("@/lib/url");
+      const filtered = data
+        .map((r) => {
+          let canonical_state: "missing" | "cross-canonical" | "self";
+          if (!r.canonical_url) canonical_state = "missing";
+          else if (normalizeUrl(r.canonical_url) === normalizeUrl(r.url)) canonical_state = "self";
+          else canonical_state = "cross-canonical";
+          return { ...r, canonical_state };
+        })
+        .filter((r) => r.canonical_state !== "self");
+      return NextResponse.json({ rows: filtered });
     }
 
     if (kind === "images") {

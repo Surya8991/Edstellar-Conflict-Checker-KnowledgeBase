@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { PageHeader, Card, TYPE_COLORS } from "@/app/components/ui";
 import { Pagination as SharedPagination } from "@/app/components/Pagination";
+import { sameUrl } from "@/lib/url";
 
 interface PageRow {
   id: number;
@@ -254,7 +255,7 @@ export default function CorpusPage() {
                           alt: {r.images_no_alt}
                         </span>
                       )}
-                      {r.canonical_url && r.canonical_url !== r.url && (
+                      {r.canonical_url && !sameUrl(r.canonical_url, r.url) && (
                         <span className="inline-flex items-center rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-medium text-rose-700" title={`canonical → ${r.canonical_url}`}>
                           canonical
                         </span>

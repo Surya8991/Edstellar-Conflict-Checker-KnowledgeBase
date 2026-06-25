@@ -37,7 +37,7 @@ const NAV = [
   { href: "/corpus",             label: "Corpus",            icon: Database },
 ];
 
-export default function Sidebar({ user }: { user?: SidebarUser | null }) {
+export default function Sidebar({ user, signOutSlot }: { user?: SidebarUser | null; signOutSlot?: React.ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -126,14 +126,7 @@ export default function Sidebar({ user }: { user?: SidebarUser | null }) {
                 <div className="truncate text-[11px] text-slate-400">{user.email}</div>
               </div>
             </div>
-            <form action="/api/auth/signout" method="post">
-              <button
-                type="submit"
-                className="mt-1 w-full rounded-md px-2 py-1.5 text-left text-xs text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-              >
-                Sign out
-              </button>
-            </form>
+            {signOutSlot}
           </div>
         )}
       </aside>
