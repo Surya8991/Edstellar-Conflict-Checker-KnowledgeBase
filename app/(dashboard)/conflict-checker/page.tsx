@@ -440,7 +440,13 @@ export default function ConflictCheckerPage() {
                   );
                 })}
                 <span className="ml-2 text-slate-500">Min score:</span>
-                <input type="range" min={0} max={100} value={scoreMin} onChange={(e) => setScoreMin(Number(e.target.value))} className="w-32" />
+                <input
+                  type="range" min={0} max={100} value={scoreMin}
+                  onChange={(e) => setScoreMin(Number(e.target.value))}
+                  aria-label="Minimum conflict score"
+                  aria-valuetext={`${scoreMin} percent`}
+                  className="w-32"
+                />
                 <span className="w-10 tabular-nums text-slate-600">{scoreMin}%</span>
                 <label className="ml-2 flex items-center gap-1 text-slate-600">
                   <input type="checkbox" checked={hideNeedsReview} onChange={(e) => setHideNeedsReview(e.target.checked)} />

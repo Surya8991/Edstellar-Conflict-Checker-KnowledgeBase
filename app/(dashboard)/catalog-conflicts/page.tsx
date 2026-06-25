@@ -65,7 +65,13 @@ export default function CatalogConflictsPage() {
               );
             })}
             <span className="ml-2 text-slate-500">Min similarity:</span>
-            <input type="range" min={0} max={100} value={minSim} onChange={(e) => setMinSim(Number(e.target.value))} className="w-32" />
+            <input
+              type="range" min={0} max={100} value={minSim}
+              onChange={(e) => setMinSim(Number(e.target.value))}
+              aria-label="Minimum similarity"
+              aria-valuetext={`${minSim} percent`}
+              className="w-32"
+            />
             <span className="tabular-nums text-slate-600">{minSim}%</span>
             <span className="ml-auto text-slate-400">{filtered.length} of {rows.length}</span>
           </div>

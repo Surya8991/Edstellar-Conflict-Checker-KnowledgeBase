@@ -28,15 +28,9 @@ export const metadata: Metadata = {
     "Pre-publish SEO duplication + cannibalization detector for Edstellar content. URL or topic → 0–100 conflict score against the live corpus, with GSC performance and competitor research.",
   applicationName: "Edstellar Conflict Checker",
   authors: [{ name: "Edstellar" }],
-  keywords: [
-    "SEO",
-    "content audit",
-    "cannibalization",
-    "duplicate content",
-    "Edstellar",
-    "corporate training",
-    "pgvector",
-  ],
+  // Audit 10C polish (Session 8): dropped <meta name="keywords"> — Google
+  // ignored it since 2009 and the dashboard is `index: false` anyway, so
+  // there's no audience for it.
   // Internal tool — explicitly tell search engines to skip it.
   robots: { index: false, follow: false, nocache: true },
   openGraph: {

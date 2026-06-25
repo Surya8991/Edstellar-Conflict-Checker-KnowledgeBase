@@ -74,6 +74,23 @@ const nextConfig: NextConfig = {
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), interest-cohort=()" },
         ],
       },
+      /**
+       * Audit 10C polish (Session 8): the generated OG image and favicon
+       * routes are public per Next file-conventions. Without a long
+       * Cache-Control, any DoS that hammers them re-runs the image
+       * generator on every request. These outputs change only when we
+       * redeploy; let Vercel's edge cache hold them for a day with a
+       * week-long stale-while-revalidate so a stampede serves cache.
+       */
+      {
+        source: "/(opengraph-image|icon|apple-icon)",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800",
+          },
+        ],
+      },
     ];
   },
 };

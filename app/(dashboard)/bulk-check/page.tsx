@@ -210,7 +210,13 @@ export default function BulkCheckPage() {
               <div className="grow" />
               <label className="flex items-center gap-2 text-xs text-slate-600">
                 Min score
-                <input type="range" min={0} max={100} value={scoreMin} onChange={(e) => setScoreMin(Number(e.target.value))} className="w-24" />
+                <input
+                  type="range" min={0} max={100} value={scoreMin}
+                  onChange={(e) => setScoreMin(Number(e.target.value))}
+                  aria-label="Minimum conflict score"
+                  aria-valuetext={`${scoreMin} percent`}
+                  className="w-24"
+                />
                 <span className="w-8 tabular-nums">{scoreMin}%</span>
               </label>
               <button

@@ -172,7 +172,7 @@ export async function runConflictCheck(
       };
     })
     // Sort by impact-weighted score: a 70%-conflict with a 12k-clicks/mo page
-    // outranks a 90%-conflict with a dead page. (#26)
+    // outranks a 90%-conflict with a dead page.
     .sort((a, b) => impactWeighted(b) - impactWeighted(a));
 
   const topScore = matches.length ? matches[0].conflictScore : 0;

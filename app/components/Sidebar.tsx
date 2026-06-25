@@ -113,8 +113,14 @@ export default function Sidebar({ user, signOutSlot }: { user?: SidebarUser | nu
         </div>
         <nav className="space-y-1 p-3">
           {NAV.map(({ href, label, icon: Icon }) => {
+            // Audit 10C polish (Session 8): exact-or-boundary match so a
+            // future `/audit-archive` route doesn't false-positive as
+            // active when the user is on `/audit`. `startsWith(href + "/")`
+            // requires a path-segment boundary, not just a substring.
             const active =
-              href === "/" ? pathname === "/" : pathname.startsWith(href);
+              href === "/"
+                ? pathname === "/"
+                : pathname === href || pathname.startsWith(href + "/");
             return (
               <Link
                 key={href}

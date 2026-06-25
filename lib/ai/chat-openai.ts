@@ -28,7 +28,15 @@ export class OpenAIChatProvider extends BaseChatProvider {
         ],
       }),
     });
-    if (!res.ok) throw new Error(`OpenAI chat failed: ${res.status}`);
+    if (!res.ok) {
+      // Audit 10C polish (Session 8): include the response body in the
+      // error so debugging doesn't require opening the OpenAI dashboard.
+      // Truncated to 500 chars so an HTML 5xx page doesn't blow the log line.
+      const body = await res.text().catch(() => "");
+      throw new Error(
+        `OpenAI chat failed: ${res.status} ${res.statusText} ${body.slice(0, 500)}`,
+      );
+    }
     const json = (await res.json()) as {
       choices: { message: { content: string } }[];
     };

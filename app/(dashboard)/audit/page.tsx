@@ -337,6 +337,8 @@ function HealthTab({ rows }: { rows: any[] }) {
           max={100}
           value={minHealth}
           onChange={(e) => setMinHealth(Number(e.target.value))}
+          aria-label="Minimum health score"
+          aria-valuetext={`${minHealth} out of 100`}
           className="w-32"
         />
         <span className="tabular-nums w-8 text-right">{minHealth}</span>
