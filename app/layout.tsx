@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -12,10 +12,53 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const APP_BASE_URL =
+  process.env.APP_BASE_URL ||
+  "https://edstellar-conflict-checker-knowledg.vercel.app";
+
 export const metadata: Metadata = {
-  title: "Edstellar Conflict Checker",
+  metadataBase: new URL(APP_BASE_URL),
+  title: {
+    default: "Edstellar Conflict Checker",
+    // Per-page titles set via `export const metadata` on a route become
+    // "Page Name · Edstellar Conflict Checker".
+    template: "%s · Edstellar Conflict Checker",
+  },
   description:
-    "Detect content conflicts (duplication / SEO cannibalization) before publishing, with GSC data and competitor research.",
+    "Pre-publish SEO duplication + cannibalization detector for Edstellar content. URL or topic → 0–100 conflict score against the live corpus, with GSC performance and competitor research.",
+  applicationName: "Edstellar Conflict Checker",
+  authors: [{ name: "Edstellar" }],
+  keywords: [
+    "SEO",
+    "content audit",
+    "cannibalization",
+    "duplicate content",
+    "Edstellar",
+    "corporate training",
+    "pgvector",
+  ],
+  // Internal tool — explicitly tell search engines to skip it.
+  robots: { index: false, follow: false, nocache: true },
+  openGraph: {
+    type: "website",
+    url: "/",
+    siteName: "Edstellar Conflict Checker",
+    title: "Edstellar Conflict Checker",
+    description:
+      "Pre-publish SEO duplication + cannibalization detector. URL/topic → scored matches against the live corpus.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Edstellar Conflict Checker",
+    description:
+      "Pre-publish SEO duplication + cannibalization detector for Edstellar content.",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0b1020",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({
