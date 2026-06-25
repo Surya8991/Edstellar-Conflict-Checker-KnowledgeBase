@@ -14,12 +14,13 @@ export function getOAuthClient() {
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
 
-export function getAuthUrl(): string {
+export function getAuthUrl(state?: string): string {
   const client = getOAuthClient();
   return client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
     scope: [GSC_SCOPE],
+    ...(state ? { state } : {}),
   });
 }
 
