@@ -64,8 +64,24 @@ function domainOf(url: string): string {
 /** Exact root-domain match: 'edstellar.com' or any subdomain. Previously
  *  `includes("edstellar")` would also drop legitimate competitor pages whose
  *  URLs happened to contain the substring (e.g. "edstellar-comparison" posts). */
-function isEdstellarDomain(d: string): boolean {
+export function isEdstellarDomain(d: string): boolean {
   return d === "edstellar.com" || d.endsWith(".edstellar.com");
+}
+
+/**
+ * Audit H13 (Session 6): the previous `${topic} corporate training` suffix
+ * wrecked SERP relevance when the topic already named a training format
+ * (e.g. `"leadership coaching for managers corporate training"`). Only
+ * append the suffix when the topic doesn't already include a
+ * training-related term. Exported so callers in competitors-extra and
+ * other modules use the same logic.
+ */
+const TRAINING_TERMS_RE =
+  /\b(training|course|coaching|workshop|certification|bootcamp|class|tutorial|program|programme|seminar|webinar)\b/i;
+
+export function widenForCorporateTraining(topic: string): string {
+  if (TRAINING_TERMS_RE.test(topic)) return topic;
+  return `${topic} corporate training`;
 }
 
 /**
@@ -106,8 +122,11 @@ export async function researchCompetitors(
   const chat = getChat();
 
   // Ask for more than we need — Edstellar + noise + per-domain dedup eats
-  // most of the first page on corporate-training queries.
-  const organic = await serperSearch(`${topic} corporate training`, 20);
+  // most of the first page on corporate-training queries. Audit H13: only
+  // widen with "corporate training" when the topic doesn't already include
+  // a training-related term — otherwise we double-up keywords and SERP
+  // relevance collapses.
+  const organic = await serperSearch(widenForCorporateTraining(topic), 20);
 
   // Skip Edstellar (exact-suffix), drop SERP-noise destinations, then keep
   // only the first result per domain — otherwise the top-N is often dominated

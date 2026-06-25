@@ -101,7 +101,12 @@ export async function runConflictCheck(
 
   const vectorLimit  = opts.vectorLimit ?? opts.limit ?? 100;
   const classifyLimit = Math.min(opts.classifyLimit ?? 15, vectorLimit);
-  const minSimilarity = opts.minSimilarity ?? 0.30;
+  // Audit H11 (Session 6): raised the default floor from 0.30 to 0.50 so
+  // results stay above the documented noise band (lib/score.ts:9). The
+  // env override lets you re-loosen for debugging without a redeploy.
+  const envFloor = Number(process.env.CONFLICT_MIN_SIMILARITY);
+  const minSimilarity =
+    opts.minSimilarity ?? (Number.isFinite(envFloor) && envFloor > 0 ? envFloor : 0.50);
 
   // 1. Build a summary + dense search synopsis.
   let summaryResult: SummaryResult;

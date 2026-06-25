@@ -2,7 +2,7 @@
  * SERP overlap, domain comparison, content freshness — built on top of the
  * existing Serper integration + corpus + competitor sitemap fetches.
  */
-import { KNOWN_COMPETITORS } from "@/lib/competitors";
+import { KNOWN_COMPETITORS, isEdstellarDomain } from "@/lib/competitors";
 import { fetchAndExtract } from "@/lib/extract";
 
 interface SerpOrganic { title: string; link: string; snippet?: string; position?: number }
@@ -69,12 +69,16 @@ export interface SerpOverlapResult {
 export async function serpOverlap(topic: string): Promise<SerpOverlapResult> {
   const res = await serperSearch(topic, 10);
   const organic = res.organic ?? [];
+  // Audit H12 (Session 6): the previous `domainOf(o.link).includes("edstellar")`
+  // also matched legitimate-competitor URLs containing the substring
+  // (e.g. `edstellar-comparison.example.com`). Use isEdstellarDomain to
+  // match the exact root domain like the main competitors module already does.
   const list = organic.map((o, i) => ({
     rank: o.position ?? i + 1,
     url: o.link,
     domain: domainOf(o.link),
     title: o.title,
-    isEdstellar: domainOf(o.link).includes("edstellar"),
+    isEdstellar: isEdstellarDomain(domainOf(o.link)),
     isKnown: KNOWN_COMPETITORS.includes(domainOf(o.link)),
   }));
   const eds = list.find((r) => r.isEdstellar);
@@ -90,10 +94,12 @@ export async function serpOverlap(topic: string): Promise<SerpOverlapResult> {
             domain: domainOf(c.link!),
             url: c.link!,
             title: c.title ?? c.snippet ?? c.link!,
-            isEdstellar: domainOf(c.link!).includes("edstellar"),
+            isEdstellar: isEdstellarDomain(domainOf(c.link!)),
             isKnown: KNOWN_COMPETITORS.includes(domainOf(c.link!)),
           })),
-        edstellarCited: (ai.citations ?? []).some((c) => c.link && domainOf(c.link).includes("edstellar")),
+        edstellarCited: (ai.citations ?? []).some(
+          (c) => !!c.link && isEdstellarDomain(domainOf(c.link)),
+        ),
       }
     : null;
 

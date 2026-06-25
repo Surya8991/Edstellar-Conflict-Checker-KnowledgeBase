@@ -72,7 +72,8 @@ export async function POST(request: NextRequest) {
     const result = await runConflictCheck(body.input, {
       vectorLimit: body.vectorLimit ?? body.limit ?? 100,
       classifyLimit: body.classifyLimit ?? 15,
-      minSimilarity: body.minSimilarity ?? 0.30,
+      // Pass undefined so lib/conflict.ts applies its own default (audit H11).
+      minSimilarity: body.minSimilarity,
       createdBy,
     });
 
