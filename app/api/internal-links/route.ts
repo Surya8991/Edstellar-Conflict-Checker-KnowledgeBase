@@ -234,9 +234,9 @@ export async function POST(request: NextRequest) {
       };
     });
     return NextResponse.json({ summary, linkerType, suggestions });
-  } catch (e) {
+  } catch {
     return NextResponse.json(
-      { error: (e as Error).message, suggestions: [] },
+      { error: "Internal error", suggestions: [] },
       { status: 500 },
     );
   }

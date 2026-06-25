@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { neon } from "@neondatabase/serverless";
+import { gateLlmEndpoint } from "@/lib/api-gate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,11 +20,11 @@ const BodySchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  // H4: unconditional gate — rate-limit fallback when WEBHOOK_API_KEY is unset
+  // so unauthenticated callers can't update arbitrary page ownership records.
+  const gate = await gateLlmEndpoint(request, "pages-owner", { max: 60, windowSec: 60 });
+  if (gate) return gate;
   try {
-    const required = process.env.WEBHOOK_API_KEY;
-    if (required && request.headers.get("x-api-key") !== required) {
-      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-    }
     const raw = await request.json().catch(() => ({}));
     const parsed = BodySchema.safeParse(raw);
     if (!parsed.success) {
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Page not found." }, { status: 404 });
     }
     return NextResponse.json({ ok: true, url, ownerUrl });
-  } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }

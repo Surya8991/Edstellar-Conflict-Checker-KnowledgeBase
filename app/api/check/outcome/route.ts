@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { neon } from "@neondatabase/serverless";
+import { gateLlmEndpoint } from "@/lib/api-gate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,11 +19,12 @@ const BodySchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  // H4: gate unconditionally — when WEBHOOK_API_KEY is unset we fall back to
+  // rate-limiting (60 req/min) instead of leaving the endpoint open for
+  // arbitrary DB row updates with zero auth and zero rate-limit.
+  const gate = await gateLlmEndpoint(request, "check-outcome", { max: 60, windowSec: 60 });
+  if (gate) return gate;
   try {
-    const required = process.env.WEBHOOK_API_KEY;
-    if (required && request.headers.get("x-api-key") !== required) {
-      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-    }
     const raw = await request.json().catch(() => ({}));
     const parsed = BodySchema.safeParse(raw);
     if (!parsed.success) {
@@ -38,7 +40,7 @@ export async function POST(request: NextRequest) {
       [outcome, checkId],
     );
     return NextResponse.json({ ok: true, checkId, outcome });
-  } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }

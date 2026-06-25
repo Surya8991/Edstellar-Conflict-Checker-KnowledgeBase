@@ -28,7 +28,7 @@ export async function GET() {
       maxAge: OAUTH_STATE_MAX_AGE_SEC,
     });
     return res;
-  } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
