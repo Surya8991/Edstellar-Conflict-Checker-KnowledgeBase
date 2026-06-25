@@ -61,5 +61,11 @@ export async function GET(request: NextRequest) {
       done++;
     } catch { failed++ }
   }
-  return NextResponse.json({ done, skipped, failed });
+  // #10 — return 5xx if too many rows failed so Vercel's cron dashboard
+  // shows the job as failed and the team sees it. Threshold: more than 25%
+  // of attempted (done+failed) rows. 'skipped' isn't a failure.
+  const attempted = done + failed;
+  const failureRate = attempted > 0 ? failed / attempted : 0;
+  const status = failureRate > 0.25 ? 500 : 200;
+  return NextResponse.json({ done, skipped, failed, failureRate: Number(failureRate.toFixed(3)) }, { status });
 }

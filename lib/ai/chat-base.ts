@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type {
   ChatProvider,
   ConflictMatchInput,
@@ -21,6 +22,46 @@ export function parseJson<T>(raw: string, fallback: T): T {
     return fallback;
   }
 }
+
+/**
+ * Validate LLM JSON output against a Zod schema. Returns parsed data on
+ * success, or `null` on schema failure (the caller falls back to a
+ * defensive default). Hallucinated extra fields are stripped; missing
+ * required fields trip the validation and we degrade gracefully instead
+ * of crashing the route with `NaN` or `undefined` reads.
+ */
+function validateLlm<S extends z.ZodTypeAny>(raw: string, schema: S): z.infer<S> | null {
+  const obj = parseJson<unknown>(raw, null);
+  if (obj == null) return null;
+  const r = schema.safeParse(obj);
+  return r.success ? r.data : null;
+}
+
+// Schemas for every LLM-returned shape we read. Kept beside the methods that
+// consume them so prompt+schema move together.
+const SummarySchema = z.object({
+  summary: z.string().default(""),
+  keywords: z.array(z.string()).default([]),
+  primaryQuery: z.string().optional(),
+  searchSynopsis: z.string().optional(),
+});
+
+const VerdictSchema = z.object({
+  url: z.string(),
+  conflictScore: z.number().min(0).max(100),
+  conflictType: z.enum(["duplicate", "cannibalization", "partial-overlap", "none"]),
+  rationale: z.string().default(""),
+  overlap: z.array(z.string()).optional(),
+  issue: z.string().optional(),
+});
+const VerdictsSchema = z.object({
+  verdicts: z.array(VerdictSchema).default([]),
+});
+
+const CompetitorSchema = z.object({
+  summary: z.string().default(""),
+  angle: z.string().default(""),
+});
 
 /**
  * Base chat provider implementing all higher-level methods in terms of a single
@@ -63,12 +104,12 @@ Return JSON: {
 }`;
 
     const raw = await this.complete(system, user);
-    const parsed = parseJson<Partial<SummaryResult>>(raw, {});
+    const parsed = validateLlm(raw, SummarySchema);
     return {
-      summary: parsed.summary ?? "",
-      keywords: Array.isArray(parsed.keywords) ? parsed.keywords : [],
-      primaryQuery: typeof parsed.primaryQuery === "string" ? parsed.primaryQuery : undefined,
-      searchSynopsis: parsed.searchSynopsis ?? parsed.summary ?? input.content.slice(0, 1000),
+      summary: parsed?.summary ?? "",
+      keywords: parsed?.keywords ?? [],
+      primaryQuery: parsed?.primaryQuery,
+      searchSynopsis: parsed?.searchSynopsis ?? parsed?.summary ?? input.content.slice(0, 1000),
     };
   }
 
@@ -102,9 +143,13 @@ For each verdict:
 Return JSON object: {"verdicts": [{"url": string, "conflictScore": number, "conflictType": string, "rationale": string, "overlap": string[], "issue": string}]}`;
 
     const raw = await this.complete(system, user);
-    const parsed = parseJson<{ verdicts?: ConflictVerdict[] }>(raw, {});
-    const arr = Array.isArray(parsed) ? parsed : parsed.verdicts;
-    return Array.isArray(arr) ? arr : [];
+    // Accept either { verdicts: [...] } OR a bare array — both shapes have
+    // shown up in the wild. Validate strictly so a missing/wrong score or a
+    // hallucinated conflictType doesn't NaN downstream blendScore() calls.
+    let candidate: unknown = parseJson<unknown>(raw, null);
+    if (Array.isArray(candidate)) candidate = { verdicts: candidate };
+    const parsed = candidate ? VerdictsSchema.safeParse(candidate) : null;
+    return parsed?.success ? (parsed.data.verdicts as ConflictVerdict[]) : [];
   }
 
   async summarizeCompetitor(input: {
@@ -120,7 +165,7 @@ Title: ${input.title ?? ""}
 Content: """${input.content.slice(0, 6000)}"""
 Return JSON: {"summary": string (2-3 sentences on what this competitor page covers), "angle": string (1 sentence on its unique angle / how to differentiate from it)}`;
     const raw = await this.complete(system, user);
-    const parsed = parseJson<{ summary?: string; angle?: string }>(raw, {});
-    return { summary: parsed.summary ?? "", angle: parsed.angle ?? "" };
+    const parsed = validateLlm(raw, CompetitorSchema);
+    return { summary: parsed?.summary ?? "", angle: parsed?.angle ?? "" };
   }
 }

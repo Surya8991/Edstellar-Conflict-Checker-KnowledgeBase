@@ -1,5 +1,18 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { rowsOf } from "@/lib/db/exec";
+
+interface VectorMatchRow {
+  id: number;
+  url: string;
+  title: string | null;
+  content_type: string | null;
+  owner_url: string | null;
+  gsc_clicks_28d: number | null;
+  gsc_impressions_28d: number | null;
+  snippet: string;
+  similarity: number;
+}
 
 export interface VectorMatch {
   id: number;
@@ -46,8 +59,7 @@ export async function vectorSearchPages(
     LIMIT ${limit}
   `);
 
-  const data: any[] = (rows as any).rows ?? (rows as any);
-  return data.map((r: any) => ({
+  return rowsOf<VectorMatchRow>(rows).map((r) => ({
     id: Number(r.id),
     url: r.url,
     title: r.title,

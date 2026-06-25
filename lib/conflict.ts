@@ -212,8 +212,8 @@ async function persistCheck(
       result.topScore,
       createdBy ?? null,
     ],
-  )) as any[];
-  const checkId = Number(rows[0].id);
+  )) as { id: number }[];
+  const checkId = Number(rows[0]!.id);
 
   let rank = 1;
   for (const m of result.matches) {

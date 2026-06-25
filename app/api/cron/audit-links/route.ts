@@ -77,5 +77,11 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ checked: rows.length, broken });
+  // #10 — fail the cron when 'broken' (status=0 OR >=400) is more than 30%
+  // of the rows checked. Some 4xx is expected in a sitemap; a sudden spike
+  // is the signal we want visible on the Vercel cron dashboard.
+  const checked = rows.length;
+  const brokenRate = checked > 0 ? broken / checked : 0;
+  const status = brokenRate > 0.30 ? 500 : 200;
+  return NextResponse.json({ checked, broken, brokenRate: Number(brokenRate.toFixed(3)) }, { status });
 }
