@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+
 export const DEFAULT_PAGE_SIZES = [25, 50, 100, 200];
 
 export function Pagination({
@@ -22,6 +24,11 @@ export function Pagination({
   unit?: string;
 }) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  // Auto-reset when a filter shrinks `total` below the current page —
+  // otherwise the caller has to remember to setPage(1) in every effect.
+  useEffect(() => {
+    if (page > totalPages) onJump(1);
+  }, [page, totalPages, onJump]);
   const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const end = Math.min(page * pageSize, total);
   const can = (p: number) => p >= 1 && p <= totalPages && p !== page && !loading;

@@ -41,13 +41,14 @@ export default function CatalogConflictsPage() {
     <div>
       <PageHeader
         title="Catalog Conflicts"
-        subtitle="Precomputed near-duplicate pairs across the existing catalogue (run npm run catalog-conflicts)."
+        subtitle="Precomputed snapshot of near-duplicate pairs across the existing catalogue. Refreshed weekly by the catalog-conflicts cron."
       />
       <div className="space-y-3 p-8">
         {!loading && rows.length === 0 && (
           <Card className="text-sm text-slate-500">
-            No precomputed conflicts yet. After ingesting the corpus, run{" "}
-            <code>npm run catalog-conflicts</code> to build this report.
+            No precomputed conflicts yet. Ask your admin to refresh the corpus
+            and run the catalog-conflicts script — the snapshot lands here
+            once it completes.
           </Card>
         )}
         {rows.length > 0 && (

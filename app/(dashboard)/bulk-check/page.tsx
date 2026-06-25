@@ -35,21 +35,59 @@ export default function BulkCheckPage() {
     return s.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith("#"));
   }
 
+  // Live progress — bumped by the worker pool as each row finishes.
+  const [doneCount, setDoneCount] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+
   async function run() {
     const inputs = inputsFromText(text);
     if (!inputs.length) { setError("Paste at least one URL or topic per line."); return }
+    if (inputs.length > 100) { setError("Max 100 inputs per run."); return }
     setError(null);
     setLoading(true);
     setResults([]);
+    setDoneCount(0);
+    setTotalCount(inputs.length);
+
+    // Client-side worker pool — one POST /api/check per input, so the user
+    // gets live per-row feedback instead of staring at "Running…" for 4 min.
+    // Results land in the table as soon as each finishes.
+    let cursor = 0;
+    const live: Result[] = new Array(inputs.length);
+
+    async function worker() {
+      while (cursor < inputs.length) {
+        const idx = cursor++;
+        const input = inputs[idx]!;
+        try {
+          const res = await fetch("/api/check", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ input, vectorLimit: 30, classifyLimit: 5 }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "check failed");
+          live[idx] = {
+            input,
+            ok: true,
+            topScore: data.topScore,
+            verdict: data.verdict,
+            summary: data.summary,
+            topMatchUrl: data.matches?.[0]?.url ?? "",
+            topMatchTitle: data.matches?.[0]?.title ?? "",
+            topMatchType: data.matches?.[0]?.conflictType ?? "",
+            checkId: data.checkId,
+          };
+        } catch (e) {
+          live[idx] = { input, ok: false, error: (e as Error).message };
+        }
+        // Snapshot the array on each step so React renders the new row.
+        setResults([...live].filter(Boolean) as Result[]);
+        setDoneCount((n) => n + 1);
+      }
+    }
     try {
-      const res = await fetch("/api/check/bulk", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ inputs, concurrency }),
-      });
-      const json = await res.json();
-      if (json.error) throw new Error(json.error);
-      setResults(json.results ?? []);
+      await Promise.all(Array.from({ length: concurrency }, worker));
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -129,9 +167,19 @@ export default function BulkCheckPage() {
               disabled={loading}
               className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
             >
-              {loading ? "Running…" : "Run all checks"}
+              {loading
+                ? `Running… ${doneCount}/${totalCount}`
+                : "Run all checks"}
             </button>
           </div>
+          {loading && totalCount > 0 && (
+            <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="h-full bg-slate-900 transition-all"
+                style={{ width: `${(doneCount / totalCount) * 100}%` }}
+              />
+            </div>
+          )}
           {error && <div className="mt-3 text-sm text-red-600">{error}</div>}
         </Card>
 
@@ -165,8 +213,12 @@ export default function BulkCheckPage() {
                 <input type="range" min={0} max={100} value={scoreMin} onChange={(e) => setScoreMin(Number(e.target.value))} className="w-24" />
                 <span className="w-8 tabular-nums">{scoreMin}%</span>
               </label>
-              <button onClick={downloadCsv} className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
-                Download CSV
+              <button
+                onClick={downloadCsv}
+                disabled={loading || results.length === 0}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {loading ? "Wait for run to finish…" : "Download CSV"}
               </button>
             </div>
             <div className="overflow-x-auto">

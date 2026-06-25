@@ -8,7 +8,9 @@ export default function DashboardLayout({
   return (
     <div className="flex min-h-screen">
       <Sidebar />
-      <main className="flex-1 min-w-0">{children}</main>
+      {/* Top padding on small screens so the floating burger button doesn't
+          overlap the PageHeader. Sidebar is in-flow on >= lg, drawer below. */}
+      <main className="flex-1 min-w-0 pt-12 lg:pt-0">{children}</main>
     </div>
   );
 }

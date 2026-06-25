@@ -244,7 +244,7 @@ export default function CorpusPage() {
               {!loading && rows.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
-                    No pages match. Try clearing filters or run <code>npm run ingest</code>.
+                    No pages match. Try clearing the active filters above.
                   </td>
                 </tr>
               )}

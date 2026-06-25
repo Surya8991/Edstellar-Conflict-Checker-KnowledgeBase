@@ -85,7 +85,13 @@ function SearchConsoleInner() {
   const [lookupError, setLookupError] = useState<string | null>(null);
   async function runLookup(e?: React.FormEvent) {
     e?.preventDefault();
-    if (!lookupInput.trim()) return;
+    const trimmed = lookupInput.trim();
+    if (!trimmed) return;
+    // Client-side hint: URL kind without a scheme is the #1 source of API 400s.
+    if (lookupKind === "url" && !/^https?:\/\//i.test(trimmed)) {
+      setLookupError("URL must start with http:// or https://");
+      return;
+    }
     setLookupLoading(true); setLookupError(null); setLookupData(null);
     try {
       const res = await fetch("/api/gsc/lookup", {
@@ -841,6 +847,12 @@ function BucketCard({ title, b }: { title: string; b: { clicks: number; impressi
 }
 
 function PageDetailModal({ data, loading, onClose }: { data: any; loading: boolean; onClose: () => void }) {
+  // Esc closes the modal — keyboard parity with the backdrop click.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="max-h-[85vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">

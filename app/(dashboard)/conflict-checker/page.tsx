@@ -66,6 +66,15 @@ export default function ConflictCheckerPage() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CheckResult | null>(null);
 
+  // After 5 s of a check, flip a hint so the user doesn't think the tab froze.
+  // Local embedder cold-start is the usual cause of >5s first responses.
+  const [slowHint, setSlowHint] = useState(false);
+  useEffect(() => {
+    if (!loading) { setSlowHint(false); return; }
+    const t = setTimeout(() => setSlowHint(true), 5000);
+    return () => clearTimeout(t);
+  }, [loading]);
+
   // Enrichment is lazy: we kick it off after a check completes.
   const [enrich, setEnrich] = useState<EnrichData | null>(null);
   const [enriching, setEnriching] = useState(false);
@@ -244,6 +253,11 @@ export default function ConflictCheckerPage() {
               {loading ? "Checking…" : "Check"}
             </button>
           </div>
+          {slowHint && (
+            <p className="mt-2 text-xs text-slate-500">
+              Still working — first check after a deploy is the slowest (the embedder warms up on the server).
+            </p>
+          )}
           {/* Deep-scan control */}
           <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
             <label className="flex items-center gap-2">

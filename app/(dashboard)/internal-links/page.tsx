@@ -75,7 +75,7 @@ export default function InternalLinksPage() {
               disabled={loading}
               className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
             >
-              {loading ? "Searching…" : "Find link targets"}
+              {loading ? "Searching…" : "Suggest pages to link to"}
             </button>
           </div>
           {error && <div className="mt-2 text-sm text-red-600">{error}</div>}

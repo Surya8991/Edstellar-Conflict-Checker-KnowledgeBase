@@ -125,7 +125,7 @@ function LinksTab({ rows, audited }: { rows: any[]; audited: number }) {
   const total = audited ?? 0;
   if (total === 0) return (
     <Card className="text-sm text-slate-600">
-      No pages audited yet. Run <code className="rounded bg-slate-100 px-1.5 py-0.5">npm run audit:links</code> to HEAD-check every URL.
+      Link audit hasn't run yet. The weekly cron will populate this within 7 days, or ask an admin to trigger the audit manually.
     </Card>
   );
   if (!rows.length) return <Card className="text-sm text-emerald-700">✓ All {total.toLocaleString()} audited URLs return a healthy status.</Card>;

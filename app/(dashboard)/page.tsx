@@ -319,7 +319,7 @@ export default async function DashboardHome() {
               </div>
               {stats.topConflicts.length === 0 ? (
                 <div className="px-5 py-6 text-sm text-slate-500">
-                  No conflicts precomputed yet. Run <code className="rounded bg-slate-100 px-1.5 py-0.5">npm run catalog-conflicts</code>.
+                  No conflicts precomputed yet. The weekly catalog cron populates this within 7 days of ingest.
                 </div>
               ) : (
                 <ul className="divide-y divide-slate-100">
