@@ -114,9 +114,15 @@ The audit below surfaced four things that need attention **before** the first pr
 ├── scripts/                   ← One-off / cron-target scripts (tsx)
 │   ├── ingest.ts              ← crawl + embed sitemap
 │   ├── db-setup.ts            ← apply drizzle/*.sql migrations
+│   ├── catalog-conflicts.ts   ← precompute near-duplicate pairs across corpus
+│   ├── audit-links.ts         ← HEAD-check every URL → pages.http_status
+│   ├── backfill-tags.ts       ← retag corpus from taxonomy JSON (no re-embed)
+│   ├── cluster.ts             ← k-means topic clustering over embeddings
 │   ├── cleanup-junk-pages.ts  ← remove junk rows (tag archives etc.) from `pages`
+│   ├── reclassify-home.ts     ← one-off: home page → static content_type
+│   ├── verify-corpus.ts       ← post-ingest sanity report (counts + spot-check)
 │   ├── extract-taxonomy.py    ← rebuild data/taxonomy/*.json from Hub HTML
-│   └── …
+│   └── test-embed.ts          ← embed smoke test
 ├── data/                      ← Sitemap + taxonomy JSON shipped with the repo
 ├── drizzle/                   ← SQL migrations
 ├── public/                    ← Static assets

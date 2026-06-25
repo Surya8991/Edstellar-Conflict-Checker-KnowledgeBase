@@ -4,9 +4,10 @@
 > and how the system fits together. Update this file with every meaningful
 > change.
 
-**Last updated:** 2026-06-24
+**Last updated:** 2026-06-25
 **Owner:** marketing@edstellar.com
 **Repo:** https://github.com/Layruss98266/Edstellar-Conflict-Checker-KnowledgeBase
+**Prod:** https://edstellar-conflict-checker-knowledg.vercel.app/
 
 ---
 
@@ -22,9 +23,10 @@ new blog / course / landing page, paste the URL or topic and:
    page we'd cannibalize actually rank?
 4. See what **competitors** publish on the same topic.
 
-The corpus = every URL in https://www.edstellar.com/sitemap.xml (2,479 URLs at
-ingest time), crawled, classified, and embedded into a Postgres `pgvector`
-index hosted on Neon.
+The corpus = every URL in https://www.edstellar.com/sitemap.xml (2,479 URLs raw;
+**~2,461 after the junk-URL filter** in `lib/sitemap.ts` drops tag archives,
+`/sitemap`, paginated pages, and file downloads — see Session 4), crawled,
+classified, and embedded into a Postgres `pgvector` index hosted on Neon.
 
 ---
 
@@ -355,6 +357,166 @@ broken into batches; each batch ships, gets pushed, then the next starts.
 - **Cron config** — `vercel.json` weekly re-ingest, daily GSC snapshot,
   weekly broken-link scan.
 
+### Session 4 — 2026-06-25 (going to production)
+
+The session that took the app from "works on my laptop" to "live on
+Vercel at edstellar-conflict-checker-knowledg.vercel.app, serving real
+HTTP 200s with score 75 matches end-to-end". Organised by theme rather
+than commit order — the actual SHA trail is in `git log` between
+`36282e9` and `1ffd9fa`.
+
+**A. Repo reorganised for Vercel deploy**
+- `dbf12d0` Flattened `conflict-checker/` subdir to repo root so Vercel
+  auto-detects the Next.js app without a root-dir override. All file
+  paths shift up one level; PROJECTLOG layout block updated.
+- `36282e9` Added `docs/` knowledge base (about-edstellar, glossary,
+  conflict-types, conflict-rules, examples, data-sources, repo-overview)
+  + moved Intelligence Hub HTML to `reference/`; deleted duplicate root
+  `sitemap-urls.csv`.
+- `b942833` `.env.example` covering all 19 `process.env.*` vars used by
+  the code (CRON_SECRET, WEBHOOK_API_KEY, BRAND_TERMS were missing in
+  earlier docs); `.nvmrc` (22) + `package.json engines >=20`.
+- `cd6ab1f` + `b5d3551` New `VERCEL_GITHUB_GUIDE.md` + matching `.html`
+  — plain-English walkthrough for a first-time deployer covering: the
+  big-picture map, GitHub branch rules, Vercel import + env-var matrix
+  (minimum vs optional), first-deploy seeding, custom domain, cron plan
+  limits (Hobby vs Pro), day-to-day update workflow, rollback,
+  troubleshooting, secret rotation.
+
+**B. Vercel deploy unblockers**
+- `fab03ad` Fixed 3 pre-existing TS errors blocking Vercel's
+  `Failed to type check` step: `lib/competitors-extra.ts:107` iterating
+  the wrong shape from `serperSearch().catch(()=>[])`,
+  `lib/gsc-insights.ts:164` `NonNullable<typeof catalogTokens>`
+  resolving to `never` under strict mode, `lib/gsc-page-stats.ts:135`
+  missing `potentialQueries` field in the error-fallback push.
+- `f9713b8` Wrote `next.config.ts` after reading the Next 16 docs in
+  `node_modules/next/dist/docs/`:
+  - `serverExternalPackages: [@xenova/transformers, onnxruntime-node,
+    jsdom, cheerio, googleapis]` — keeps native deps out of the webpack
+    bundle so Node's `require` resolves them at runtime.
+  - `outputFileTracingIncludes['/*']: [data/**, onnxruntime-node/bin/**,
+    @xenova/transformers/**/*.json]` — ships the binaries + taxonomy
+    JSON that @vercel/nft's static analyser can't trace (the
+    `readFileSync(join(process.cwd(),"data",…))` reads have dynamic
+    paths; the `.so` is loaded via dlopen).
+  - Without this `/api/check` 500'd in prod with
+    `libonnxruntime.so.1.14.0: cannot open shared object file`. Verified
+    fixed via post-deploy curl.
+
+**C. Data correctness — strip noise everywhere**
+- `33886cc` `lib/extract.ts` rewritten with ~70 noise selectors covering
+  ARIA roles, hidden elements, related-posts rails, share widgets,
+  breadcrumbs, author bios, newsletter/CTA blocks, popups, cookie
+  banners, ad slots, tag clouds, skip-links, back-to-top. Now picks the
+  most specific content root (`article` → schema-tagged →
+  `.post-content`/`.entry-content`/`.prose` → `main` → `body`) with a
+  200-char floor, then strips noise *again* within the chosen root
+  (related rails are usually nested inside `<article>`, not siblings).
+- `0c5ea9b` `lib/sitemap.ts` got `JUNK_URL_PATTERNS` + `isJunkUrl()`:
+  drops `/sitemap`, all 17 `/tag/*` archive pages, `/page/N` pagination,
+  `.xml/.pdf/.zip/.doc/.ppt/.xls/.csv/.json/.rss/.atom`, `/wp-admin`,
+  `/feed`, `/search`, `/login`, `/cart`, `/checkout`, `/account`,
+  share/preview/comment-reply query params. Tag archives were the worst
+  offender — they re-list other posts' titles+snippets so they always
+  scored ~70% similar to any candidate. Opt-out flag for the audit
+  script which still wants the unfiltered set.
+- `0c5ea9b` `lib/competitors.ts` filter tightened: `isEdstellarDomain()`
+  now uses exact-suffix match (old `includes("edstellar")` would drop a
+  legit `edstellar-comparison` post on a competitor site);
+  `NOISE_DOMAINS` set + `NOISE_PATH_EXTENSIONS` drops video/social/
+  forum/file-share destinations; per-domain dedup so top 6 aren't all
+  from oreilly.com. Bumped Serper request size 12→20 since the filter
+  chain now eats more of the first page.
+- One-off: 18 junk rows deleted from prod DB via
+  `scripts/cleanup-junk-pages.ts` (17 tag archives + 1 sitemap page);
+  full re-ingest of 2,461 URLs with the new extractor — 0 failures.
+
+**D. GSC robustness — works with or without trailing slash**
+- `fa66c39` `lib/gsc.ts` got two new exports:
+  - `siteUrlCandidates(env)` derives up to 4 candidates: literal,
+    trailing-slash flipped, `sc-domain:<host>`,
+    `sc-domain:<host-without-www>`.
+  - `resolveSiteUrl(client)` calls `webmasters.sites.list()`,
+    intersects candidates with what the connected account is actually
+    verified on (filters out `siteUnverifiedUser`), returns the first
+    match. Module-level cache keyed on a token fingerprint so it probes
+    only once per cold start. If nothing matches throws a useful error
+    listing exactly which properties ARE accessible — saves the
+    "User does not have sufficient permission" debug loop.
+- All call sites (`querySearchAnalytics`, `buildInsights`,
+  `pageDrilldown`, `indexCoverage`, `pageStats`, `gsc-snapshot` cron)
+  switched from `process.env.GSC_SITE_URL` direct read to
+  `resolveSiteUrl(client)`.
+
+**E. UX polish**
+- `95468cc` Audit / Health Score rewritten: severity chips
+  (`all (N) / weak <60 / medium 60-79 / strong ≥80`) with corpus-wide
+  counts, min-health slider that tightens within the chip's band,
+  rows always sorted weakest-first regardless of filter. Old
+  `Max health: 100 · 1000 of 1000 match` was confusing — looked broken
+  at the slider's max value.
+- `96d5925` Corpus / Home tile dropped — `lib/taxonomy.ts` `tagUrl()`
+  for path `/` now returns `content_type='static'` keeping `home` as a
+  tag. One-off `scripts/reclassify-home.ts` migrated the existing prod
+  row from `home` → `static` (Static 107→108). Standalone 1-page tile
+  gone.
+- `c346a78` Branded metadata. Replaced default Next favicon + the 5
+  unused demo SVGs (`file/globe/next/vercel/window.svg`) with
+  programmatically-generated `app/icon.tsx` (32×32, gradient `CC` mark),
+  `app/apple-icon.tsx` (180×180), `app/opengraph-image.tsx` (1200×630
+  social card), `app/manifest.ts`, `app/robots.ts` (noindex — internal
+  tool). `app/layout.tsx` metadata expanded: `metadataBase` from
+  `APP_BASE_URL`, `title.template '%s · Edstellar Conflict Checker'`,
+  `openGraph` + `twitter` + `viewport.themeColor`. All icons render at
+  request time via `next/og's ImageResponse` — no binary assets shipped.
+- `1ffd9fa` Catalog Conflicts / `scripts/catalog-conflicts.ts`
+  rewritten. Old run flagged `Enquire Now ↔ Get a Free Demo @ 94%` as a
+  top result. Now: `EXCLUDED_CONTENT_TYPES = {static}` drops 108
+  pages; template-noise filter drops `sim ≥ 0.97` pairs where one or
+  both pages have <1500 chars body; pair_type taxonomy tightened
+  (`duplicate` ≥0.95 same-type, `cannibalization` ≥0.85 same-type,
+  `category-bleed`, `subcategory-bleed`, `overlap`). New prod result
+  set: 4,024 pairs (3,679 cannibalization / 300 subcategory-bleed /
+  25 duplicate / 17 category-bleed / 3 overlap).
+- `1ffd9fa` Net-new content suggestions rewritten. The UI was rendering
+  a rambling paragraph from `suggestions.raw` because the old route
+  called `chat.summarize()` (wrong primitive — it summarises, doesn't
+  generate) with no per-field length caps. Now:
+  - Added `ChatProvider.generate({system, prompt})` as a public
+    passthrough to the `BaseChatProvider.complete` primitive, parallel
+    to `summarize` / `classifyConflicts`.
+  - Route uses strict word/char caps per field (title ≤9, headline ≤14,
+    audience ≤6, differentiation ≤18), bans `ultimate`, `guide to`,
+    `everything`, `complete`. Returns clean `{headline, angles[]}`; the
+    raw-text fallback panel is gone, replaced by a small "Re-run" hint
+    if parsing ever fails.
+
+**F. Production verification**
+- `2200de1` Replaced every `<your-project>.vercel.app` placeholder
+  across README + SETUP_GUIDE + VERCEL_GITHUB_GUIDE (md + html) with
+  the actual prod URL `edstellar-conflict-checker-knowledg.vercel.app`
+  — Vercel truncated the auto-slug from the full repo name.
+- End-to-end smoke test from prod:
+  `POST /api/check` with `{input:"leadership skills for first-time
+  managers"}` → HTTP 200, `topScore: 75`, real matches with summary +
+  keywords + primaryQuery.
+- Spot-check of 3 random blog rows in `pages.content_text` shows the
+  new extractor working — some site-chrome leakage remains (`BLOG`
+  label, `Share <category>` chips, `Updated On … mins read` meta,
+  `ContentTable of Content` TOC header) but the LLM filters those at
+  summarise time. Tighten further if a per-theme selector audit
+  warrants it.
+
+**Still pending on the user's side:**
+- Rotate Neon DB password, Groq key, Serper key, Google OAuth client
+  secret (all pasted in chat during setup).
+- Add prod redirect URI to Google Cloud Console + set
+  `GOOGLE_REDIRECT_URI=https://edstellar-conflict-checker-knowledg.vercel.app/api/gsc/callback`
+  in Vercel env vars to unblock `/search-console`.
+- Confirm Vercel plan supports current cron config (3 crons, two
+  weekly) — Hobby caps at 2 crons + daily; needs Pro for as-is.
+
 ---
 
 ## 5. Roadmap — features designed but not yet built
@@ -399,30 +561,39 @@ independently in any order after that.
 
 ## 6. Environment
 
-`.env` keys (see `.env.example`):
+`.env` keys — full annotated set is in [`.env.example`](.env.example). Vercel
+gets the same values in **Settings → Environment Variables**. Summary:
 
 ```
-# DB
+# DB (REQUIRED)
 DATABASE_URL=postgresql://...                # Neon pooled
 
 # AI providers
 AI_EMBED_PROVIDER=local                      # local | openai
 AI_CHAT_PROVIDER=groq                        # groq | claude | openai
-GROQ_API_KEY=
-ANTHROPIC_API_KEY=
-OPENAI_API_KEY=                              # leave blank — adapters stubbed
+GROQ_API_KEY= GROQ_MODEL=llama-3.3-70b-versatile
+ANTHROPIC_API_KEY= ANTHROPIC_MODEL=
+OPENAI_API_KEY= OPENAI_CHAT_MODEL= OPENAI_EMBED_MODEL=
 
 # GSC OAuth
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URI=http://localhost:3000/api/gsc/callback
-GSC_SITE_URL=sc-domain:edstellar.com         # OR https://www.edstellar.com/ depending on property type
+GOOGLE_CLIENT_ID= GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=http://localhost:3000/api/gsc/callback   # prod: https://<vercel-url>/api/gsc/callback
+GSC_SITE_URL=https://www.edstellar.com/      # Session 4: resolveSiteUrl() now probes
+                                             #   trailing-slash + sc-domain variants
+                                             #   automatically, so any of these works:
+                                             #   https://www.edstellar.com/  |  https://www.edstellar.com
+                                             #   sc-domain:edstellar.com    |  sc-domain:www.edstellar.com
 
 # Competitors
 SERPER_API_KEY=
 
-# Webhook (optional pre-publish gate)
-WEBHOOK_API_KEY=                             # require this in X-API-Key on /api/check from external systems
+# App + ops (Session 4 — required in prod)
+APP_BASE_URL=                                # https://<vercel-url> — used for absolute OG URLs,
+                                             #   cron auth, OAuth redirect base
+BRAND_TERMS=edstellar,edstellar.com          # comma-separated; used by GSC branded/non-branded split
+CRON_SECRET=                                 # REQUIRED in prod — cron routes fail OPEN if unset.
+                                             #   Vercel cron sends Authorization: Bearer <secret>
+WEBHOOK_API_KEY=                             # optional X-API-Key gate on /api/check for CMS hooks
 ```
 
 ---
@@ -455,11 +626,11 @@ npm run audit:links          # HEAD-check every URL; updates pages.http_status
 
 - **Neon connection string must be the *pooled* one** (it has `-pooler` in the
   hostname). Direct connections work locally but throttle at scale.
-- **GSC `siteUrl` format matters.** If the property is registered as a **Domain
-  property** in GSC, use `sc-domain:edstellar.com`. If registered as
-  **URL-prefix**, use the trailing-slash URL `https://www.edstellar.com/`.
-  Wrong format → "User does not have sufficient permission" error even when
-  permissions are correct.
+- **GSC `siteUrl` format matters — but `resolveSiteUrl()` handles it** (Session 4).
+  Set `GSC_SITE_URL` to any plausible variant; the helper probes
+  trailing-slash + `sc-domain:` + www/no-www against `webmasters.sites.list()`
+  and picks the first match the account is verified on. If nothing matches
+  the error message lists exactly which properties ARE accessible.
 - **Local embedder dim = 384.** Switching to OpenAI = 1536. That's a schema
   change (new column, drop old) — documented in §5. Don't mix dimensions in
   one column.
@@ -468,3 +639,17 @@ npm run audit:links          # HEAD-check every URL; updates pages.http_status
 - **Never commit `.env`.** Top-level `.gitignore` covers `**/.env*`.
 - **HNSW vector index** auto-builds; for ivfflat we'd have to `ANALYZE` after
   bulk insert. We chose HNSW.
+- **Vercel native deps need `serverExternalPackages`** (Session 4).
+  `@xenova/transformers` + `onnxruntime-node` ship a native `.so` that
+  @vercel/nft doesn't trace through `dlopen`. Without the
+  `serverExternalPackages` opt-out + `outputFileTracingIncludes` for
+  `node_modules/onnxruntime-node/bin/**/*`, every `/api/check` call fails
+  in prod with `cannot open shared object file`. See `next.config.ts`.
+- **`process.cwd()` reads in `lib/sitemap.ts` / `lib/taxonomy.ts` /
+  `lib/gsc-insights.ts`** rely on `data/**/*` being included via
+  `outputFileTracingIncludes` (Vercel only ships statically-traced files).
+- **`CRON_SECRET` fails OPEN if unset.** Cron routes check
+  `if (secret && header !== ...)` — no secret means anyone can trigger
+  `/api/cron/reingest` and rack up DB + LLM cost. Always set in prod.
+- **Vercel cron plan limits.** Hobby = 2 crons, daily-only, 60s timeout.
+  Current `vercel.json` has 3 crons (two weekly) — needs Pro.
