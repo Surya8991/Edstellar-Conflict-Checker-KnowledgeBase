@@ -126,6 +126,7 @@ The audit below surfaced four things that need attention **before** the first pr
 ├── data/                      ← Sitemap + taxonomy JSON shipped with the repo
 ├── drizzle/                   ← SQL migrations
 ├── public/                    ← Static assets
+│   └── brand/                 ← Edstellar logo + favicon variants (SVG + PNG)
 ├── docs/                      ← Domain knowledge base (not built; reference only)
 │   ├── repo-overview.md       ← Map of this repo
 │   ├── about-edstellar.md
@@ -135,6 +136,8 @@ The audit below surfaced four things that need attention **before** the first pr
 │   ├── examples.md
 │   └── data-sources.md
 ├── reference/                 ← Static artifacts (Intelligence Hub HTML)
+├── auth.ts                    ← NextAuth v5 config (Google SSO, behind AUTH_ENABLED)
+├── proxy.ts                   ← Next 16 proxy gate; redirects unauth'd dashboard routes
 ├── README.md                  ← (this file)
 ├── VERCEL_GITHUB_GUIDE.md     ← Plain-English deploy + update walkthrough
 ├── PRE_PUSH_CHECKLIST.md      ← Run through before every push to main

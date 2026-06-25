@@ -782,9 +782,88 @@ middleware-deprecation warning is gone after the proxy.ts rename.
 
 §9 backlog now down to: #18 (intentional) + all §9E (paid).
 
----
+**Session 5 — polish + branding batch (`ca1b2a7` → `99599a9`)**
 
-## 5. Roadmap — features designed but not yet built
+Seven small commits after auth landed. Each one was triggered by a
+specific user observation while exercising the live app.
+
+- `ca1b2a7` chore — empty commit nudging Vercel to redeploy because
+  the auto-trigger on `50c7d46` (the auth commit) didn't fire. Prod
+  was stuck on `4cefdaa` even though `main` had the auth code.
+  Confirmed live by `/api/auth/providers` returning 200 with the
+  Google provider JSON after the rebuild.
+
+- `623d9d0` ui — match-card header + GSC grid redesign. Title bumped
+  to base/semibold; vector-similarity merged into an inline meta strip
+  with the 28d-clicks chip + the 'redirect to owner' indigo pill; the
+  GSC stat panel lost its heavy `bg-slate-50` box for an inline `<dl>`
+  grid; score number bumped to 20px bold; subtle hover state on the
+  Card. Same data, cleaner presentation.
+
+- `a10dbe8` fix — two bugs:
+    1. Sign-out left the user on the dashboard. The plain
+       `<form action="/api/auth/signout" method="post">` returned 200
+       but didn't actually invalidate the JWT cookie in NextAuth v5
+       without the CSRF token + callbackUrl fields. Fix: new
+       `app/components/SignOutButton.tsx` server component using the
+       `signOut({ redirectTo: '/signin' })` server action — the v5
+       official sign-out pattern. Layout passes it as a `signOutSlot`
+       prop into the client Sidebar.
+    2. Canonical audit + corpus row flagged legitimate self-canonicals
+       as 'cross-canonical' when the only diff was a trailing slash,
+       `www.`, or http/https. New `lib/url.ts`:
+         normalizeUrl(input) — lowercase host, strip www., strip
+           trailing slash, drop fragment.
+         sameUrl(a, b) — normalised equality.
+       `/api/audit?kind=canonical` re-classifies in JS via the helper
+       and drops self-canonicals before returning. /corpus row chip
+       switched from `!==` to `!sameUrl(...)`. False positives gone.
+
+- `524f669` feat — blog clusters table alongside course clusters.
+  All 500 blogs have `course_type=NULL` and the blog corpus uses a
+  separate broader category taxonomy ('Training & Development',
+  'Leadership & Management') vs the course catalogue's
+  ('Artificial Intelligence', 'Cloud Computing'). Joining would
+  always produce 0 blogs per course cluster — which the user spotted
+  on the Clusters tab. Fix: `/api/audit?kind=clusters` now returns
+  two payloads (`rows` + `blogRows`), UI splits into Course clusters
+  (existing) + Blog clusters (new) — single table grouped by blog
+  category with Stale % colour-coded bands.
+
+- `fe8e416` ui — higher default page sizes. The 184-row Meta list
+  felt slow at 50/page. Audit / Corpus / Bulk Check default to 100;
+  Catalog Conflicts + History default to 50. DEFAULT_PAGE_SIZES
+  bumped to [50, 100, 200, 500]. Pagination already auto-resets to
+  page 1 when total < page × pageSize so the bump can't strand
+  anyone on an empty page.
+
+- `ec6545c` ui — 50/50 GSC vs keywords split + proper tables on the
+  match card. The `200px_1fr` grid template made GSC narrow and
+  keywords-heavy; switched to `lg:grid-cols-2`. Replaced the `<dl>`
+  and `<ul>` shapes with real `<table>`s — thead labels (Metric / 6m
+  / 12m for GSC; Query / Pos / Clk / Impr for keywords), tbody rows
+  with hairline dividers, `table-fixed` widths so long queries don't
+  squash the numeric columns.
+
+- `99599a9` feat — real Edstellar logo in sidebar, sign-in, favicon.
+  Assets copied from the user-provided brand folder into
+  `public/brand/` (5 SVGs + 2 PNGs) and into `app/icon.svg` +
+  `app/apple-icon.png` via the Next 16 file-conventions for
+  metadata-icons. Deleted the generated `app/icon.tsx` +
+  `app/apple-icon.tsx` (the gradient `CC` placeholder marks).
+  Sidebar header swapped the gradient tile for the circle mark +
+  wraps the whole row in a `<Link href="/">` so clicking the logo
+  goes home. Sign-in page swapped the gradient tile for the full
+  Edstellar wordmark divided from 'Conflict Checker' by a vertical
+  rule. `app/manifest.ts` icons array points at the new static
+  paths with correct MIME types. OG image left untouched
+  intentionally — it's a `next/og` generator and embedding the SVG
+  would add a per-render fetch; the text 'Edstellar / Content
+  Intelligence' on the card is on-brand enough.
+
+**Closing the session.** §9 backlog is at #18 (intentional in some
+surfaces) + §9E paid items only. Everything user-actionable from the
+original audit has shipped.
 
 ### Tier C — needs an external API key / decision
 | Feature | Blocker |
