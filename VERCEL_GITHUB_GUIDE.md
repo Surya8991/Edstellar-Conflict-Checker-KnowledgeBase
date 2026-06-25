@@ -73,7 +73,8 @@ Still on the import screen, expand **Environment Variables**. Paste each row fro
 | `AI_CHAT_PROVIDER` | `groq` | (literal value) |
 | `AI_EMBED_PROVIDER` | `local` | (literal value) |
 | `APP_BASE_URL` | `https://edstellar-conflict-checker-knowledg.vercel.app` | Vercel will show this URL after first deploy. Add it now as a placeholder; update it after deploy if the auto-assigned name differs. |
-| `CRON_SECRET` | Any long random string, e.g. `openssl rand -hex 32` | **Required for production** — cron routes fail OPEN without it; anyone could trigger your DB-writing cron jobs. |
+| `CRON_SECRET` | Any long random string, e.g. `openssl rand -hex 32` | **Required for production.** Since the Session 6 audit, cron routes fail CLOSED — every request without a matching `Authorization: Bearer …` header returns 401. Vercel Cron sends the header automatically once this env is set; if it's missing/empty, every cron run 401s. |
+| `AUTH_SECRET` | Any long random string, e.g. `openssl rand -hex 32` | **Strongly recommended even when `AUTH_ENABLED=false`.** Session 6 audit (S2) uses this to sign the GSC OAuth state nonce that closes a callback-CSRF hole. Falls back to `GOOGLE_CLIENT_SECRET` in prod if missing — a dedicated value is safer. |
 | `BRAND_TERMS` | `edstellar,edstellar.com` | (literal value) |
 
 **Optional, add when you need the feature:**
@@ -84,7 +85,9 @@ Still on the import screen, expand **Environment Variables**. Paste each row fro
 | `OPENAI_API_KEY` | Switching to OpenAI for chat or embeddings | If embeddings: also do the 384→1536 column-widen migration in `README.md` and re-ingest |
 | `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` + `GOOGLE_REDIRECT_URI` + `GSC_SITE_URL` | The `/search-console` page | Follow `SETUP_GUIDE.md` STEP 2. The redirect URI for prod is `https://edstellar-conflict-checker-knowledg.vercel.app/api/gsc/callback`. |
 | `SERPER_API_KEY` | The `/competitors` page | <https://serper.dev> → Sign up → Dashboard shows the key |
-| `WEBHOOK_API_KEY` | Gating `POST /api/check` from a CMS pre-publish hook | Callers must then send header `X-API-Key: <value>` |
+| `WEBHOOK_API_KEY` | Gating LLM-burning endpoints from external callers | Gates three routes: `POST /api/check`, `POST /api/summarize`, `POST /api/rewrite-suggestion`. Callers must send `X-API-Key: <value>`. When unset, per-IP rate-limiting is the only gate. |
+| `CONFLICT_MIN_SIMILARITY` | Tuning the conflict floor | Override the default 0.50 cosine floor. Session 6 audit raised this from 0.30 — re-loosen if the team finds it too aggressive. Range 0–1. |
+| `AUTH_TRUST_HOST` | Non-Vercel hosts only | `auth.ts` auto-trusts the host inside Vercel via the `VERCEL` env. On any other host, set `=true` to opt in; leave blank/false to reject host-header spoofing. Don't set this on Vercel — it's redundant and easier to misuse than the auto-detect. |
 
 ### 2.3 Deploy
 
@@ -103,7 +106,9 @@ npm run db:setup        # one-time: enable pgvector, create tables (idempotent)
 npm run ingest          # ~20-30 min: crawl + embed every Edstellar URL
 ```
 
-> **Don't** trigger this from the Vercel cron — `/api/cron/reingest` walks all ~2,461 URLs sequentially, which will hit the function timeout from cold. Always do the initial seed locally. The cron is for incremental updates only.
+> **Don't** trigger the initial seed from the Vercel cron — the first run is 30+ minutes wall-clock. Run it locally once. After Session 6, the cron itself uses a 10-way worker pool (`/api/cron/reingest`) so weekly incremental re-ingests fit comfortably under the 300s function limit.
+
+> **Re-run `npm run db:setup` after every push that adds a `drizzle/*.sql` file.** Session 6 added migration `0005_check_match_enrichment.sql`; the loader is idempotent so running it on an already-up-to-date DB is a no-op.
 
 After ingest finishes, open the production URL → paste a URL or topic into `/conflict-checker` → confirm you get scored matches back.
 

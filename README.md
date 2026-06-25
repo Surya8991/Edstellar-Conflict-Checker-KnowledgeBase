@@ -4,6 +4,8 @@ Detect content conflicts (duplication / SEO cannibalization) **before** publishi
 
 Built with **Next.js 16** (App Router) + **Neon Postgres / pgvector**.
 
+> **Security note (Session 6 audit, 2026-06-25):** dashboard ships with a permissive CSP, HSTS, frame-ancestors `'none'`, MIME-sniff guard, and Referrer-Policy by default. The full audit + Session 7 changelog lives in [`PROJECTLOG.md`](PROJECTLOG.md) §10.
+
 ## How it works
 
 1. Paste a **URL** or a **topic** → an LLM summarizes it and extracts keywords.
@@ -93,8 +95,9 @@ This repo is a single Next.js app at the root — Vercel will auto-detect it.
    npm run db:setup
    npm run ingest
    ```
-5. **Crons** — [`vercel.json`](vercel.json) registers three schedules (`/api/cron/reingest`, `/api/cron/audit-links`, `/api/cron/gsc-snapshot`). Set `CRON_SECRET` so the routes can authenticate. **Warning:** the routes fail **open** if `CRON_SECRET` is unset — anyone can trigger them. Always set it in production.
-6. **External webhook (optional)** — to gate `POST /api/check` from a CMS pre-publish hook, set `WEBHOOK_API_KEY`; callers must then send `X-API-Key: <value>`.
+5. **Crons** — [`vercel.json`](vercel.json) registers three schedules (`/api/cron/reingest`, `/api/cron/audit-links`, `/api/cron/gsc-snapshot`). **`CRON_SECRET` is required** — since the Session 6 audit, every cron route fails **closed** (returns 401) when the bearer header doesn't match. Vercel Cron sends `Authorization: Bearer <CRON_SECRET>` automatically once you set the env var.
+6. **External webhook (optional)** — `WEBHOOK_API_KEY` gates three LLM-burning endpoints from external callers: `POST /api/check`, `POST /api/summarize`, `POST /api/rewrite-suggestion`. When set, callers must send `X-API-Key: <value>`; when unset, per-IP rate-limiting is the only gate.
+7. **Run the schema migration** (one-time, after first deploy): `npm run db:setup` against the prod Neon DB. Idempotent — applies any unapplied `drizzle/*.sql` files; safe to re-run.
 
 ### Vercel pre-deploy checklist
 

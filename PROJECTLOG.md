@@ -4,7 +4,7 @@
 > and how the system fits together. Update this file with every meaningful
 > change.
 
-**Last updated:** 2026-06-25 (Session 6 — full project audit)
+**Last updated:** 2026-06-25 (Session 7 — audit fixes shipped + docs sync)
 **Owner:** marketing@edstellar.com
 **Repo:** https://github.com/Layruss98266/Edstellar-Conflict-Checker-KnowledgeBase
 **Prod:** https://edstellar-conflict-checker-knowledg.vercel.app/
@@ -1281,3 +1281,86 @@ of the named market leaders do this well at the pre-publish stage.
 - All four agents reported zero false-positive count on the items above (cross-checked against actual file:line during synthesis). The substring bug (H12) was the only finding that overlapped between phases — code/logic missed it, SEO agent caught it.
 - No source files were edited during the audit. Any change here is a follow-up commit, not an audit step.
 - **Repeat cadence recommendation:** re-audit on every minor version bump or every 4 weeks of active development, whichever comes first. Snapshot diff vs. last audit's PROJECTLOG entry — only re-investigate items that changed.
+
+---
+
+## 11. Session 7 — Audit fixes shipped (2026-06-25)
+
+All 8 ship-stoppers + 18 high-priority items from Session 6 §10A + §10B
+landed and deployed to production. 10 atomic commits, every one with a
+clean `tsc --noEmit`, structured into 5 ship-stopper sub-batches and 5
+high-priority sub-batches. Push went to `Layruss98266/main`; Vercel
+build promoted within ~90s and all post-deploy smoke tests passed.
+
+### 11A. Ship-stopper batches (Batch 1) — shipped
+
+| Batch | SHA | Items | What landed |
+|---|---|---|---|
+| 1A | `f72f20f` | S1, S5, H2 | Shared `lib/cron-auth.ts` requires `CRON_SECRET` (was fail-open). `proxy.ts` PUBLIC_PATHS now anchored — `/api/auth` no longer matches `/api/authentication-overview`. `STATIC_ASSET_RE` replaced with explicit allow-list. |
+| 1B | `f33f68f` | S3, S4, H3 | `lib/api-gate.ts` + `lib/ssrf-guard.ts` — WEBHOOK_API_KEY-or-rate-limit applied to `/api/summarize` + `/api/rewrite-suggestion`; outbound URLs rejected for RFC1918, loopback, link-local (incl. 169.254.169.254), CGNAT, multicast, IPv6 ULA. Rate-limit fails CLOSED in prod with per-instance in-memory bucket fallback. `/api/check` no longer trusts `body.createdBy` when auth is off. |
+| 1C | `73cf563` | S2 | `lib/oauth-state.ts` HMAC-signs a nonce stored both in the OAuth `state` param and an HttpOnly cookie; `/api/gsc/callback` constant-time verifies, single-use clears on every outcome. Closes GSC OAuth callback CSRF. |
+| 1D | `5f1ec71` | S6 | `chat.proposeRewrite()` on the `ChatProvider` interface — structured-output zod schema replaces the prior misuse of `chat.summarize()`. Untrusted draft + conflicts wrapped in `<data>` tags (also satisfies part of H5). |
+| 1E | `a12af23` | S7, S8 | `app/(dashboard)/loading.tsx` skeleton + `error.tsx` retry boundary. Global `:focus-visible` ring rule in `globals.css` (replaces the ~1px border shift that fails WCAG 2.4.7). New `.skeleton` utility. |
+
+### 11B. High-priority batches (Batch 2) — shipped
+
+| Batch | SHA | Items | What landed |
+|---|---|---|---|
+| 2A | `731cf05` | H1, H4 | `next.config.ts` `headers()` block — permissive CSP, HSTS (2y + preload), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`. `auth.ts` `trustHost` now gates on `VERCEL` env or explicit `AUTH_TRUST_HOST=true`. |
+| 2B | `87e7514` | H8, H9 | `drizzle/0005_check_match_enrichment.sql` adds `overlap`, `issue`, `owner_url`, `gsc_clicks_28d` + `check_matches_owner_url_idx`. `lib/db/schema.ts` reconciled (added `courseType`, `tags`, the 4 new columns + index). `lib/conflict.ts` replaces N+1 INSERT loop with single `UNNEST` and persists the enrichment fields. |
+| 2C | `dd5709c` | H7, H10 | `gsc-snapshot` stale-flag race collapsed to one atomic UPDATE that uses `IS DISTINCT FROM` so only changing rows are touched. New `lib/ingest-page.ts` with `ingestOne()` + `runIngestPool()` (concurrency 10) drives `/api/cron/reingest`; that route is now ~50 LOC. |
+| 2D | `0b9e817` | H11, H12, H13, H5 | `minSimilarity` default 0.30 → **0.50** with `CONFLICT_MIN_SIMILARITY` env override. `isEdstellarDomain` exported and adopted in `lib/competitors-extra.ts` (3 substring-bug sites). New `widenForCorporateTraining()` only appends the suffix when topic lacks a training term. `<data>`-delimiter prompt-injection hardening across `summarize` / `classifyConflicts` / `summarizeCompetitor`. |
+| 2E | `918fdb0` | H14–H18 | In-house `Toast.tsx` (no new dep) replaces `alert()` + handles clipboard rejection. Shared `Tabs.tsx` with `?tab=` URL sync, `role=tablist`, arrow-key navigation — migrated `/competitors` + `/audit`. `ConflictBadge` gets a leading glyph (●/●/◐/○/⌛). Mobile burger hidden while drawer open. `HelpButton` dialog gets `aria-modal=true` + ~40-LOC focus trap; sidebar drawer marked dialog when open on narrow viewports. |
+
+### 11C. Production verification (post-deploy smoke tests — all green)
+
+Ran from a clean shell against the deployed prod URL after Vercel
+promoted commit `918fdb0`:
+
+| Test | Expected | Actual |
+|---|---|---|
+| `GET /api/cron/reingest` | 401 (no secret) | ✅ 401 |
+| `GET /api/cron/audit-links` | 401 | ✅ 401 |
+| `GET /api/cron/gsc-snapshot` | 401 | ✅ 401 |
+| `POST /api/summarize` (no key) | 401 | ✅ 401 |
+| `POST /api/summarize` body=`169.254.169.254` | 401 gate (or 400 SSRF) | ✅ 401 — gate fires before SSRF guard, defense-in-depth |
+| `POST /api/authentication-overview` (prefix-overmatch regression) | 401 | ✅ 401 (was bypassing before) |
+| `GET /api/auth/signin` (NextAuth subroute) | 302 | ✅ 302 |
+| `GET /signin` headers | CSP + HSTS + XFO + XCTO + Referrer + Permissions | ✅ all 6 present |
+
+Vercel served the prior build for ~90s after push; HSTS landed first
+because Vercel had it from a previous deploy. Full headers block
+appeared after the new build promoted.
+
+### 11D. Docs synced this session
+
+- `.env.example` — CRON_SECRET no longer "fail-open" wording; new `CONFLICT_MIN_SIMILARITY`; WEBHOOK_API_KEY scope expanded to `/api/summarize` + `/api/rewrite-suggestion`; AUTH_SECRET now also used by GSC OAuth state; AUTH_TRUST_HOST flag documented.
+- `README.md` — Vercel deploy section: cron is now fail-closed; WEBHOOK_API_KEY gates three routes; one-time `npm run db:setup` post-deploy callout; security note linking to this section.
+- `SETUP_GUIDE.md` STEP 6 — production hardening list updated to match the new reality (8 items including AUTH_SECRET, CONFLICT_MIN_SIMILARITY, migration step).
+- `VERCEL_GITHUB_GUIDE.md` §2.2 — env-var table includes AUTH_SECRET as "strongly recommended"; WEBHOOK_API_KEY description widened; CONFLICT_MIN_SIMILARITY and AUTH_TRUST_HOST added to "optional" list. §2.4 — note about re-running `db:setup` after every drizzle migration.
+- `PRE_PUSH_CHECKLIST.md` — after-push verification gets a paste-ready Session 6 smoke-test block (the 4 curl commands actually used post-deploy).
+- `docs/conflict-types.md` — new "Why the 0.50 minimum-similarity floor?" subsection documents the H11 change.
+
+### 11E. What's NOT yet done (Session 6 §10C medium batch — deferred)
+
+These remain queued but did not block the deploy. Order = leverage:
+
+- **Scoring rebalance** `0.4*base + 0.6*llm` → likely `0.5/0.5` or `0.6/0.4` base-heavy (`lib/score.ts:22`).
+- **`impactWeighted` owner-bonus inversion** — comment intent says bonus should apply to *non-owner* matches, code applies it when match IS the owner (`lib/conflict.ts:62-67`). Verify with team before flipping.
+- **Competitor freshness signal** — currently trusts sitemap `<lastmod>`, which lies for WordPress/HubSpot. Sample on-page `article:modified_time` instead (`lib/competitors-extra.ts:159-208`).
+- **Internal-link suggester upgrade** — add anchor-text diversity, inverse-inlink weighting, intent-stage affinity (`app/api/internal-links/route.ts:49-57`).
+- **Wire SERP features into rewrite prompt** — `serp-overlap` already fetches AI Overview / PAA / answer-box but `proposeRewrite` doesn't see them.
+- **Embed batching** — `lib/ai/embed-local.ts:23` serial `for...of` → `pipe(texts, …)` batch.
+- **OpenAI embedder retry + chunking past 2048** — bulk ingest will crash without this (`lib/ai/embed-openai.ts:11`).
+- **Lazy `getDb()` factory** — replace import-time `neon("...localhost/db")` placeholder (`lib/db/index.ts:16`).
+- **Verify `claude-sonnet-4-6` model id** against current Anthropic catalogue (`lib/ai/chat-claude.ts:7`).
+- **CSRF origin check on authed POST routes** — NextAuth CSRF cookie or explicit origin check (`proxy.ts:54`).
+- **UI tokenization** — `<Button variant size>` in `ui.tsx` to replace 3 parallel styles; `lib/score-bands.ts` extracted from 3 duplicated copies of the 80/60/35 thresholds; unify the two `Stat` components.
+
+Pick these up in Session 8.
+
+### 11F. Lessons re-confirmed this session
+
+- **Shared helpers > inlined guards.** Both `requireCronAuth()` and `gateLlmEndpoint()` were duplicated logic before — extracting them into ~20-LOC modules removed all the inlined `if (!secret || ...)` variants and made the audit-trail comments single-source.
+- **Forward-only DB migrations are still the right call.** `0005_check_match_enrichment.sql` only ADDs nullable columns + one index — safe to apply against a live prod DB without downtime. No reversible migration needed.
+- **Phased-sequential audit + parallel-fan-out execution = fastest delivery.** Audit produced findings in 4 parallel agents (~3 min), but shipping them needs the human-in-the-loop confirmations from §10F. Stuck to the user's "commit only, push when authed" rhythm; saved a credential rotation mid-batch by batching all 10 commits behind one push.

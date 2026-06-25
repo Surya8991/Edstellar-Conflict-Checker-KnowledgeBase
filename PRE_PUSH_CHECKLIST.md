@@ -98,5 +98,36 @@ The first 90 seconds after a push to `main`:
 - [ ] Production URL still serves: `curl -sI https://edstellar-conflict-checker-knowledg.vercel.app/ | head -1` should show `HTTP/1.1 200`.
 - [ ] If you changed a public route, test it with curl/browser.
 - [ ] If you changed an env var dependency, you may need to **Redeploy** (Vercel doesn't pick up env-var changes automatically).
+- [ ] If your push includes a new `drizzle/*.sql`, run `npm run db:setup` against the prod `DATABASE_URL` once — idempotent, but un-applied migrations will break new routes that reference the new columns.
+
+### Session 6 audit smoke tests (run on first deploy after a security commit)
+
+Quick paste-this-in-terminal:
+
+```bash
+BASE=https://edstellar-conflict-checker-knowledg.vercel.app
+
+# 1. Cron routes must 401 without the bearer secret
+for path in /api/cron/reingest /api/cron/audit-links /api/cron/gsc-snapshot; do
+  printf '%-40s ' "$path"; curl -sS -o /dev/null -w "HTTP %{http_code}\n" "$BASE$path"
+done
+
+# 2. LLM endpoints must 401 without WEBHOOK_API_KEY (or 429 if rate-limited)
+for path in /api/summarize /api/rewrite-suggestion; do
+  printf '%-40s ' "$path"
+  curl -sS -o /dev/null -w "HTTP %{http_code}\n" -X POST "$BASE$path" \
+    -H 'content-type: application/json' -d '{"input":"x"}'
+done
+
+# 3. Prefix-overmatch regression — must 401, not bypass
+curl -sS -o /dev/null -w "/api/authentication-overview  HTTP %{http_code}\n" \
+  -X POST "$BASE/api/authentication-overview"
+
+# 4. Security headers — must include CSP + X-Frame-Options + HSTS + Referrer + Permissions
+curl -sS -D - -o /dev/null "$BASE/signin" \
+  | grep -iE 'content-security|strict-transport|x-frame|x-content-type|referrer-policy|permissions-policy'
+```
+
+Every line should report a non-200 status for the gated routes and all 6 security headers should print for the headers check. If headers are missing, the build may still be promoting — re-run after 60s.
 
 If any step fails, see [`VERCEL_GITHUB_GUIDE.md`](VERCEL_GITHUB_GUIDE.md) §6 Troubleshooting.

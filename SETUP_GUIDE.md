@@ -147,11 +147,14 @@ The codebase has OpenAI adapters wired up but inactive. Switching embeddings to 
 
 Required before exposing the app publicly:
 
-1. `CRON_SECRET` — set a long random string. **The cron routes fail open if it's unset**, so anyone could trigger `/api/cron/reingest` and rack up DB + LLM costs.
-2. `WEBHOOK_API_KEY` (optional) — gate `POST /api/check` for external callers. When set, callers must send `X-API-Key: <value>`.
-3. `APP_BASE_URL` — set to your `https://edstellar-conflict-checker-knowledg.vercel.app` (or custom domain). Used to build absolute URLs in cron jobs and OAuth flows.
-4. `GOOGLE_REDIRECT_URI` — switch to the prod URL `https://edstellar-conflict-checker-knowledg.vercel.app/api/gsc/callback` (and add it to the Google OAuth client's allowed redirect URIs).
-5. `BRAND_TERMS` — comma-separated brand/keyword terms the checker treats as house terms (default `edstellar,edstellar.com`).
+1. `CRON_SECRET` — set a long random string. **Required.** Since the Session 6 audit (S1), every cron route fails **closed** if the bearer header doesn't match — missing secret = 401 = silent cron breakage. Generate with `openssl rand -hex 32`.
+2. `AUTH_SECRET` — long random string. Even with `AUTH_ENABLED=false`, this is now used to sign the GSC OAuth state nonce (Session 6 audit S2). Falls back to `GOOGLE_CLIENT_SECRET` in prod if missing, but a dedicated value is safer. `openssl rand -hex 32`.
+3. `WEBHOOK_API_KEY` (optional) — gate `POST /api/check`, `POST /api/summarize`, and `POST /api/rewrite-suggestion` for external callers. When set, callers must send `X-API-Key: <value>`. Session 6 audit (S3) closed the previously-open `/api/summarize` and `/api/rewrite-suggestion` routes; if you leave this blank they fall through to per-IP rate-limiting.
+4. `APP_BASE_URL` — set to your `https://edstellar-conflict-checker-knowledg.vercel.app` (or custom domain). Used to build absolute URLs in cron jobs and OAuth flows.
+5. `GOOGLE_REDIRECT_URI` — switch to the prod URL `https://edstellar-conflict-checker-knowledg.vercel.app/api/gsc/callback` (and add it to the Google OAuth client's allowed redirect URIs).
+6. `BRAND_TERMS` — comma-separated brand/keyword terms the checker treats as house terms (default `edstellar,edstellar.com`).
+7. `CONFLICT_MIN_SIMILARITY` (optional) — override the 0.50 cosine floor for surfaced matches. Session 6 audit (H11) raised the default from 0.30; lower this if your team finds the new floor too aggressive. Range 0–1.
+8. **Apply the schema migration**: from your laptop with the prod `DATABASE_URL`, run `npm run db:setup` once. Session 6 added `drizzle/0005_check_match_enrichment.sql` (additive, idempotent — safe to re-run).
 
 ---
 
