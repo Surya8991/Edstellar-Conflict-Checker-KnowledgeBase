@@ -6,12 +6,15 @@ Where the Conflict Checker reads from and writes to.
 
 | Source | Format | Used for | Refresh |
 |--------|--------|----------|---------|
-| [`data/sitemap-urls.csv`](../data/sitemap-urls.csv) | CSV (~2,478 URLs) | Seed list for `npm run ingest`. | Manual — regenerate from edstellar.com sitemap when content set changes materially. |
-| [`data/taxonomy/courses.json`](../data/taxonomy/courses.json) | JSON | Course catalog metadata (slug, title, category). | Manual extract via `scripts/extract-taxonomy.py`. |
-| [`data/taxonomy/blogs.json`](../data/taxonomy/blogs.json) | JSON | Blog metadata. | Same extractor. |
-| [`data/taxonomy/course-to-blog.json`](../data/taxonomy/course-to-blog.json) | JSON | Pre-computed course↔blog associations. | Regenerate after re-ingest. |
-| [`data/taxonomy/competitors.json`](../data/taxonomy/competitors.json) | JSON | Competitor domain list for `/competitors`. | Manual edits. |
-| [`data/taxonomy/synonyms.json`](../data/taxonomy/synonyms.json) | JSON | Query expansion / dedupe hints. | Manual edits. |
+| [`data/sitemap-urls.csv`](../data/sitemap-urls.csv) | CSV (2,479 URLs raw; ~2,461 after junk filter) | Seed list for `npm run ingest`. The junk filter in [`lib/sitemap.ts`](../lib/sitemap.ts) drops tag archives, `/sitemap`, paginated pages, file downloads. | Manual — regenerate from edstellar.com sitemap when content set changes materially. |
+| [`data/taxonomy/courses.json`](../data/taxonomy/courses.json) | JSON (1,698 entries) | Flat course catalog: name, type, category, subcategory, link. | Re-extract via `python scripts/extract-taxonomy.py` after the Intelligence Hub HTML changes. |
+| [`data/taxonomy/blogs.json`](../data/taxonomy/blogs.json) | JSON (500 entries) | Blog post metadata. | Same extractor. |
+| [`data/taxonomy/course-types.json`](../data/taxonomy/course-types.json) | JSON (6 types) | Curated tree: 6 types → 43 categories → 166 subcategories with course counts. | Same extractor. |
+| [`data/taxonomy/course-to-blog.json`](../data/taxonomy/course-to-blog.json) | JSON (1,528 mappings) | Pre-computed course↔blog associations. | Regenerate after re-ingest. |
+| [`data/taxonomy/competitors.json`](../data/taxonomy/competitors.json) | JSON (43 entries) | Competitor domain list for `/competitors`. | Manual edits. |
+| [`data/taxonomy/synonyms.json`](../data/taxonomy/synonyms.json) | JSON (38 entries) | Query expansion / dedupe hints. | Manual edits. |
+| [`data/taxonomy/underserved-categories.json`](../data/taxonomy/underserved-categories.json) | JSON (20 entries) | Categories with low course coverage — drives content-gap recommendations. | Same extractor (`LEAST_20` in the HTML). |
+| [`data/taxonomy/gsc-pipeline-seed.json`](../data/taxonomy/gsc-pipeline-seed.json) | JSON (25 entries) | Seed queries for GSC enrichment runs. | Same extractor. |
 
 ## Storage (Neon Postgres + pgvector)
 

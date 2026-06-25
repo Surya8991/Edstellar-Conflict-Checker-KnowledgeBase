@@ -49,7 +49,7 @@ Without this, nothing gets saved and the Conflict Checker can't compare against 
 6. Save the file, then:
    ```bash
    npm run db:setup       # enables pgvector + creates all tables
-   npm run ingest         # crawls the 2,478 sitemap URLs (re-runnable)
+   npm run ingest         # crawls ~2,461 URLs (2,479 in sitemap minus junk filter)
    ```
 
 ---

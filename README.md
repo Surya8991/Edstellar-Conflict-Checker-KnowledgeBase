@@ -32,7 +32,7 @@ npm run db:setup      # creates the pgvector extension + all tables
 
 ### 3. Ingest the corpus
 
-Crawls the bundled sitemap (`data/sitemap-urls.csv`, ~2,478 Edstellar URLs), extracts content, and embeds each page.
+Crawls the bundled sitemap ([`data/sitemap-urls.csv`](data/sitemap-urls.csv), 2,479 URLs — ~2,461 after junk filtering in [`lib/sitemap.ts`](lib/sitemap.ts) drops tag-archives, `/sitemap`, file downloads etc.), extracts content, and embeds each page.
 
 ```bash
 npm run ingest -- --limit=50      # quick sample first
@@ -103,28 +103,38 @@ The audit below surfaced four things that need attention **before** the first pr
 1. **`next.config.ts` — add `serverExternalPackages`.** The runtime-only deps (`@xenova/transformers`, `jsdom`, `cheerio`, `googleapis`) should NOT be bundled by Next's tracer. After `npm install`, add them to `serverExternalPackages` in `next.config.ts` (key name + exact shape per Next 16 docs in `node_modules/next/dist/docs/`). Without this, the function bundle balloons past Vercel's size limit and the Transformers.js model loader breaks.
 2. **`next.config.ts` — `outputFileTracingIncludes` for `data/`.** [`lib/sitemap.ts`](lib/sitemap.ts), [`lib/taxonomy.ts`](lib/taxonomy.ts), and [`lib/gsc-insights.ts`](lib/gsc-insights.ts) all do `readFileSync(join(process.cwd(), "data", …))` at runtime. Next's file tracer won't pick those up (the path is dynamic), so add `data/**/*` to `outputFileTracingIncludes` for the API routes that need them (`/api/check/*`, `/api/cron/reingest`, `/api/cron/gsc-snapshot`, `/api/competitors/*`).
 3. **Embedder choice for prod.** The default local embedder downloads `bge-small-en-v1.5` (~30 MB) into `/tmp` on each cold start — fine for the long-lived `/api/cron/reingest` (`maxDuration = 300`), painful for `/api/check` (cold start ≈ 8–15 s the first time after a deploy). For prod, either: (a) set `AI_EMBED_PROVIDER=openai` after running the 384→1536 column-widen + re-ingest (SQL above), or (b) accept the cold-start cost and warm the function with the cron.
-4. **Vercel plan limits for crons.** [`vercel.json`](vercel.json) registers **three** crons, two of them **weekly**. Hobby allows max 2 crons and daily cadence only — you need **Pro** for this config. Also: `/api/cron/reingest` walks all 2,478 sitemap URLs sequentially with an embed call per URL. Even at 300 s, a full re-ingest from cold will timeout. Seed the corpus locally with `npm run ingest` once, then let the cron handle deltas only.
+4. **Vercel plan limits for crons.** [`vercel.json`](vercel.json) registers **three** crons, two of them **weekly**. Hobby allows max 2 crons and daily cadence only — you need **Pro** for this config. Also: `/api/cron/reingest` walks all ~2,461 sitemap URLs sequentially with an embed call per URL. Even at 300 s, a full re-ingest from cold will timeout. Seed the corpus locally with `npm run ingest` once, then let the cron handle deltas only.
 
 ## Repository layout
 
 ```
-.                          ← Next.js app root (deployed by Vercel)
-├── app/                   ← App Router routes (pages + /api/*)
-├── lib/                   ← AI providers, conflict pipeline, scoring, DB, etc.
-├── scripts/               ← One-off / cron-target scripts (tsx)
-├── data/                  ← Sitemap + taxonomy JSON shipped with the repo
-├── drizzle/               ← SQL migrations
-├── public/                ← Static assets
-├── docs/                  ← Domain knowledge base (not built; reference only)
-│   ├── repo-overview.md   ← Map of this repo
+.                              ← Next.js app root (deployed by Vercel)
+├── app/                       ← App Router routes (pages + /api/*)
+├── lib/                       ← AI providers, conflict pipeline, scoring, DB, etc.
+├── scripts/                   ← One-off / cron-target scripts (tsx)
+│   ├── ingest.ts              ← crawl + embed sitemap
+│   ├── db-setup.ts            ← apply drizzle/*.sql migrations
+│   ├── cleanup-junk-pages.ts  ← remove junk rows (tag archives etc.) from `pages`
+│   ├── extract-taxonomy.py    ← rebuild data/taxonomy/*.json from Hub HTML
+│   └── …
+├── data/                      ← Sitemap + taxonomy JSON shipped with the repo
+├── drizzle/                   ← SQL migrations
+├── public/                    ← Static assets
+├── docs/                      ← Domain knowledge base (not built; reference only)
+│   ├── repo-overview.md       ← Map of this repo
 │   ├── about-edstellar.md
 │   ├── glossary.md
 │   ├── conflict-types.md
 │   ├── conflict-rules.md
 │   ├── examples.md
 │   └── data-sources.md
-├── reference/             ← Static artifacts (Intelligence Hub HTML)
-├── PROJECTLOG.md          ← Session-by-session shipping log
-├── SETUP_GUIDE.md         ← Long-form setup walkthrough
-└── vercel.json            ← Cron schedules
+├── reference/                 ← Static artifacts (Intelligence Hub HTML)
+├── README.md                  ← (this file)
+├── VERCEL_GITHUB_GUIDE.md     ← Plain-English deploy + update walkthrough
+├── PROJECTLOG.md              ← Session-by-session shipping log
+├── SETUP_GUIDE.md             ← Long-form .env setup walkthrough
+├── AGENTS.md / CLAUDE.md      ← Notes for AI coding agents working in this repo
+├── .env.example               ← Every env var the app reads
+├── .nvmrc                     ← Node version pin (22)
+└── vercel.json                ← Cron schedules
 ```

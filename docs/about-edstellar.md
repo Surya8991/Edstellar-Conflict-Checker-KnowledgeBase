@@ -29,7 +29,7 @@ Enterprise L&D, HR, and people-operations teams at mid-market and large organiza
 
 ## Why a (Content) Conflict Checker
 
-With 2,478+ indexed URLs on edstellar.com and steady new publishing across courses, blogs, and category pages, near-duplicate and overlapping content is the single biggest SEO drag:
+With ~2,500 indexed URLs on edstellar.com (1,698 course pages + 500 blog posts + categories, topics, and static pages) and steady new publishing, near-duplicate and overlapping content is the single biggest SEO drag:
 
 - **Keyword cannibalization** — multiple pages competing for the same SERP slot, splitting clicks and authority.
 - **Duplicate intent** — a new blog rehashing a course page that already ranks.

@@ -15,8 +15,10 @@ This repo is a **single Next.js 16 app deployed to Vercel** plus a domain knowle
 | `docs/` | This knowledge base. Not built; reference only. |
 | [`reference/`](../reference/) | Static artifacts (e.g. Intelligence Hub HTML). |
 | [`PROJECTLOG.md`](../PROJECTLOG.md) | Session-by-session shipping log. |
-| [`SETUP_GUIDE.md`](../SETUP_GUIDE.md) | Long-form setup walkthrough. |
+| [`SETUP_GUIDE.md`](../SETUP_GUIDE.md) | Long-form `.env` setup walkthrough (Neon, GSC OAuth, Serper, Claude). |
+| [`VERCEL_GITHUB_GUIDE.md`](../VERCEL_GITHUB_GUIDE.md) | Plain-English deploy + update walkthrough — what to do in GitHub and Vercel. |
 | [`.env.example`](../.env.example) | Every env var the app reads, with comments. |
+| [`.nvmrc`](../.nvmrc) | Node version pin (22). |
 | [`vercel.json`](../vercel.json) | Cron schedules for `/api/cron/*`. |
 
 ## Where to start
