@@ -21,7 +21,17 @@ const RANGES = [
   { key: "3m", label: "3 months" },
   { key: "6m", label: "6 months" },
   { key: "12m", label: "12 months" },
+  { key: "custom", label: "Custom…" },
 ] as const;
+
+/** Default the custom-date picker to the last 30 days when first opened. */
+function defaultCustomRange(): { startDate: string; endDate: string } {
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  const end = new Date();
+  const start = new Date();
+  start.setDate(end.getDate() - 30);
+  return { startDate: fmt(start), endDate: fmt(end) };
+}
 
 const TABS = [
   "Overview",
@@ -73,10 +83,24 @@ function SearchConsoleInner() {
   const gscError = params.get("gsc") === "error";
 
   const [range, setRange] = useState("28d");
+  const [customDates, setCustomDates] = useState<{ startDate: string; endDate: string }>(
+    defaultCustomRange(),
+  );
   const [tab, setTab] = useState<Tab>("Overview");
   const [data, setData] = useState<Insights | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /** Validate the custom-date inputs before letting `load()` fire. */
+  const customError: string | null = useMemo(() => {
+    if (range !== "custom") return null;
+    const { startDate, endDate } = customDates;
+    if (!startDate || !endDate) return "Pick a start and end date.";
+    if (startDate > endDate) return "Start date must be on or before end date.";
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (endDate > todayStr) return "End date can't be in the future.";
+    return null;
+  }, [range, customDates]);
 
   // Inline lookup panel (URL or query)
   const [lookupInput, setLookupInput] = useState("");
@@ -108,13 +132,20 @@ function SearchConsoleInner() {
   }
 
   async function load() {
+    // For custom ranges, only fire when the date pair is valid.
+    if (range === "custom" && customError) return;
     setLoading(true);
     setError(null);
     try {
+      const body: Record<string, unknown> = { range };
+      if (range === "custom") {
+        body.startDate = customDates.startDate;
+        body.endDate = customDates.endDate;
+      }
       const res = await fetch("/api/gsc/insights", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ range }),
+        body: JSON.stringify(body),
       });
       const json = await res.json();
       if (json.error) throw new Error(json.error);
@@ -130,7 +161,7 @@ function SearchConsoleInner() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range]);
+  }, [range, customDates.startDate, customDates.endDate]);
 
   return (
     <div>
@@ -184,24 +215,72 @@ function SearchConsoleInner() {
           {lookupData && <LookupPanel data={lookupData} />}
         </Card>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {RANGES.map((r) => (
-            <button
-              key={r.key}
-              onClick={() => setRange(r.key)}
-              className={`rounded-lg px-3 py-1.5 text-sm ${
-                range === r.key
-                  ? "bg-slate-900 text-white"
-                  : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
-          {data && (
-            <span className="ml-2 text-xs text-slate-400">
-              {data.startDate} → {data.endDate}
-            </span>
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {RANGES.map((r) => (
+              <button
+                key={r.key}
+                onClick={() => setRange(r.key)}
+                className={`rounded-lg px-3 py-1.5 text-sm ${
+                  range === r.key
+                    ? "bg-slate-900 text-white"
+                    : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {r.label}
+              </button>
+            ))}
+            {data && range !== "custom" && (
+              <span className="ml-2 text-xs text-slate-400">
+                {data.startDate} → {data.endDate}
+              </span>
+            )}
+          </div>
+
+          {/* Custom date inputs — only when "Custom…" is the active range. */}
+          {range === "custom" && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <label className="text-xs text-slate-600">
+                From
+                <input
+                  type="date"
+                  value={customDates.startDate}
+                  max={customDates.endDate || undefined}
+                  onChange={(e) =>
+                    setCustomDates((d) => ({ ...d, startDate: e.target.value }))
+                  }
+                  className="ml-2 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800"
+                />
+              </label>
+              <label className="text-xs text-slate-600">
+                To
+                <input
+                  type="date"
+                  value={customDates.endDate}
+                  min={customDates.startDate || undefined}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) =>
+                    setCustomDates((d) => ({ ...d, endDate: e.target.value }))
+                  }
+                  className="ml-2 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800"
+                />
+              </label>
+              <span className="text-xs text-slate-400">
+                {customError ? (
+                  <span className="text-amber-700">{customError}</span>
+                ) : (
+                  <>
+                    GSC keeps ~16 months of history; rows in the last ~2 days may
+                    still be filling in.
+                  </>
+                )}
+              </span>
+              {data && !customError && (
+                <span className="ml-auto text-xs text-slate-400">
+                  {data.startDate} → {data.endDate}
+                </span>
+              )}
+            </div>
           )}
         </div>
 
@@ -339,7 +418,10 @@ function OverviewTab({ data, range }: { data: Insights; range: string }) {
         </h3>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data.trend.map((d: any) => ({ date: d.keys?.[0], ...d })).reverse()}>
+            {/* GSC returns date rows ascending (oldest first), which is the
+                left-to-right order Recharts wants. The prior `.reverse()` was
+                flipping it so the chart read right-to-left (newest left). */}
+            <LineChart data={data.trend.map((d: any) => ({ date: d.keys?.[0], ...d }))}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" />
               <XAxis dataKey="date" tick={{ fontSize: 11 }} minTickGap={24} />
               <YAxis tick={{ fontSize: 11 }} />

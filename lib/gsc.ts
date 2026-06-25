@@ -63,17 +63,48 @@ export async function getAuthorizedClient() {
   return client;
 }
 
-export type RangeKey = "24h" | "7d" | "28d" | "3m" | "6m" | "12m";
+export type RangeKey = "24h" | "7d" | "28d" | "3m" | "6m" | "12m" | "custom";
+
+/** YYYY-MM-DD strict guard. */
+export function isValidDateString(s: unknown): s is string {
+  if (typeof s !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(s);
+  return !Number.isNaN(d.getTime()) && s === d.toISOString().slice(0, 10);
+}
 
 /** Resolve a preset range to start/end YYYY-MM-DD strings.
- *  GSC has ~2-3 day data latency; "24h" maps to the most recent 2 days. */
+ *  GSC has ~2-3 day data latency; "24h" maps to the most recent 2 days.
+ *
+ *  When `range === "custom"`, callers must pass `custom = { startDate, endDate }`.
+ *  GSC enforces ≤16 months of history; we soft-clamp the start to that window. */
 export function resolveRange(
   range: RangeKey,
   today = new Date(),
+  custom?: { startDate?: string; endDate?: string },
 ): { startDate: string; endDate: string } {
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+
+  if (range === "custom") {
+    if (!custom || !isValidDateString(custom.startDate) || !isValidDateString(custom.endDate)) {
+      throw new Error("Custom range requires startDate and endDate (YYYY-MM-DD).");
+    }
+    if (custom.startDate > custom.endDate) {
+      throw new Error("Custom range: startDate must be on or before endDate.");
+    }
+    // Soft-clamp to GSC's 16-month window so the API doesn't 400.
+    const maxBack = new Date(today);
+    maxBack.setMonth(maxBack.getMonth() - 16);
+    const minStart = fmt(maxBack);
+    const start = custom.startDate < minStart ? minStart : custom.startDate;
+    // Don't allow endDate in the future — GSC will 400.
+    const todayStr = fmt(today);
+    const end = custom.endDate > todayStr ? todayStr : custom.endDate;
+    return { startDate: start, endDate: end };
+  }
+
   const end = new Date(today);
   const start = new Date(today);
-  const daysByRange: Record<RangeKey, number> = {
+  const daysByRange: Record<Exclude<RangeKey, "custom">, number> = {
     "24h": 2,
     "7d": 7,
     "28d": 28,
@@ -82,7 +113,6 @@ export function resolveRange(
     "12m": 365,
   };
   start.setDate(end.getDate() - daysByRange[range]);
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
   return { startDate: fmt(start), endDate: fmt(end) };
 }
 

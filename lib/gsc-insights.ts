@@ -106,12 +106,16 @@ function expectedCtr(position: number): number {
   return CTR_CURVE[i];
 }
 
-function previousRange(range: RangeKey, today = new Date()) {
-  const { startDate, endDate } = resolveRange(range, today);
-  const d1 = new Date(startDate);
+/**
+ * Compute the prior-period window the same length as the current one,
+ * ending the day before `startDate`. Works for both preset ranges and
+ * fully custom (startDate, endDate) windows.
+ */
+function previousRange(currentStart: string, currentEnd: string) {
+  const d1 = new Date(currentStart);
   const days = Math.max(
     1,
-    Math.round((new Date(endDate).getTime() - d1.getTime()) / 86_400_000),
+    Math.round((new Date(currentEnd).getTime() - d1.getTime()) / 86_400_000),
   );
   const prevEnd = new Date(d1);
   prevEnd.setDate(prevEnd.getDate() - 1);
@@ -190,13 +194,16 @@ function bestCatalogMatch(query: string): { kind: GapRow["matchKind"]; url: stri
 }
 
 // --- Public entry point ---------------------------------------------------
-export async function buildInsights(range: RangeKey): Promise<Insights> {
+export async function buildInsights(
+  range: RangeKey,
+  custom?: { startDate?: string; endDate?: string },
+): Promise<Insights> {
   const client = await getAuthorizedClient();
   if (!client) throw new Error("Not connected to Google Search Console.");
   const siteUrl = await resolveSiteUrl(client);
 
-  const { startDate, endDate } = resolveRange(range);
-  const prev = previousRange(range);
+  const { startDate, endDate } = resolveRange(range, new Date(), custom);
+  const prev = previousRange(startDate, endDate);
 
   // Parallel fetch: 7 narrow queries.
   const [byQuery, byPage, byDate, byQueryPage, byCountry, byDevice, byQueryPrev] =
