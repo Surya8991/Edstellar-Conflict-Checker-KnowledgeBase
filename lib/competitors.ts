@@ -1,6 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import { getChat } from "@/lib/ai";
 import { fetchAndExtract } from "@/lib/extract";
+import { log } from "@/lib/logger";
 
 // Corporate-training competitors Edstellar benchmarks against (from the hub).
 export const KNOWN_COMPETITORS = [
@@ -169,7 +170,7 @@ export async function researchCompetitors(
         );
       }
     } catch (e) {
-      console.warn("[competitors] persist failed:", (e as Error).message);
+      log.warn("competitors persist failed", { error: (e as Error).message });
     }
   }
 

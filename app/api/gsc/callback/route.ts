@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOAuthClient, saveTokens } from "@/lib/gsc";
+import { log } from "@/lib/logger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest) {
     await saveTokens(tokens);
     return NextResponse.redirect(`${base}/search-console?gsc=connected`);
   } catch (e) {
-    console.error("[gsc/callback]", (e as Error).message);
+    log.error("gsc callback failed", { error: (e as Error).message });
     return NextResponse.redirect(`${base}/search-console?gsc=error`);
   }
 }

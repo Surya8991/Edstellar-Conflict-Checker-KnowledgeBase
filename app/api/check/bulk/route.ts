@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { runConflictCheck } from "@/lib/conflict";
+import { clientIp, consume, denied } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,16 +11,39 @@ export const maxDuration = 300;
  * POST /api/check/bulk
  * Body: { inputs: string[], limit?: number, concurrency?: number }
  * Returns: { results: Array<{input, ok, topScore, verdict, summary?, error?}> }
+ *
+ * Same auth strategy as /api/check — WEBHOOK_API_KEY if set, otherwise
+ * rate-limited per-IP. Bulk gets a tighter window (10 calls per 5 minutes)
+ * because each call can fan out to 50+ inputs.
  */
+const BodySchema = z.object({
+  inputs: z.array(z.string().trim().min(1).max(4000)).min(1).max(100),
+  limit: z.coerce.number().int().positive().max(500).optional(),
+  concurrency: z.coerce.number().int().min(1).max(6).optional(),
+});
+
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json().catch(() => ({}));
-    const inputs: string[] = Array.isArray(body.inputs) ? body.inputs : [];
-    const limit = Number(body.limit) || 5;
-    const concurrency = Math.min(Math.max(Number(body.concurrency) || 3, 1), 6);
-    if (!inputs.length) {
-      return NextResponse.json({ error: "Missing 'inputs[]'." }, { status: 400 });
+    const required = process.env.WEBHOOK_API_KEY;
+    if (required) {
+      const sent = request.headers.get("x-api-key");
+      if (sent !== required) {
+        return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+      }
+    } else {
+      const rl = await consume(clientIp(request), "check-bulk", { max: 10, windowSec: 300 });
+      if (!rl.ok) return denied(rl);
     }
+
+    const raw = await request.json().catch(() => ({}));
+    const parsed = BodySchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid request body.", issues: parsed.error.issues },
+        { status: 400 },
+      );
+    }
+    const { inputs, limit = 5, concurrency = 3 } = parsed.data;
 
     const queue = inputs.map((s) => s.trim()).filter(Boolean);
     const results: any[] = new Array(queue.length);
@@ -28,7 +53,7 @@ export async function POST(request: NextRequest) {
       while (true) {
         const idx = cursor++;
         if (idx >= queue.length) return;
-        const input = queue[idx];
+        const input = queue[idx]!;
         try {
           const r = await runConflictCheck(input, { limit });
           const verdict =

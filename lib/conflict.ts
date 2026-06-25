@@ -8,6 +8,7 @@ import {
   conflictTypeFromScore,
 } from "@/lib/score";
 import type { SummaryResult } from "@/lib/ai/types";
+import { log } from "@/lib/logger";
 
 export interface ConflictMatchResult {
   url: string;
@@ -156,7 +157,7 @@ export async function runConflictCheck(
     try {
       result.checkId = await persistCheck(result, embedding, opts.createdBy);
     } catch (e) {
-      console.warn("[conflict] persist failed:", (e as Error).message);
+      log.warn("conflict persist failed", { error: (e as Error).message });
     }
   }
 
