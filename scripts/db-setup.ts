@@ -17,9 +17,14 @@ async function main() {
   let total = 0;
   for (const file of files) {
     const raw = readFileSync(join(dir, file), "utf8");
+    // Strip line comments FIRST, then split on `;` at end-of-statement.
+    // Older split-then-strip order let a trailing `-- comment` after `;`
+    // keep the next statement attached, which Neon's prepared protocol
+    // rejects with "cannot insert multiple commands".
     const statements = raw
+      .replace(/--.*$/gm, "")
       .split(/;\s*\n/)
-      .map((s) => s.replace(/--.*$/gm, "").trim())
+      .map((s) => s.trim())
       .filter((s) => s.length > 0);
     console.log(`\n— ${file}`);
     for (const stmt of statements) {

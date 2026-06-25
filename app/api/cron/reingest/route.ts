@@ -43,17 +43,20 @@ export async function GET(request: NextRequest) {
       await sql.query(
         `INSERT INTO pages (url, title, meta_description, h1, content_text,
             content_type, course_type, category, subcategory, tags,
-            lastmod, embedding, token_count, crawled_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::vector,$13, now())
+            lastmod, embedding, token_count, crawled_at,
+            canonical_url, image_count, images_no_alt)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::vector,$13, now(), $14,$15,$16)
          ON CONFLICT (url) DO UPDATE SET
            title=EXCLUDED.title, meta_description=EXCLUDED.meta_description, h1=EXCLUDED.h1,
            content_text=EXCLUDED.content_text, content_type=EXCLUDED.content_type,
            course_type=EXCLUDED.course_type, category=EXCLUDED.category, subcategory=EXCLUDED.subcategory,
            tags=EXCLUDED.tags, lastmod=EXCLUDED.lastmod, embedding=EXCLUDED.embedding,
-           token_count=EXCLUDED.token_count, crawled_at=now()`,
+           token_count=EXCLUDED.token_count, crawled_at=now(),
+           canonical_url=EXCLUDED.canonical_url, image_count=EXCLUDED.image_count, images_no_alt=EXCLUDED.images_no_alt`,
         [e.url, page.title, page.metaDescription, page.h1, page.contentText.slice(0, 20000),
          t.contentType, t.courseType, t.category, t.subcategory, t.tags,
-         e.lastmod, toVectorLiteral(emb), estimateTokens(page.contentText)],
+         e.lastmod, toVectorLiteral(emb), estimateTokens(page.contentText),
+         page.canonicalUrl, page.imageCount, page.imagesNoAlt],
       );
       done++;
     } catch { failed++ }

@@ -6,6 +6,13 @@ export interface ExtractedPage {
   metaDescription: string | null;
   h1: string | null;
   contentText: string;
+  /** <link rel="canonical" href=""> if present. Surfaces canonical-tag bugs
+   *  in the audit view (#32). */
+  canonicalUrl: string | null;
+  /** Total <img> tag count and how many are missing or have empty alt text.
+   *  Surfaces image-SEO debt in the audit view (#41). */
+  imageCount: number;
+  imagesNoAlt: number;
 }
 
 /**
@@ -181,6 +188,18 @@ export function extractFromHtml(url: string, html: string): ExtractedPage {
     $("meta[property='og:description']").attr("content")?.trim() ||
     null;
   const h1 = $("h1").first().text().trim() || null;
+  const canonicalUrl = $("link[rel='canonical']").attr("href")?.trim() || null;
+
+  // Image SEO: count all <img> + how many have no alt (or alt="").
+  // Done BEFORE the noise strip so we count images inside content (.post-img)
+  // not just hero/decorative ones.
+  let imageCount = 0;
+  let imagesNoAlt = 0;
+  $("img").each((_, el) => {
+    imageCount++;
+    const alt = $(el).attr("alt");
+    if (!alt || !alt.trim()) imagesNoAlt++;
+  });
 
   const noise = NOISE_SELECTORS.join(",");
   $(noise).remove();
@@ -199,7 +218,7 @@ export function extractFromHtml(url: string, html: string): ExtractedPage {
 
   const contentText = normalizeWhitespace(root.text());
 
-  return { url, title, metaDescription, h1, contentText };
+  return { url, title, metaDescription, h1, contentText, canonicalUrl, imageCount, imagesNoAlt };
 }
 
 export function normalizeWhitespace(s: string): string {

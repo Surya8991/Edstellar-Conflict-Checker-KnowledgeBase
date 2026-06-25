@@ -2,15 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { neon } from "@neondatabase/serverless";
 import { google } from "googleapis";
 import { getAuthorizedClient, resolveSiteUrl } from "@/lib/gsc";
+import { log } from "@/lib/logger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 /**
- * Daily cron — snapshot yesterday's totals + branded vs non-branded into
- * gsc_daily_totals. Lets us compare arbitrary windows later, not just presets.
+ * Daily cron — three jobs in one:
+ *   1. Snapshot yesterday's totals + branded vs non-branded into
+ *      gsc_daily_totals (the legacy job).
+ *   2. Sync per-page last-28-day clicks/impressions/position onto the
+ *      pages row (powers business-impact severity scoring — #26).
+ *   3. Mark pages stale: gsc_clicks_28d < 5 AND lastmod older than 12 months
+ *      (powers the stale-content tab — #28).
  */
+const STALE_LASTMOD_DAYS = 365;
+const STALE_CLICKS_THRESHOLD = 5;
+
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (secret && request.headers.get("authorization") !== `Bearer ${secret}`) {
@@ -20,9 +29,12 @@ export async function GET(request: NextRequest) {
     const client = await getAuthorizedClient();
     if (!client) throw new Error("Not connected to GSC.");
     const siteUrl = await resolveSiteUrl(client);
-    const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+    const today = new Date();
+    const yesterday = new Date(today.getTime() - 86_400_000).toISOString().slice(0, 10);
+    const twentyEightDaysAgo = new Date(today.getTime() - 28 * 86_400_000).toISOString().slice(0, 10);
     const webmasters = google.webmasters({ version: "v3", auth: client });
 
+    // --- Job 1: daily snapshot (unchanged) ----------------------------------
     const byDate = await webmasters.searchanalytics.query({
       siteUrl,
       requestBody: { startDate: yesterday, endDate: yesterday, dimensions: ["date"], rowLimit: 1 },
@@ -56,8 +68,82 @@ export async function GET(request: NextRequest) {
       [siteUrl, yesterday, day?.clicks ?? 0, day?.impressions ?? 0,
        day?.ctr ?? 0, day?.position ?? 0, bc, bi],
     );
-    return NextResponse.json({ date: yesterday, clicks: day?.clicks ?? 0, branded_clicks: bc });
+
+    // --- Job 2: sync per-page 28d totals onto pages -------------------------
+    // One pageful at a time (GSC caps at 25k rows per call).
+    const byPage = await webmasters.searchanalytics.query({
+      siteUrl,
+      requestBody: {
+        startDate: twentyEightDaysAgo,
+        endDate: yesterday,
+        dimensions: ["page"],
+        rowLimit: 25000,
+      },
+    });
+    const rows = byPage.data.rows ?? [];
+
+    // Batch UNNEST UPDATE — same pattern as audit-links.
+    const urls: string[] = [];
+    const clicks: number[] = [];
+    const impressions: number[] = [];
+    const positions: number[] = [];
+    for (const r of rows) {
+      const url = r.keys?.[0];
+      if (!url) continue;
+      urls.push(url);
+      clicks.push(Math.round(r.clicks ?? 0));
+      impressions.push(Math.round(r.impressions ?? 0));
+      positions.push(Number((r.position ?? 0).toFixed(2)));
+    }
+    let pagesSynced = 0;
+    if (urls.length) {
+      const result = (await sql.query(
+        `UPDATE pages
+            SET gsc_clicks_28d      = data.clicks,
+                gsc_impressions_28d = data.impressions,
+                gsc_position_28d    = data.position,
+                gsc_synced_at       = now()
+           FROM (SELECT unnest($1::text[]) AS url,
+                        unnest($2::int[])  AS clicks,
+                        unnest($3::int[])  AS impressions,
+                        unnest($4::real[]) AS position) AS data
+          WHERE pages.url = data.url
+          RETURNING pages.id`,
+        [urls, clicks, impressions, positions],
+      )) as any[];
+      pagesSynced = result.length;
+    }
+
+    // --- Job 3: mark stale pages -------------------------------------------
+    // "Stale" = low 28-day traffic AND lastmod older than threshold.
+    // Reset everyone first so pages that have RECOVERED unflag.
+    await sql.query("UPDATE pages SET is_stale = false, stale_reason = NULL");
+    const staleResult = (await sql.query(
+      `UPDATE pages
+          SET is_stale = true,
+              stale_reason = $3
+        WHERE (gsc_clicks_28d IS NOT NULL AND gsc_clicks_28d < $1)
+          AND (lastmod IS NULL OR lastmod::date < (now() - ($2 || ' days')::interval)::date)
+          AND content_type IN ('blog','course','category','subcategory')
+        RETURNING id`,
+      [STALE_CLICKS_THRESHOLD, String(STALE_LASTMOD_DAYS), `low traffic (<${STALE_CLICKS_THRESHOLD} clicks/28d) + lastmod > ${STALE_LASTMOD_DAYS}d`],
+    )) as any[];
+
+    log.info("gsc snapshot complete", {
+      date: yesterday,
+      clicks: day?.clicks ?? 0,
+      pages_synced: pagesSynced,
+      stale_count: staleResult.length,
+    });
+    return NextResponse.json({
+      date: yesterday,
+      clicks: day?.clicks ?? 0,
+      branded_clicks: bc,
+      pages_synced: pagesSynced,
+      stale_count: staleResult.length,
+    });
   } catch (e) {
+    log.error("gsc snapshot failed", { error: (e as Error).message });
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
 }

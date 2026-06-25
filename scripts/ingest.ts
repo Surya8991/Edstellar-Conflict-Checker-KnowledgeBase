@@ -84,8 +84,9 @@ async function main() {
           `INSERT INTO pages
              (url, title, meta_description, h1, content_text,
               content_type, course_type, category, subcategory, tags,
-              lastmod, embedding, token_count, crawled_at)
-           VALUES ($1,$2,$3,$4,$5, $6,$7,$8,$9,$10, $11,$12::vector,$13, now())
+              lastmod, embedding, token_count, crawled_at,
+              canonical_url, image_count, images_no_alt)
+           VALUES ($1,$2,$3,$4,$5, $6,$7,$8,$9,$10, $11,$12::vector,$13, now(), $14,$15,$16)
            ON CONFLICT (url) DO UPDATE SET
              title = EXCLUDED.title,
              meta_description = EXCLUDED.meta_description,
@@ -99,7 +100,10 @@ async function main() {
              lastmod = EXCLUDED.lastmod,
              embedding = EXCLUDED.embedding,
              token_count = EXCLUDED.token_count,
-             crawled_at = now()`,
+             crawled_at = now(),
+             canonical_url = EXCLUDED.canonical_url,
+             image_count = EXCLUDED.image_count,
+             images_no_alt = EXCLUDED.images_no_alt`,
           [
             entry.url,
             page.title,
@@ -114,6 +118,9 @@ async function main() {
             entry.lastmod,
             vec,
             estimateTokens(page.contentText),
+            page.canonicalUrl,
+            page.imageCount,
+            page.imagesNoAlt,
           ],
         );
         done++;

@@ -6,6 +6,7 @@ import {
   real,
   timestamp,
   vector,
+  boolean,
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
@@ -34,6 +35,17 @@ export const pages = pgTable(
     tokenCount: integer("token_count"),
     crawledAt: timestamp("crawled_at"),
     createdAt: timestamp("created_at").defaultNow(),
+    // Added in 0004_seo_columns.sql — SEO-features sprint.
+    ownerUrl: text("owner_url"),
+    gscClicks28d: integer("gsc_clicks_28d"),
+    gscImpressions28d: integer("gsc_impressions_28d"),
+    gscPosition28d: real("gsc_position_28d"),
+    gscSyncedAt: timestamp("gsc_synced_at"),
+    canonicalUrl: text("canonical_url"),
+    imageCount: integer("image_count"),
+    imagesNoAlt: integer("images_no_alt"),
+    isStale: boolean("is_stale").default(false),
+    staleReason: text("stale_reason"),
   },
   (t) => [
     uniqueIndex("pages_url_idx").on(t.url),
@@ -57,6 +69,10 @@ export const checks = pgTable("checks", {
   topScore: real("top_score"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
+  // Added in 0004_seo_columns.sql — shipped/blocked reporting.
+  verdict: text("verdict"),
+  outcome: text("outcome"),
+  resolvedAt: timestamp("resolved_at"),
 });
 
 /** Per-check ranked matches against the corpus. */

@@ -22,6 +22,14 @@ export interface ConflictMatchResult {
   overlap?: string[];
   /** Plain-language SEO issue summary. */
   issue?: string;
+  /** Editorial owner URL for the matched page's topic, if set. When non-null
+   *  + different from the matched URL, the matched page is a non-owner and
+   *  the suggested action is "redirect to ownerUrl" (#25). */
+  ownerUrl?: string | null;
+  /** 28-day GSC clicks on the matched page — drives business-impact
+   *  severity hint. Null when GSC isn't connected or page has no traffic. */
+  gscClicks28d?: number | null;
+  gscImpressions28d?: number | null;
 }
 
 export interface ConflictCheckResult {
@@ -39,6 +47,23 @@ export interface ConflictCheckResult {
 
 function isUrl(value: string): boolean {
   return /^https?:\/\//i.test(value.trim());
+}
+
+/**
+ * Impact-weighted match score. The base conflict score (0..100) gets a
+ * multiplier between 1.0 and 2.0 based on the matched page's last-28-day
+ * GSC clicks — so high-traffic pages float to the top of the result list
+ * even when their raw similarity score is a hair lower. Owner pages get a
+ * +0.25 bump on top because cannibalizing the editorial winner is the
+ * worst outcome.
+ *
+ * Multiplier scale (clicks → factor): 0→1.0, 100→1.25, 1000→1.5, 10k→2.0.
+ */
+function impactWeighted(m: ConflictMatchResult): number {
+  const clicks = m.gscClicks28d ?? 0;
+  const trafficBoost = clicks <= 0 ? 0 : Math.min(1, Math.log10(clicks + 1) / 4);
+  const ownerBoost = m.ownerUrl && m.ownerUrl === m.url ? 0.25 : 0;
+  return m.conflictScore * (1 + trafficBoost + ownerBoost);
 }
 
 export interface ConflictCheckOpts {
@@ -136,9 +161,14 @@ export async function runConflictCheck(
         rationale: v?.rationale ?? "",
         overlap: v?.overlap,
         issue: v?.issue,
+        ownerUrl: m.ownerUrl,
+        gscClicks28d: m.gscClicks28d,
+        gscImpressions28d: m.gscImpressions28d,
       };
     })
-    .sort((a, b) => b.conflictScore - a.conflictScore);
+    // Sort by impact-weighted score: a 70%-conflict with a 12k-clicks/mo page
+    // outranks a 90%-conflict with a dead page. (#26)
+    .sort((a, b) => impactWeighted(b) - impactWeighted(a));
 
   const topScore = matches.length ? matches[0].conflictScore : 0;
 

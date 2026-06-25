@@ -20,7 +20,9 @@ export async function GET(request: NextRequest) {
     const like = `%${q}%`;
     const rows = await db.execute(sql`
       SELECT id, url, title, content_type, course_type, category, subcategory,
-             tags, lastmod, token_count, (embedding IS NOT NULL) AS embedded
+             tags, lastmod, token_count, (embedding IS NOT NULL) AS embedded,
+             owner_url, gsc_clicks_28d, gsc_impressions_28d, gsc_position_28d,
+             canonical_url, image_count, images_no_alt, is_stale, stale_reason
       FROM pages
       WHERE (${q}          = '' OR title ILIKE ${like} OR url ILIKE ${like})
         AND (${type}       = '' OR content_type = ${type})
