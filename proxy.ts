@@ -19,37 +19,52 @@
 import { NextResponse } from "next/server";
 import { auth, isAuthEnabled } from "@/auth";
 
-const PUBLIC_PREFIXES = [
+/**
+ * Public-path contract — audit S5/H2 (Session 6).
+ *
+ * Each entry is matched as either an exact path (`pathname === entry`) or as
+ * a strict prefix (`pathname.startsWith(entry + "/")`). The trailing slash is
+ * IMPORTANT: without it, `"/api/auth"` would also bypass auth for any future
+ * route whose name starts with that string (e.g. `/api/authentication-overview`),
+ * and `"/api/check"` would bypass `/api/checkx`. Anchor every prefix.
+ */
+const PUBLIC_PATHS = [
   "/signin",
-  "/api/auth",
-  "/api/cron",
-  "/api/check",      // protected by WEBHOOK_API_KEY when set; rate-limited otherwise
+  "/api/auth",            // NextAuth handlers (subroutes match via prefix rule)
+  "/api/cron",            // each cron route enforces its own CRON_SECRET
+  "/api/check",           // protected by WEBHOOK_API_KEY when set; rate-limited otherwise
   "/api/check/bulk",
+  "/api/summarize",       // gated by WEBHOOK_API_KEY + rate-limit (audit S3, Batch 1B)
+  "/api/rewrite-suggestion", // gated by WEBHOOK_API_KEY + rate-limit (audit S3, Batch 1B)
   "/icon",
   "/apple-icon",
   "/opengraph-image",
   "/robots.txt",
   "/manifest.webmanifest",
-  "/brand",          // public/brand/* — logos used on the sign-in page itself,
-                     // so they MUST resolve for an unauthenticated browser
-                     // (otherwise the proxy redirects the <img> to /signin HTML
-                     // and the image renders as broken).
+  "/brand",               // public/brand/* — logos used on the sign-in page itself
 ];
 
-// Anything that looks like a static asset (has a file extension) is also
-// bypassed — covers future cases where someone drops a file in public/.
-const STATIC_ASSET_RE = /\.[a-z0-9]{2,6}$/i;
+function isPublicPath(pathname: string): boolean {
+  for (const entry of PUBLIC_PATHS) {
+    if (pathname === entry) return true;
+    if (pathname.startsWith(entry + "/")) return true;
+  }
+  return false;
+}
+
+/**
+ * Audit H2 — replaced the wide `\.[a-z0-9]{2,6}$/i` regex with an explicit
+ * allow-list of common static-asset extensions so future routes like
+ * `/api/export.json` or `/dashboard/report.pdf` do not silently become public.
+ */
+const STATIC_ASSET_RE = /\.(png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|otf|eot|css|js|map|txt|xml)$/i;
 
 export default auth((req) => {
   if (!isAuthEnabled()) return NextResponse.next();
 
   const { pathname } = req.nextUrl;
-  if (PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) {
-    return NextResponse.next();
-  }
-  if (STATIC_ASSET_RE.test(pathname)) {
-    return NextResponse.next();
-  }
+  if (isPublicPath(pathname)) return NextResponse.next();
+  if (STATIC_ASSET_RE.test(pathname)) return NextResponse.next();
 
   if (req.auth) return NextResponse.next();
 

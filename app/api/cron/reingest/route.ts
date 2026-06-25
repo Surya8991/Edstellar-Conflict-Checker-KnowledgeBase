@@ -13,16 +13,15 @@ import { fetchAndExtract, estimateTokens } from "@/lib/extract";
 import { tagUrl } from "@/lib/taxonomy";
 import { getEmbedder } from "@/lib/ai";
 import { toVectorLiteral } from "@/lib/search";
+import { requireCronAuth } from "@/lib/cron-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 export async function GET(request: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (secret && request.headers.get("authorization") !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const unauth = requireCronAuth(request);
+  if (unauth) return unauth;
   const sql = neon(process.env.DATABASE_URL!);
   const embedder = getEmbedder();
   const entries = readSitemapCsv();
