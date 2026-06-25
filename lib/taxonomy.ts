@@ -21,7 +21,6 @@ export interface PageTags {
     | "location"
     | "excellence-program"
     | "pillar"
-    | "home"
     | "static";
   courseType: string | null;
   category: string | null;
@@ -120,9 +119,11 @@ export function tagUrl(url: string, title?: string | null): PageTags {
     }
   })();
 
-  // 1. Home
+  // 1. Home — classified as a static page (one-off tile in the corpus UI
+  //    wasn't useful at N=1). The "home" tag is kept so it's still
+  //    distinguishable in tag filters.
   if (path === "/" || path === "") {
-    return base("home", ["home"]);
+    return base("static", ["home"]);
   }
 
   // 2. Course detail page (exact catalog match)
