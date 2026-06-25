@@ -693,6 +693,58 @@ batches, paid-key items deferred to §9E. Seven batches landed
 **Backlog gives the next ~10-15 commits a clear runway** without
 needing new external services.
 
+**Session 5 continuation — 9C-cleanup batch (`91f6b3f` → `955b11c`)**
+
+H1 (`91f6b3f`) — code hygiene:
+- `lib/db/exec.ts` `rowsOf<T>()` helper kills the `(x as any).rows ?? x`
+  cast pattern that papered over Drizzle's inconsistent return shape.
+  Applied across `lib/search.ts`, `app/api/pages/route.ts`,
+  `lib/conflict.ts`. (#5)
+- Zod schemas (`SummarySchema`, `VerdictSchema`, `VerdictsSchema`,
+  `CompetitorSchema`) validate every LLM response shape in
+  `lib/ai/chat-base.ts`. Z.enum on `conflictType` blocks hallucinated
+  values that the LLM occasionally invents (e.g. "mild-overlap").
+  Failure paths fall back to defensive defaults instead of NaN-ing
+  downstream `blendScore()`. (#6)
+- `/api/cron/reingest` returns 500 when `failed/(done+failed) > 0.25`;
+  `/api/cron/audit-links` returns 500 when `broken/checked > 0.30`.
+  `gsc-snapshot` already 5xx's via its catch. Vercel cron dashboard
+  now flags partial failures. (#10)
+
+H2 (`0fc9890`) — topic-cluster health (#43):
+- New `Clusters` tab on `/audit`. SQL groups by (`course_type`,
+  `category`) with FILTER aggregates. Editorial-debt score
+  `max(0, courses/3 - blogs)` surfaces clusters where the team has
+  product pages but no awareness content. Red blog count when 0,
+  amber/red debt chip when > 0.
+
+H3 (`a70c867`) — SERP PAA + answer box (#39):
+- `SerpOverlapResult` gains `peopleAlsoAsk[]` (question + snippet)
+  and `answerBox`. Serper was already returning them.
+- `/api/suggestions/new-content` response surfaces `serp.peopleAlsoAsk`
+  + `serp.answerBox`.
+- New "Questions to address" card on `/conflict-checker` below the
+  angles grid.
+- `copyWriterBrief` adds `## Questions to address (Google PAA)` +
+  `## Current featured snippet on this topic` sections. Writers
+  asked; data was free.
+
+H4 (`955b11c`) — paragraph-level link insertion (#44):
+- New `POST /api/internal-links/paragraph`. Body accepts URL, free
+  text, or pre-split `paragraphs[]`. URL → 5-sentence chunks; text →
+  blank-line split with 80-char minimum. 40-paragraph cap, 1-6
+  suggestions per paragraph. Zod + rate-limit 20/5min per IP.
+- `/internal-links` page gets a "Whole page" / "Per paragraph" pill
+  toggle. Per-paragraph mode renders one Card per paragraph with a
+  preview text + suggestions list.
+- Help-content entry rewritten for both modes.
+
+**All free-path backlog items shipped.** Remaining open in §9:
+- #18 (terminology consistency) — intentional in some surfaces.
+- #33 (NextAuth + Google SSO) — needs OAuth consent screen out of
+  testing mode; user action.
+- All of §9E (paid-key items) — lift when funded.
+
 ---
 
 ## 5. Roadmap — features designed but not yet built
