@@ -137,6 +137,7 @@ The audit below surfaced four things that need attention **before** the first pr
 ├── reference/                 ← Static artifacts (Intelligence Hub HTML)
 ├── README.md                  ← (this file)
 ├── VERCEL_GITHUB_GUIDE.md     ← Plain-English deploy + update walkthrough
+├── PRE_PUSH_CHECKLIST.md      ← Run through before every push to main
 ├── PROJECTLOG.md              ← Session-by-session shipping log
 ├── SETUP_GUIDE.md             ← Long-form .env setup walkthrough
 ├── AGENTS.md / CLAUDE.md      ← Notes for AI coding agents working in this repo

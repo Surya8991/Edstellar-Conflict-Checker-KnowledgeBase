@@ -775,6 +775,22 @@ in future sessions):
   (update-before-create, owner-page assignment). Items 25 + 33 + 34 are how
   we'd close that gap.
 
+### 9E. Future upgrades — deferred until a paid key is added
+
+These items need a paid service the team hasn't signed up for. They're
+not blocked technically — only blocked on a procurement decision.
+
+| # | Item | Service needed | Approx cost | Notes |
+|---|---|---|---|---|
+| §5C-a | Backlink intelligence | DataForSEO / Ahrefs / Moz | $50–$200/mo+ | Adds the "third pillar" referenced in 9D — rank tracking. |
+| 8 (prior list) | OpenAI embeddings switch | OpenAI | ~$1-2 one-off, then ~$0.02/1M tok | Kills the 8–15s `bge-small` cold-start. Current local embedder works at our scale. |
+| #29 + #31 + #40 + #42 at scale | Serper Pro | $50/mo (50k searches) | Free tier (2,500/mo) covers light use; Pro unlocks heavy SERP-feature audits. |
+| §5C-b | CMS title/meta editor (write-back) | Edstellar CMS API + a key for whatever CMS they use | Variable | Replaces the manual-copy workflow today. |
+| §5C-c | Pagespeed / CWV at scale | Google Cloud Pagespeed Insights API key | Free up to 25k/day after Cloud project setup | CrUX public works keyless for popular URLs. |
+
+When any of these are funded, lift the relevant items from 9E + their
+referenced backlog rows up into a new session-log entry and ship.
+
 ### Sources (web research, 2026-06-25)
 
 - TopicalMap.ai — [Best Keyword Cannibalization Checker Tools 2026](https://topicalmap.ai/blog/auto/keyword-cannibalization-checker-tools-2026)
