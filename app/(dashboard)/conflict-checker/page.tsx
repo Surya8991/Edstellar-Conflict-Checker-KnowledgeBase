@@ -286,13 +286,22 @@ export default function ConflictCheckerPage() {
         {result && (
           <>
             <Card>
-              <div className="mb-2 flex items-center justify-between">
+              <div className="mb-2 flex items-center justify-between gap-3">
                 <h2 className="text-sm font-semibold text-slate-900">
                   Summary <span className="ml-1 text-xs font-normal text-slate-400">({result.inputType})</span>
                 </h2>
-                <div className="flex items-center gap-2 text-xs text-slate-500">
+                <div className="flex items-center gap-3 text-xs text-slate-500">
                   Highest conflict
                   <span className="font-semibold text-slate-900">{result.topScore}%</span>
+                  {result.checkId && (
+                    <button
+                      onClick={() => copyShareLink(result.checkId!)}
+                      className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-slate-600 hover:bg-slate-50"
+                      title={`Share check #${result.checkId}`}
+                    >
+                      Copy share link
+                    </button>
+                  )}
                 </div>
               </div>
               <p className="text-sm leading-relaxed text-slate-700">{result.summary || "—"}</p>
@@ -960,5 +969,13 @@ function copyWriterBrief(result: CheckResult | null, suggestions: any, serp?: an
       toast.error(
         `Couldn't copy to clipboard: ${(err as Error).message || "unknown error"}`,
       ),
+  );
+}
+
+function copyShareLink(checkId: number) {
+  const url = `${window.location.origin}/check/${checkId}`;
+  navigator.clipboard.writeText(url).then(
+    () => toast.success(`Share link copied — /check/${checkId}`),
+    () => toast.error("Couldn't copy link to clipboard."),
   );
 }
