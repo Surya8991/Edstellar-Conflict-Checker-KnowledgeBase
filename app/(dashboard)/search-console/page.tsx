@@ -27,6 +27,7 @@ const TABS = [
   "Overview",
   "Cannibalization",
   "Striking Distance",
+  "CTR Opportunity",
   "Movers",
   "Untapped",
   "Catalog Gap",
@@ -250,6 +251,7 @@ function SearchConsoleInner() {
         {data && tab === "Overview" && <OverviewTab data={data} range={range} />}
         {data && tab === "Cannibalization" && <CannibalTab data={data} />}
         {data && tab === "Striking Distance" && <StrikingTab data={data} />}
+        {data && tab === "CTR Opportunity" && <CtrOppTab data={data} />}
         {data && tab === "Movers" && <MoversTab data={data} />}
         {data && tab === "Untapped" && <UntappedTab data={data} />}
         {data && tab === "Catalog Gap" && <GapTab data={data} />}
@@ -520,6 +522,62 @@ function StrikingTab({ data }: { data: Insights }) {
           fmt(r.clicks),
           (r.ctr * 100).toFixed(1) + "%",
           fmt(r.potentialClicks),
+        ])}
+      />
+    </Card>
+  );
+}
+
+function CtrOppTab({ data }: { data: Insights }) {
+  // CTR opportunity = queries on page 1 (pos 1-10) where the CTR is well
+  // below what GSC typically sees at that position. The simple heuristic:
+  //   expected CTR at position p ≈ 0.3 / p  (rough industry curve)
+  // Underperformance = clicks / impressions < 0.5 * expected_at_pos.
+  // Need >= 200 impressions / 28d to avoid noise.
+  const rows = (data.topQueries ?? [])
+    .filter((r: any) => r.impressions >= 200 && r.position <= 10 && r.position >= 1)
+    .map((r: any) => {
+      const expected = Math.min(0.35, 0.3 / Math.max(1, r.position));
+      const gap = expected - r.ctr;
+      const potential = Math.max(0, Math.round(expected * r.impressions) - r.clicks);
+      return { ...r, expected, gap, potential };
+    })
+    .filter((r: any) => r.gap > 0.005 && r.potential >= 5)
+    .sort((a: any, b: any) => b.potential - a.potential);
+
+  if (!rows.length)
+    return <EmptyState text="No clear CTR opportunities — every page-1 query is performing near its expected CTR." />;
+
+  return (
+    <Card>
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900">CTR opportunity</h3>
+          <p className="text-xs text-slate-500">Queries already on page 1 with sub-curve click-through. Title / meta rewrites here move the needle without touching rankings.</p>
+        </div>
+        <ExportBtn
+          onClick={() =>
+            downloadCsv("ctr-opportunity.csv",
+              ["query","position","impressions","clicks","ctr","expected_ctr","missed_clicks"],
+              rows.map((r: any) => [
+                r.query, r.position.toFixed(1), r.impressions, r.clicks,
+                (r.ctr*100).toFixed(2)+"%",
+                (r.expected*100).toFixed(2)+"%",
+                r.potential,
+              ]))
+          }
+        />
+      </div>
+      <SimpleTable
+        cols={["Query","Pos","Impr","Clicks","CTR","Expected","Missed clicks"]}
+        rows={rows.map((r: any) => [
+          r.query,
+          r.position.toFixed(1),
+          fmt(r.impressions),
+          fmt(r.clicks),
+          (r.ctr * 100).toFixed(1) + "%",
+          (r.expected * 100).toFixed(1) + "%",
+          fmt(r.potential),
         ])}
       />
     </Card>
