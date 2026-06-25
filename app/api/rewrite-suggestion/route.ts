@@ -2,10 +2,17 @@
  * POST /api/rewrite-suggestion
  * Body: { input, conflicts: [{title, url, rationale}], summary? }
  *
- * Given a draft + the high-score conflicting pages, ask the LLM how to
- * differentiate (new angle, different audience, different keyword cluster).
+ * Audit S6 (Session 6): the previous implementation abused chat.summarize()
+ * to coax a {diagnosis,angles,decision} JSON shape out of the LLM, parsing
+ * the result out of the `searchSynopsis` field. It worked maybe 10% of the
+ * time. Now uses chat.proposeRewrite() — a structured-output method with
+ * zod-validated schema, dedicated prompt, and prompt-injection delimiters.
+ *
+ * Auth/rate-limit: gateLlmEndpoint() — WEBHOOK_API_KEY OR per-IP rate-limit
+ * (audit S3).
  */
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { getChat } from "@/lib/ai";
 import { gateLlmEndpoint } from "@/lib/api-gate";
 
@@ -13,40 +20,42 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+const ConflictSchema = z.object({
+  title: z.string().max(500).default(""),
+  url: z.string().max(1000),
+  rationale: z.string().max(2000).optional(),
+});
+
+const BodySchema = z.object({
+  input: z.string().trim().min(1).max(4000),
+  summary: z.string().max(2000).optional(),
+  conflicts: z.array(ConflictSchema).max(20).default([]),
+});
+
 export async function POST(request: NextRequest) {
   const gate = await gateLlmEndpoint(request, "rewrite-suggestion");
   if (gate) return gate;
   try {
-    const body = await request.json().catch(() => ({}));
-    const input = (body.input ?? "").toString().trim();
-    const conflicts: { title: string; url: string; rationale?: string }[] =
-      Array.isArray(body.conflicts) ? body.conflicts.slice(0, 5) : [];
-    const summary = (body.summary ?? "").toString();
-    if (!input) return NextResponse.json({ error: "Missing 'input'." }, { status: 400 });
-
-    const chat = getChat();
-    const prompt =
-      `A new piece of content is being planned:\n\n` +
-      `INPUT: ${input}\n` +
-      (summary ? `SUMMARY: ${summary}\n\n` : "\n") +
-      `It overlaps with these existing Edstellar pages:\n` +
-      conflicts.map((c, i) =>
-        `${i + 1}. ${c.title || "(untitled)"} — ${c.url}\n   why: ${c.rationale || "(no rationale)"}`,
-      ).join("\n") +
-      `\n\nReturn JSON of the form ` +
-      `{"diagnosis": string, "angles": [{"angle": string, "audience": string, "primaryKeyword": string}], "decision": "rewrite"|"merge"|"skip"}.` +
-      ` Suggest 3 clearly distinct angles that would not cannibalize the listed pages. Keep "diagnosis" under 60 words.`;
-
-    // Reuse summarize() as a generic LLM call (low ceremony).
-    const r = await chat.summarize({ content: prompt, isTopic: true });
-    // The provider's summarize already returns JSON-ish in `searchSynopsis`;
-    // try parsing, otherwise return the raw text.
-    let parsed: any = null;
-    try { parsed = JSON.parse(r.searchSynopsis) } catch {
-      try { parsed = JSON.parse(r.summary) } catch { /* keep null */ }
+    const raw = await request.json().catch(() => ({}));
+    const parsed = BodySchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid request body.", issues: parsed.error.issues },
+        { status: 400 },
+      );
     }
-    return NextResponse.json(parsed ?? { raw: r.summary });
+    const body = parsed.data;
+    const chat = getChat();
+    const proposal = await chat.proposeRewrite({
+      input: body.input,
+      summary: body.summary,
+      conflicts: body.conflicts,
+    });
+    return NextResponse.json(proposal);
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return NextResponse.json(
+      { error: (e as Error).message || "Rewrite suggestion failed." },
+      { status: 500 },
+    );
   }
 }

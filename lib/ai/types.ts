@@ -32,6 +32,29 @@ export interface SummaryResult {
   primaryQuery?: string;
 }
 
+/** Input to `proposeRewrite` — a draft + the conflicting existing pages. */
+export interface RewriteProposalInput {
+  /** The draft / topic / URL the user is planning to publish. */
+  input: string;
+  /** Optional summary of the draft if /api/summarize already ran. */
+  summary?: string;
+  /** Top conflicting pages (capped at 5 by the route). */
+  conflicts: { title: string; url: string; rationale?: string }[];
+}
+
+export interface RewriteAngle {
+  angle: string;
+  audience: string;
+  primaryKeyword: string;
+}
+
+/** Audit S6 (Session 6): proper structured output for /api/rewrite-suggestion. */
+export interface RewriteProposal {
+  diagnosis: string;
+  angles: RewriteAngle[];
+  decision: "rewrite" | "merge" | "skip";
+}
+
 export interface ChatProvider {
   readonly name: string;
   /** Raw chat completion for prompts that don't fit the summarize/classify
@@ -57,4 +80,7 @@ export interface ChatProvider {
     title?: string;
     content: string;
   }): Promise<{ summary: string; angle: string }>;
+  /** Audit S6 (Session 6): structured-output rewrite plan for a draft that
+   *  collides with existing pages. Replaces the prior misuse of summarize(). */
+  proposeRewrite(input: RewriteProposalInput): Promise<RewriteProposal>;
 }
