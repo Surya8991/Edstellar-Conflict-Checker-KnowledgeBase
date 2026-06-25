@@ -584,14 +584,13 @@ function KeywordList({
   showClicks?: boolean;
 }) {
   const headerColor = accent === "emerald" ? "text-emerald-700" : "text-slate-500";
-  const metricColor = accent === "emerald" ? "text-emerald-700" : "text-slate-500";
   const badgeColor =
     accent === "emerald"
       ? "bg-emerald-100 text-emerald-700"
       : "bg-slate-100 text-slate-600";
   return (
     <div>
-      <div className={`mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider ${headerColor}`}>
+      <div className={`mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider ${headerColor}`}>
         <span>{label}</span>
         {badge && (
           <span className={`rounded px-1 py-0.5 text-[9px] font-bold normal-case ${badgeColor}`}>
@@ -602,22 +601,28 @@ function KeywordList({
       {rows.length === 0 ? (
         <div className="text-xs text-slate-400">{empty}</div>
       ) : (
-        <ul className="divide-y divide-slate-100 text-xs">
-          {rows.map((q) => (
-            <li
-              key={q.query}
-              className="grid grid-cols-1 gap-x-3 py-1 sm:grid-cols-[1fr_auto] sm:items-baseline"
-            >
-              <span className="break-words text-slate-700">{q.query}</span>
-              <span className={`tabular-nums text-[11px] ${metricColor}`}>
-                pos {q.position.toFixed(1)}
-                {showClicks ? ` · ${q.clicks} clk` : ""}
-                {" · "}
-                {q.impressions.toLocaleString()} impr
-              </span>
-            </li>
-          ))}
-        </ul>
+        <table className="w-full table-fixed text-xs">
+          <thead>
+            <tr className="border-b border-slate-200 text-slate-400">
+              <th className="py-1 pr-2 text-left font-medium">Query</th>
+              <th className="w-10 py-1 text-right font-medium">Pos</th>
+              {showClicks && <th className="w-10 py-1 text-right font-medium">Clk</th>}
+              <th className="w-14 py-1 pl-2 text-right font-medium">Impr</th>
+            </tr>
+          </thead>
+          <tbody className="text-slate-700">
+            {rows.map((q) => (
+              <tr key={q.query} className="border-b border-slate-50 last:border-0">
+                <td className="break-words py-1 pr-2 align-top">{q.query}</td>
+                <td className="py-1 text-right align-top tabular-nums">{q.position.toFixed(1)}</td>
+                {showClicks && <td className="py-1 text-right align-top tabular-nums">{q.clicks}</td>}
+                <td className="py-1 pl-2 text-right align-top tabular-nums text-slate-500">
+                  {q.impressions.toLocaleString()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );
@@ -727,32 +732,42 @@ function MatchCard({
           + keyword lists on the right. Both share the same top divider
           rule so they read as one section. */}
       {stat && (
-        <div className="mt-4 grid grid-cols-1 gap-x-8 gap-y-4 border-t border-slate-100 pt-4 lg:grid-cols-[200px_1fr]">
+        <div className="mt-4 grid grid-cols-1 gap-x-8 gap-y-4 border-t border-slate-100 pt-4 lg:grid-cols-2">
           <div>
-            <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
               GSC performance
             </div>
-            <dl className="grid grid-cols-[1fr_auto_auto] items-baseline gap-x-3 gap-y-1.5 text-xs">
-              <dt></dt>
-              <dt className="text-right font-medium text-slate-400">6m</dt>
-              <dt className="text-right font-medium text-slate-400">12m</dt>
-
-              <dt className="text-slate-500">Clicks</dt>
-              <dd className="text-right font-semibold tabular-nums text-slate-900">{stat.m6.clicks}</dd>
-              <dd className="text-right font-semibold tabular-nums text-slate-900">{stat.m12.clicks}</dd>
-
-              <dt className="text-slate-500">Impressions</dt>
-              <dd className="text-right tabular-nums text-slate-700">{stat.m6.impressions.toLocaleString()}</dd>
-              <dd className="text-right tabular-nums text-slate-700">{stat.m12.impressions.toLocaleString()}</dd>
-
-              <dt className="text-slate-500">CTR</dt>
-              <dd className="text-right tabular-nums text-slate-700">{(stat.m6.ctr * 100).toFixed(2)}%</dd>
-              <dd className="text-right tabular-nums text-slate-700">{(stat.m12.ctr * 100).toFixed(2)}%</dd>
-
-              <dt className="text-slate-500">Position</dt>
-              <dd className="text-right tabular-nums text-slate-700">{stat.m6.position.toFixed(1)}</dd>
-              <dd className="text-right tabular-nums text-slate-700">{stat.m12.position.toFixed(1)}</dd>
-            </dl>
+            <table className="w-full table-fixed text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 text-slate-400">
+                  <th className="py-1 pr-2 text-left font-medium">Metric</th>
+                  <th className="py-1 text-right font-medium">6m</th>
+                  <th className="py-1 pl-2 text-right font-medium">12m</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-slate-50">
+                  <td className="py-1 pr-2 text-slate-500">Clicks</td>
+                  <td className="py-1 text-right font-semibold tabular-nums text-slate-900">{stat.m6.clicks}</td>
+                  <td className="py-1 pl-2 text-right font-semibold tabular-nums text-slate-900">{stat.m12.clicks}</td>
+                </tr>
+                <tr className="border-b border-slate-50">
+                  <td className="py-1 pr-2 text-slate-500">Impressions</td>
+                  <td className="py-1 text-right tabular-nums text-slate-700">{stat.m6.impressions.toLocaleString()}</td>
+                  <td className="py-1 pl-2 text-right tabular-nums text-slate-700">{stat.m12.impressions.toLocaleString()}</td>
+                </tr>
+                <tr className="border-b border-slate-50">
+                  <td className="py-1 pr-2 text-slate-500">CTR</td>
+                  <td className="py-1 text-right tabular-nums text-slate-700">{(stat.m6.ctr * 100).toFixed(2)}%</td>
+                  <td className="py-1 pl-2 text-right tabular-nums text-slate-700">{(stat.m12.ctr * 100).toFixed(2)}%</td>
+                </tr>
+                <tr>
+                  <td className="py-1 pr-2 text-slate-500">Position</td>
+                  <td className="py-1 text-right tabular-nums text-slate-700">{stat.m6.position.toFixed(1)}</td>
+                  <td className="py-1 pl-2 text-right tabular-nums text-slate-700">{stat.m12.position.toFixed(1)}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
 
           <div className="space-y-3.5">
