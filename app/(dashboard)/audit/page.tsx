@@ -73,7 +73,7 @@ export default function AuditPage() {
 
 function MetaTab({ rows, flagFilter, onFlagFilter }: { rows: any[]; flagFilter: string; onFlagFilter: (s: string) => void }) {
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(100);
   useEffect(() => { setPage(1) }, [flagFilter]);
 
   const allFlags = Array.from(new Set(rows.flatMap((r) => r.flags ?? []))).sort();
@@ -154,7 +154,7 @@ function statusStyle(s: number): string {
 
 function LinksTab({ rows, audited, breakdown }: { rows: any[]; audited: number; breakdown?: LinkBreakdown }) {
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(100);
   const [band, setBand] = useState<LinkBand>("all");
 
   const total = audited ?? 0;
@@ -297,7 +297,7 @@ function bandOf(h: number): Exclude<Band, "all"> {
 
 function HealthTab({ rows }: { rows: any[] }) {
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(100);
   // Lower bound — show pages with health >= minHealth. Default 0 = all rows.
   // The intent of this page is to surface low-health pages for fixing, so
   // rows are sorted ascending (weakest first) regardless of the filter.
@@ -417,7 +417,7 @@ function HealthTab({ rows }: { rows: any[] }) {
 
 function CanonicalTab({ rows }: { rows: any[] }) {
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(100);
   const missing = rows.filter((r) => r.canonical_state === "missing");
   const cross   = rows.filter((r) => r.canonical_state === "cross-canonical");
   const slice = rows.slice((page - 1) * pageSize, page * pageSize);
@@ -467,7 +467,7 @@ function CanonicalTab({ rows }: { rows: any[] }) {
 
 function ImagesTab({ rows }: { rows: any[] }) {
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(100);
   const slice = rows.slice((page - 1) * pageSize, page * pageSize);
   if (!rows.length) return <Card className="text-sm text-emerald-700">✓ Every image in the corpus has alt text. Nice.</Card>;
   const totalMissing = rows.reduce((s, r) => s + (r.images_no_alt ?? 0), 0);
@@ -509,7 +509,7 @@ function ImagesTab({ rows }: { rows: any[] }) {
 
 function StaleTab({ rows }: { rows: any[] }) {
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(100);
   const slice = rows.slice((page - 1) * pageSize, page * pageSize);
   if (!rows.length) return (
     <Card className="text-sm text-slate-600">

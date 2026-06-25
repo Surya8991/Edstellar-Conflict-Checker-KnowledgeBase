@@ -40,7 +40,9 @@ interface MatchRow {
   rank: number;
 }
 
-const PAGER_SIZES = [10, 25, 50];
+// Sidebar list of checks — narrower viewport budget than the data-heavy
+// audit / corpus views, so keep choices smaller.
+const PAGER_SIZES = [25, 50, 100];
 
 export default function HistoryPage() {
   const [list, setList] = useState<SummaryRow[]>([]);
@@ -51,7 +53,7 @@ export default function HistoryPage() {
   const [filter, setFilter] = useState("");
   const [scoreBand, setScoreBand] = useState<"all" | "block" | "review" | "pass">("all");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(50);
 
   useEffect(() => { setPage(1); }, [filter, scoreBand]);
 

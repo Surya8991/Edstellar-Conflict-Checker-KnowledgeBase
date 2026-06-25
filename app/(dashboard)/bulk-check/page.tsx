@@ -26,7 +26,7 @@ export default function BulkCheckPage() {
   const [verdictFilter, setVerdictFilter] = useState<string>("");
   const [scoreMin, setScoreMin] = useState(0);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(100);
 
   // Reset to page 1 whenever filters or new results change.
   useEffect(() => { setPage(1) }, [verdictFilter, scoreMin, results.length]);

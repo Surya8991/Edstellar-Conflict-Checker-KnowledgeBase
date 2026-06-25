@@ -36,7 +36,7 @@ interface CatCount { category: string; n: number }
 
 const COURSE_TYPES = ["Behavioral", "Compliance", "IT & Technical", "Leadership", "Management", "Social Impact"];
 
-const PAGE_SIZES = [25, 50, 100, 200];
+const PAGE_SIZES = [50, 100, 200, 500];
 
 export default function CorpusPage() {
   const [q, setQ] = useState("");
@@ -51,7 +51,7 @@ export default function CorpusPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(100);
   const [totalPages, setTotalPages] = useState(1);
 
   async function load(targetPage = page) {

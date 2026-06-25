@@ -2,7 +2,10 @@
 
 import { useEffect } from "react";
 
-export const DEFAULT_PAGE_SIZES = [25, 50, 100, 200];
+// Dropdown choices for every paginated table. Bumped up in Session 5 to
+// reduce per-page clicking — most data-heavy views (audit, corpus, bulk
+// check) now show 100 by default; users on small viewports can drop to 50.
+export const DEFAULT_PAGE_SIZES = [50, 100, 200, 500];
 
 export function Pagination({
   page,

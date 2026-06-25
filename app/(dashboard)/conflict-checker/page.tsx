@@ -488,7 +488,7 @@ export default function ConflictCheckerPage() {
                       total={filtered.length}
                       onJump={setPage}
                       onPageSize={setPageSize}
-                      pageSizes={[10, 25, 50, 100]}
+                      pageSizes={[25, 50, 100, 200]}
                       unit="matches"
                     />
                   </div>

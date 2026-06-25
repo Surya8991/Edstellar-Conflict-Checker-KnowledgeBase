@@ -21,7 +21,7 @@ export default function CatalogConflictsPage() {
   const [pairFilter, setPairFilter] = useState("");
   const [minSim, setMinSim] = useState(0);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(50);
 
   useEffect(() => {
     fetch("/api/catalog-conflicts?limit=500")
