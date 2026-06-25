@@ -98,19 +98,21 @@ export const HELP: Record<string, HelpEntry> = {
   "/internal-links": {
     title: "Internal Links",
     what:
-      "For a draft URL or topic, suggests the top existing pages it should link to.",
+      "For a draft URL, topic, or pasted text, suggests the top existing pages it should link to. Two modes: whole-page (one ranked list) and per-paragraph (separate suggestions per paragraph of text).",
     howToUse: [
-      "Paste a draft URL or topic into the input.",
-      "Toggle 'Summarize first' if you want the LLM to compress your input before searching (slower, more focused).",
-      "Click 'Suggest pages to link to'. You'll get up to 25 ranked candidates by relevance.",
-      "Copy the URL + suggested anchor (the matched page's title) into your CMS as you write.",
+      "Pick a mode. 'Whole page' = one ranked list for the entire input — fastest. 'Per paragraph' = the input is split on blank lines and each paragraph gets its own short list.",
+      "Paste a URL (https://…), a topic phrase, or — for per-paragraph mode — your draft text with blank lines between paragraphs.",
+      "Click the suggest button. Per-paragraph mode shows one block per paragraph with the top targets for that paragraph.",
+      "Copy the URL + suggested anchor (the matched page's title) into your CMS.",
     ],
     readingIt: [
       "Higher similarity = more topically related, not necessarily a stronger link choice. A 60%-similarity course page might be a better hub link than an 80%-similarity blog.",
       "Each card shows the page's content type (course / blog / category) — useful for picking variety in anchor types.",
+      "In per-paragraph mode the same target page can show up in multiple paragraphs — the editor decides where to actually use it.",
     ],
     troubleshoot: [
-      { problem: "Suggestions look generic", fix: "Turn on 'Summarize first' — raw URL input occasionally embeds the whole nav + footer." },
+      { problem: "Per-paragraph mode says 'no paragraphs long enough'", fix: "Each paragraph needs at least 80 characters. Either lengthen them or paste fewer, longer ones with blank lines between." },
+      { problem: "Suggestions look generic", fix: "Pasted text wins over a URL — the URL fetcher captures nav/footer noise that drowns out the actual topic. If using URL mode and seeing generic results, paste the body text instead." },
       { problem: "Always returns the same hub pages regardless of input", fix: "Your input is short — fewer keywords = vector search defaults to popular pages. Add 2–3 keywords inline." },
     ],
   },
