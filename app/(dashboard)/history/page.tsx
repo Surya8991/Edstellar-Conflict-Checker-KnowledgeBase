@@ -28,6 +28,7 @@ interface HistRow {
   summary: string;
   top_score: number;
   created_at: string;
+  outcome?: string | null;
 }
 interface MatchRow {
   page_url: string;
@@ -188,9 +189,16 @@ export default function HistoryPage() {
               </div>
               <ul className="mt-3 space-y-1 text-xs text-slate-500">
                 {history.map((h) => (
-                  <li key={h.id} className="flex items-center justify-between">
+                  <li key={h.id} className="flex items-center justify-between gap-2">
                     <span>{new Date(h.created_at).toLocaleString()}</span>
-                    <ScorePill score={h.top_score} />
+                    <div className="flex items-center gap-2">
+                      <ScorePill score={h.top_score} />
+                      <OutcomeSelect
+                        checkId={h.id}
+                        value={h.outcome ?? ""}
+                        onChange={(v) => setHistory((arr) => arr.map((r) => r.id === h.id ? { ...r, outcome: v } : r))}
+                      />
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -241,5 +249,41 @@ function ScorePill({ score }: { score: number }) {
     <span className={"rounded px-2 py-0.5 text-xs font-medium tabular-nums " + color}>
       {n}
     </span>
+  );
+}
+
+/**
+ * Outcome selector — records what the editor actually did with this check
+ * (published / merged / redirected / discarded). Powers the shipped-vs-
+ * blocked reporting on the dashboard. (#36)
+ */
+function OutcomeSelect({
+  checkId, value, onChange,
+}: { checkId: number; value: string; onChange: (v: string | null) => void }) {
+  const [saving, setSaving] = useState(false);
+  return (
+    <select
+      value={value}
+      disabled={saving}
+      onChange={async (e) => {
+        const v = e.target.value || null;
+        setSaving(true);
+        try {
+          await fetch("/api/check/outcome", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ checkId, outcome: v }),
+          });
+          onChange(v);
+        } finally { setSaving(false) }
+      }}
+      className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] text-slate-600"
+    >
+      <option value="">no outcome</option>
+      <option value="published">published</option>
+      <option value="merged">merged</option>
+      <option value="redirected">redirected</option>
+      <option value="discarded">discarded</option>
+    </select>
   );
 }

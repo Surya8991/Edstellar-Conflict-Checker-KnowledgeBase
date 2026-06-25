@@ -32,6 +32,9 @@ interface DashboardStats {
   highRiskChecks7d: number;
   brokenLinks: number;
   weakHealth: number;
+  stalePages: number;
+  blocked90d: number;
+  published90d: number;
   lastIngest: string | null;
   gscConnected: boolean;
   recentChecks: RecentCheck[];
@@ -47,6 +50,7 @@ async function getStats(): Promise<DashboardStats> {
     sitemapCount,
     ingested: 0, checks: 0, competitors: 0,
     conflictPairs: 0, highRiskChecks7d: 0, brokenLinks: 0, weakHealth: 0,
+    stalePages: 0, blocked90d: 0, published90d: 0,
     lastIngest: null, gscConnected: false,
     recentChecks: [], topConflicts: [],
     dbReady: false,
@@ -63,6 +67,11 @@ async function getStats(): Promise<DashboardStats> {
            AND created_at > now() - interval '7 days')::int                            AS high_risk_7d,
         (SELECT count(*) FROM pages WHERE http_status IS NOT NULL AND http_status >= 400)::int AS broken_links,
         (SELECT count(*) FROM pages WHERE length(coalesce(content_text,'')) < 800)::int AS weak_health,
+        (SELECT count(*) FROM pages WHERE is_stale = true)::int                        AS stale_pages,
+        (SELECT count(*) FROM checks WHERE outcome IN ('merged','redirected','discarded')
+           AND resolved_at > now() - interval '90 days')::int                           AS blocked_90d,
+        (SELECT count(*) FROM checks WHERE outcome = 'published'
+           AND resolved_at > now() - interval '90 days')::int                           AS published_90d,
         (SELECT max(crawled_at)::text FROM pages)                                      AS last_ingest,
         (SELECT count(*) > 0 FROM gsc_connections)                                     AS gsc_connected
     `)) as any;
@@ -74,6 +83,9 @@ async function getStats(): Promise<DashboardStats> {
     stats.highRiskChecks7d = r?.high_risk_7d ?? 0;
     stats.brokenLinks = r?.broken_links ?? 0;
     stats.weakHealth = r?.weak_health ?? 0;
+    stats.stalePages = r?.stale_pages ?? 0;
+    stats.blocked90d = r?.blocked_90d ?? 0;
+    stats.published90d = r?.published_90d ?? 0;
     stats.lastIngest = r?.last_ingest ?? null;
     stats.gscConnected = !!r?.gsc_connected;
     stats.dbReady = true;
@@ -270,6 +282,33 @@ export default async function DashboardHome() {
             href="/competitors"
           />
         </div>
+
+        {/* Editorial outcomes — only show when the team is using the
+            outcome dropdown on the history page. (#36) */}
+        {(stats.blocked90d > 0 || stats.published90d > 0 || stats.stalePages > 0) && (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <Stat
+              label="Caught in last 90 days"
+              value={stats.blocked90d.toLocaleString()}
+              hint="merged · redirected · discarded"
+              accent="ok"
+              href="/history"
+            />
+            <Stat
+              label="Published last 90 days"
+              value={stats.published90d.toLocaleString()}
+              hint="conflict check passed"
+              href="/history"
+            />
+            <Stat
+              label="Stale pages"
+              value={stats.stalePages.toLocaleString()}
+              hint="<5 clicks/28d, lastmod > 12mo"
+              accent={stats.stalePages > 0 ? "warn" : "ok"}
+              href="/audit"
+            />
+          </div>
+        )}
 
         {/* Recent checks + top conflicts */}
         {stats.dbReady && (stats.recentChecks.length > 0 || stats.topConflicts.length > 0) && (

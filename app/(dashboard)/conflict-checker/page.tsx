@@ -26,6 +26,7 @@ interface CheckResult {
   primaryQuery?: string;
   topScore: number;
   matches: Match[];
+  checkId?: number;
 }
 
 interface PageStat {
@@ -502,10 +503,21 @@ export default function ConflictCheckerPage() {
                   <h3 className="text-sm font-semibold text-slate-900">Net-new content suggestions</h3>
                   <p className="text-xs text-slate-500">LLM proposes angles based on competitors, AI Overview, recent Google updates, and AI platforms.</p>
                 </div>
-                <button onClick={fetchSuggestions} disabled={suggesting}
-                  className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50">
-                  {suggesting ? "Thinking…" : suggestions ? "Re-run" : "Suggest"}
-                </button>
+                <div className="flex items-center gap-2">
+                  {suggestions?.suggestions?.angles?.length > 0 && (
+                    <button
+                      onClick={() => copyWriterBrief(result, suggestions.suggestions)}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                      title="Copy a Markdown brief for the writer"
+                    >
+                      Copy brief
+                    </button>
+                  )}
+                  <button onClick={fetchSuggestions} disabled={suggesting}
+                    className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50">
+                    {suggesting ? "Thinking…" : suggestions ? "Re-run" : "Suggest"}
+                  </button>
+                </div>
               </div>
               {suggestions?.suggestions?.headline && (
                 <p className="mt-4 text-sm font-medium text-slate-800">{suggestions.suggestions.headline}</p>
@@ -757,4 +769,83 @@ function MatchCard({
       ) : null}
     </Card>
   );
+}
+
+/**
+ * Produce a Markdown writer brief from the check result + suggestions panel
+ * and drop it on the clipboard. Marketers paste this into Notion / Google
+ * Docs as the starting outline. (#35)
+ */
+function copyWriterBrief(result: CheckResult | null, suggestions: any) {
+  if (!result) return;
+  const angles = (suggestions?.angles ?? []) as Array<any>;
+  const lines: string[] = [];
+  const topAngle = angles[0];
+
+  lines.push(`# Content brief — ${topAngle?.title ?? result.summary.split(".")[0]}`);
+  lines.push("");
+  if (suggestions?.headline) {
+    lines.push(`> ${suggestions.headline}`);
+    lines.push("");
+  }
+
+  lines.push(`**Topic / source:** ${result.inputValue}`);
+  if (result.primaryQuery) lines.push(`**Primary keyword:** ${result.primaryQuery}`);
+  if (topAngle) {
+    lines.push(`**Format:** ${topAngle.format}`);
+    lines.push(`**Audience:** ${topAngle.audience}`);
+    lines.push(`**Differentiation:** ${topAngle.differentiation}`);
+  }
+  lines.push("");
+
+  lines.push("## Summary of what we'd publish");
+  lines.push(result.summary);
+  lines.push("");
+
+  if (result.keywords?.length) {
+    lines.push("## Keyword set");
+    lines.push(result.keywords.map((k) => `- ${k}`).join("\n"));
+    lines.push("");
+  }
+
+  if (angles.length > 1) {
+    lines.push("## Alternative angles considered");
+    for (const a of angles.slice(1)) {
+      lines.push(`- **${a.title}** (${a.format}) — ${a.differentiation}`);
+    }
+    lines.push("");
+  }
+
+  const toAvoid = result.matches
+    .filter((m) => m.conflictScore >= 60)
+    .slice(0, 5);
+  if (toAvoid.length) {
+    lines.push("## Avoid overlap with these existing pages");
+    for (const m of toAvoid) {
+      const ownerHint = m.ownerUrl && m.ownerUrl !== m.url ? ` — owner: ${m.ownerUrl}` : "";
+      const traffic = m.gscClicks28d ? ` · ${m.gscClicks28d.toLocaleString()} clicks/28d` : "";
+      lines.push(`- [${m.title || m.url}](${m.url}) — ${m.conflictType}, score ${m.conflictScore}%${traffic}${ownerHint}`);
+      if (m.issue) lines.push(`  - ${m.issue}`);
+    }
+    lines.push("");
+  }
+
+  const linkTargets = result.matches
+    .filter((m) => m.conflictScore < 60 && m.conflictScore >= 30)
+    .slice(0, 5);
+  if (linkTargets.length) {
+    lines.push("## Suggested internal-link targets (related, not overlapping)");
+    for (const m of linkTargets) {
+      lines.push(`- [${m.title || m.url}](${m.url})`);
+    }
+    lines.push("");
+  }
+
+  lines.push("---");
+  lines.push(`_Generated from Conflict Checker · check #${result.checkId ?? "draft"}_`);
+
+  const md = lines.join("\n");
+  navigator.clipboard.writeText(md).then(() => {
+    alert("Writer brief copied to clipboard as Markdown.");
+  });
 }

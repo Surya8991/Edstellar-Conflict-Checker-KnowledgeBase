@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     }
 
     const history = await db.execute(sql`
-      SELECT id, input_type, input_value, summary, top_score, created_at
+      SELECT id, input_type, input_value, summary, top_score, created_at, outcome
       FROM checks
       WHERE input_value = ${input}
       ORDER BY created_at ASC
