@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import { assertSafeOutboundUrl } from "./ssrf-guard";
 
 export interface ExtractedPage {
   url: string;
@@ -139,7 +140,16 @@ const ROOT_CANDIDATES = [
 
 const MIN_ROOT_CHARS = 200;
 
-/** Fetch a URL and extract its main textual content for embedding/summarizing. */
+/**
+ * Fetch a URL and extract its main textual content for embedding/summarizing.
+ *
+ * Audit S3 (Session 6): user-supplied URLs are validated through the SSRF
+ * guard BEFORE the fetch — private/loopback/link-local/cloud-metadata IPs are
+ * rejected. Redirects are followed manually so each hop is re-validated; the
+ * default `redirect: "follow"` would allow a public host to 302→169.254.169.254.
+ */
+const MAX_REDIRECTS = 5;
+
 export async function fetchAndExtract(
   url: string,
   timeoutMs = 20000,
@@ -147,18 +157,31 @@ export async function fetchAndExtract(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        "user-agent":
-          "Mozilla/5.0 (compatible; EdstellarConflictChecker/1.0; +https://www.edstellar.com)",
-        accept: "text/html",
-      },
-      redirect: "follow",
-    });
-    if (!res.ok) throw new Error(`Fetch ${url} → ${res.status}`);
-    const html = await res.text();
-    return extractFromHtml(url, html);
+    let currentUrl = url;
+    let html: string | null = null;
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+      await assertSafeOutboundUrl(currentUrl);
+      const res = await fetch(currentUrl, {
+        signal: controller.signal,
+        headers: {
+          "user-agent":
+            "Mozilla/5.0 (compatible; EdstellarConflictChecker/1.0; +https://www.edstellar.com)",
+          accept: "text/html",
+        },
+        redirect: "manual",
+      });
+      if (res.status >= 300 && res.status < 400) {
+        const next = res.headers.get("location");
+        if (!next) throw new Error(`Redirect without location at ${currentUrl}`);
+        currentUrl = new URL(next, currentUrl).toString();
+        continue;
+      }
+      if (!res.ok) throw new Error(`Fetch ${currentUrl} → ${res.status}`);
+      html = await res.text();
+      break;
+    }
+    if (html === null) throw new Error(`Too many redirects fetching ${url}`);
+    return extractFromHtml(currentUrl, html);
   } finally {
     clearTimeout(timer);
   }

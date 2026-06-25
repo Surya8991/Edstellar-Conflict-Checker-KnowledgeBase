@@ -7,12 +7,15 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getChat } from "@/lib/ai";
+import { gateLlmEndpoint } from "@/lib/api-gate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
+  const gate = await gateLlmEndpoint(request, "rewrite-suggestion");
+  if (gate) return gate;
   try {
     const body = await request.json().catch(() => ({}));
     const input = (body.input ?? "").toString().trim();

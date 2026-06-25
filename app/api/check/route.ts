@@ -57,13 +57,16 @@ export async function POST(request: NextRequest) {
     }
     const body = parsed.data;
 
-    // Prefer the authenticated user's email over a body-supplied createdBy
-    // (which any caller could spoof). Falls back to whatever the request
-    // provided when auth isn't enabled.
-    let createdBy: string | undefined = body.createdBy ?? undefined;
+    // Audit H3 (Session 6): when auth is enabled, prefer the session email.
+    // When auth is DISABLED, NEVER trust a body-supplied createdBy — it's
+    // forgeable from any caller and corrupts the audit trail. Stamp the
+    // request IP instead so we at least have a per-source attribution.
+    let createdBy: string | undefined;
     if (isAuthEnabled()) {
-      const session = await auth().catch(() => null);
-      createdBy = session?.user?.email ?? createdBy;
+      const session = await auth();
+      createdBy = session?.user?.email ?? undefined;
+    } else {
+      createdBy = `anon:${clientIp(request)}`;
     }
 
     const result = await runConflictCheck(body.input, {
