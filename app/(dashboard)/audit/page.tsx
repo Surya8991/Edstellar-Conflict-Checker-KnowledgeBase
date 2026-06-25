@@ -18,6 +18,17 @@ const TABS = [
   { id: "clusters", label: "Clusters" },
 ] as const;
 
+const TAB_SUBTITLES: Record<string, string> = {
+  meta: "Title and description length — flags pages that are too short, too long, or missing meta tags.",
+  links: "Broken internal links — pages that 404 or redirect unexpectedly.",
+  duplicates: "Pages with very similar content — candidates to merge, redirect, or differentiate.",
+  health: "Composite score per page combining content length, meta quality, and link health.",
+  canonical: "Pages missing a canonical tag or pointing to a different URL — can split your search ranking signals.",
+  images: "Images without alt text or with oversized file sizes.",
+  stale: "Pages with little traffic and no recent updates — candidates to refresh, merge, or retire.",
+  clusters: "Topic groups — courses and blog posts covering the same subject, showing coverage gaps and overlaps.",
+};
+
 export default function AuditPage() {
   const [tab] = useActiveTab(TABS, "tab");
   const [data, setData] = useState<any>(null);
@@ -42,6 +53,9 @@ export default function AuditPage() {
       />
       <div className="space-y-5 p-8">
         <Tabs tabs={TABS} param="tab" />
+        {TAB_SUBTITLES[tab] && (
+          <p className="text-sm text-slate-500">{TAB_SUBTITLES[tab]}</p>
+        )}
 
         {loading && <div className="text-sm text-slate-400">Loading…</div>}
 

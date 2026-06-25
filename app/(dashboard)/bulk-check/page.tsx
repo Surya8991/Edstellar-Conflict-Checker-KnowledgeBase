@@ -17,6 +17,33 @@ interface Result {
   error?: string;
 }
 
+const HISTORY_KEY = "bulk-check:history";
+const MAX_HISTORY = 5;
+
+interface RunSnapshot {
+  ts: number;
+  inputs: string;
+  results: Result[];
+}
+
+function loadHistory(): RunSnapshot[] {
+  try {
+    return JSON.parse(localStorage.getItem(HISTORY_KEY) ?? "[]");
+  } catch {
+    return [];
+  }
+}
+
+function saveHistory(inputs: string, results: Result[]) {
+  const next: RunSnapshot = { ts: Date.now(), inputs, results };
+  const prev = loadHistory().slice(0, MAX_HISTORY - 1);
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify([next, ...prev]));
+  } catch {
+    // quota exceeded — skip silently
+  }
+}
+
 export default function BulkCheckPage() {
   const [text, setText] = useState("");
   const [concurrency, setConcurrency] = useState(3);
@@ -27,6 +54,11 @@ export default function BulkCheckPage() {
   const [scoreMin, setScoreMin] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
+  const [history, setHistory] = useState<RunSnapshot[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+
+  // Load saved history on mount.
+  useEffect(() => { setHistory(loadHistory()); }, []);
 
   // Reset to page 1 whenever filters or new results change.
   useEffect(() => { setPage(1) }, [verdictFilter, scoreMin, results.length]);
@@ -88,6 +120,10 @@ export default function BulkCheckPage() {
     }
     try {
       await Promise.all(Array.from({ length: concurrency }, worker));
+      // Persist this run so the user can navigate away and come back.
+      const finished = [...live].filter(Boolean) as Result[];
+      saveHistory(text, finished);
+      setHistory(loadHistory());
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -182,6 +218,37 @@ export default function BulkCheckPage() {
           )}
           {error && <div className="mt-3 text-sm text-red-600">{error}</div>}
         </Card>
+
+        {history.length > 0 && (
+          <div>
+            <button
+              onClick={() => setShowHistory((v) => !v)}
+              className="text-xs text-slate-500 hover:text-slate-800"
+            >
+              {showHistory ? "Hide" : "Show"} recent runs ({history.length})
+            </button>
+            {showHistory && (
+              <div className="mt-2 space-y-1">
+                {history.map((h) => (
+                  <button
+                    key={h.ts}
+                    onClick={() => {
+                      setText(h.inputs);
+                      setResults(h.results);
+                      setShowHistory(false);
+                    }}
+                    className="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50"
+                  >
+                    <span className="font-medium">{new Date(h.ts).toLocaleString()}</span>
+                    <span className="ml-2 text-slate-400">
+                      {h.results.length} results · {h.inputs.split("\n").filter((l) => l.trim()).length} inputs
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {results.length > 0 && (
           <Card>

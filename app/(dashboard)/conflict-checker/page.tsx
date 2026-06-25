@@ -98,9 +98,8 @@ export default function ConflictCheckerPage() {
   // Lazy on-demand explanation cache: { [url]: {score, type, rationale, loading?} }
   const [explained, setExplained] = useState<Record<string, any>>({});
 
-  // Deep-scan control — how many corpus candidates the vector search retrieves.
-  // (Server-side similarity threshold stays at 0 here; the Min score slider
-  //  in the filter row is the single user-facing cut-off.)
+  // Search-depth control — how many corpus candidates the vector search retrieves.
+  // Named tiers are shown to non-technical users; the numeric value drives the API.
   const [vectorLimit, setVectorLimit] = useState(100);
 
   // New-content suggestions panel (on-demand).
@@ -232,7 +231,7 @@ export default function ConflictCheckerPage() {
     new Set(result?.matches.map((m) => m.contentType).filter(Boolean) as string[]),
   );
 
-  // How many got LLM rationale vs needs-review.
+  // How many got LLM rationale vs still awaiting on-demand analysis.
   const explainedCount = mergedMatches.filter((m) => m.conflictType !== "needs-review").length;
   const reviewCount    = mergedMatches.filter((m) => m.conflictType === "needs-review").length;
 
@@ -259,21 +258,25 @@ export default function ConflictCheckerPage() {
               {loading ? "Checking…" : "Check"}
             </button>
           </div>
-          {slowHint && (
-            <p className="mt-2 text-xs text-slate-500">
-              Still working — first check after a deploy is the slowest (the embedder warms up on the server).
-            </p>
-          )}
-          {/* Deep-scan control */}
+          <div role="status" aria-live="polite" aria-atomic="true" className="text-xs text-slate-500">
+            {slowHint && (
+              <p className="mt-2">
+                Still working — the first check of the day takes ~10s while the AI model warms up. Future checks are instant.
+              </p>
+            )}
+          </div>
+          {/* Search-depth control */}
           <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
             <label className="flex items-center gap-2">
-              Scan
+              Search depth:
               <select value={vectorLimit} onChange={(e) => setVectorLimit(Number(e.target.value))} className="rounded border border-slate-300 bg-white px-2 py-1 text-xs">
-                {[25, 50, 100, 200, 500].map((n) => <option key={n} value={n}>{n} candidates</option>)}
+                <option value={25}>Quick (25)</option>
+                <option value={100}>Standard (100)</option>
+                <option value={500}>Thorough (500)</option>
               </select>
             </label>
             <span className="text-slate-400">
-              More candidates = wider search. Use the <strong>Min score</strong> filter below to cut noise.
+              Higher depth finds more overlaps; use the <strong>Min score</strong> slider below to cut noise.
             </span>
           </div>
         </form>
@@ -451,7 +454,7 @@ export default function ConflictCheckerPage() {
                 <span className="w-10 tabular-nums text-slate-600">{scoreMin}%</span>
                 <label className="ml-2 flex items-center gap-1 text-slate-600">
                   <input type="checkbox" checked={hideNeedsReview} onChange={(e) => setHideNeedsReview(e.target.checked)} />
-                  hide needs-review
+                  hide unanalyzed
                 </label>
                 <span className="ml-2 text-slate-500">Sort:</span>
                 <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} className="rounded border border-slate-300 bg-white px-2 py-1">
@@ -466,7 +469,7 @@ export default function ConflictCheckerPage() {
               <h2 className="mb-3 flex flex-wrap items-baseline gap-x-3 text-sm font-semibold text-slate-900">
                 <span>{filtered.length} pages with conflict ≥ {scoreMin}%</span>
                 <span className="text-xs font-normal text-slate-500">
-                  · of {result.matches.length} total · {explainedCount} explained by LLM · {reviewCount} pending (click "Explain")
+                  · of {result.matches.length} total · {explainedCount} analyzed · {reviewCount} not yet analyzed
                 </span>
                 {enriching && (
                   <span className="text-xs font-normal text-slate-400">· fetching GSC + competitor data…</span>
@@ -474,7 +477,7 @@ export default function ConflictCheckerPage() {
               </h2>
               {filtered.length === 0 ? (
                 <Card className="text-sm text-slate-500">
-                  No matches at current filter. Try lowering Min score or Min similarity.
+                  No conflicts above {scoreMin}%. Drag the Min score slider lower to see weaker overlaps.
                 </Card>
               ) : (
                 <>
@@ -686,9 +689,12 @@ function MatchCard({
           {/* Meta strip — similarity + impact + action hint live on one line
               so the card stays compact and the score column has more room. */}
           <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px]">
-            <span className="text-slate-500">
+            <span
+              className="text-slate-500"
+              title="Topic similarity: how closely this page's content matches your input, measured by AI embeddings (0–100%)"
+            >
               <span className="font-semibold text-slate-700 tabular-nums">{(m.similarity * 100).toFixed(1)}%</span>
-              <span className="ml-1 text-slate-400">vector match</span>
+              <span className="ml-1 text-slate-400">topic similarity</span>
             </span>
             {m.gscClicks28d != null && m.gscClicks28d > 0 && (
               <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-amber-800">
@@ -832,7 +838,8 @@ function MatchCard({
           )}
         </div>
       ) : needsReview ? (
-        <div className="mt-4 border-t border-slate-100 pt-3">
+        <div className="mt-4 border-t border-slate-100 pt-3 flex items-center gap-3">
+          <span className="text-xs text-slate-400">Not yet analyzed</span>
           {explainState?.error ? (
             <div className="text-xs text-red-600">{explainState.error}</div>
           ) : (
@@ -841,7 +848,7 @@ function MatchCard({
               disabled={explainState?.loading}
               className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
-              {explainState?.loading ? "Asking LLM…" : "Explain this match"}
+              {explainState?.loading ? "Analyzing…" : "Analyze with AI (~3s)"}
             </button>
           )}
         </div>
