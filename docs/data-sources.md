@@ -22,9 +22,10 @@ Schema lives in [`lib/db/schema.ts`](../lib/db/schema.ts) and is materialised by
 
 | Table | Purpose |
 |-------|---------|
-| `pages` | One row per ingested URL — title, h1, content text, content type, `embedding vector(384)`, hashes for change detection. |
-| `checks` | One row per `runConflictCheck()` call — input, summary, keywords (JSON), candidate embedding, top score. |
+| `pages` | One row per ingested URL — title, h1, content text, content type, `embedding vector(384)`, hashes for change detection. Session 5 added SEO columns: `owner_url`, `gsc_clicks_28d`, `gsc_impressions_28d`, `gsc_position_28d`, `gsc_synced_at`, `canonical_url`, `image_count`, `images_no_alt`, `is_stale`, `stale_reason`. |
+| `checks` | One row per `runConflictCheck()` call — input, summary, keywords (JSON), candidate embedding, top score. Session 5 added `outcome` (`published`/`merged`/`redirected`/`discarded`/`null`) and `resolved_at` for shipped-vs-blocked reporting. |
 | `check_matches` | One row per match within a check — page url, similarity, blended score, conflict type, rationale, rank. |
+| `rate_limits` | Per-IP request counters for `/api/check` + `/api/check/bulk` (Session 5). One row per (ip, route), sliding window. |
 | `tags` | Page tag overrides (added in migration `0001_tags.sql`). |
 | `audit_*` | Link-audit results (added in `0002_audit.sql`). |
 

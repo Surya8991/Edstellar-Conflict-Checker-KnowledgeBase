@@ -63,6 +63,26 @@ From [`lib/score.ts`](../lib/score.ts):
 - `conflictTypeFromScore(score)` — thresholds: ≥80 duplicate · ≥60 cannibalization · ≥35 partial-overlap · else none.
 - `scoreColor(score)` — UI colour ramp (red / orange / amber / green).
 
+## Impact-weighted result order (Session 5)
+
+Match rows are sorted not by raw `conflictScore` but by
+`impactWeighted(m)` so high-traffic and editorial-owner pages float to
+the top:
+
+```
+impactWeighted = conflictScore × (1 + trafficBoost + ownerBoost)
+trafficBoost   = min(1, log10(gscClicks28d + 1) / 4)   // 0–1.0
+ownerBoost     = +0.25 if matched URL is its own owner_url
+```
+
+Why: a 70%-conflict with a page that gets 12k clicks/month is more
+dangerous than a 90%-conflict with a dead page. The sort surfaces the
+ones the editor should care about first.
+
+The base `conflictScore` is still what's stored in `check_matches` and
+shown in the badge — only the **display order** changes. CSV exports
+and webhook payloads also stay sorted by impact.
+
 ## Lazy classification
 
 Matches ranked 16+ ship with `conflict_type = "needs-review"` and an empty rationale. The UI calls `POST /api/check/classify-one` with the `checkId` + match URL to fill them on demand — keeps the headline call bounded while letting users drill deeper.

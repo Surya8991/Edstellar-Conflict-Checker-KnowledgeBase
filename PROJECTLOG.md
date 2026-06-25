@@ -4,7 +4,7 @@
 > and how the system fits together. Update this file with every meaningful
 > change.
 
-**Last updated:** 2026-06-25
+**Last updated:** 2026-06-25 (Session 5)
 **Owner:** marketing@edstellar.com
 **Repo:** https://github.com/Layruss98266/Edstellar-Conflict-Checker-KnowledgeBase
 **Prod:** https://edstellar-conflict-checker-knowledg.vercel.app/
@@ -535,6 +535,163 @@ than commit order — the actual SHA trail is in `git log` between
   `.blog-author-block` / `.blog-authors-footer`. Added an
   Edstellar-theme block to `NOISE_SELECTORS`. Verified against live
   /blog/it-manager-skills — six leak patterns all clean.
+
+---
+
+### Session 5 — 2026-06-25 (autonomous free-path sprint)
+
+User opted into ultracode-style autonomous batching with the brief: take
+the free path from §9 backlog, build everything possible, push in
+batches, paid-key items deferred to §9E. Seven batches landed
+(A → F2) — full git trail between `3509573` and `2cebd14`.
+
+**Batch A — Foundation** (`3509573`)
+- New `PRE_PUSH_CHECKLIST.md` — 6-section checklist (code health,
+  secrets safety, docs sync, Vercel-ready, GitHub-ready, smoke).
+  Includes a paste-in-terminal quick version + after-push verification.
+  Referenced by every subsequent batch.
+- §9E (this section's sibling) moved paid items off the active
+  backlog: DataForSEO/Ahrefs/Moz, Serper Pro, OpenAI embeddings,
+  CMS write-back, Pagespeed at scale. Lift back when funded.
+- README repo-layout block lists the new file.
+
+**Batch B — Security + Zod + structured logging** (`86aa808`)
+- New `rate_limits` table + `lib/rate-limit.ts` (Postgres sliding
+  window; fail-open on DB error). Wired into POST /api/check
+  (60 req/min/IP) and POST /api/check/bulk (10 req/5min/IP) as the
+  fallback when WEBHOOK_API_KEY isn't set. 429 sets Retry-After +
+  X-Ratelimit-*. (#1)
+- `/api/cron/audit-links` rewritten: HEAD probes concurrency=10 +
+  UNNEST UPDATE batched 200/round-trip. 1500 sequential UPDATEs
+  → 8. Comfortably finishes under 300s now. (#2)
+- Zod schemas on POST /api/check + POST /api/check/bulk. Per-field
+  caps (input ≤4000c, inputs[] ≤100, vectorLimit ≤500,
+  classifyLimit ≤50, minSimilarity in [0,1]). (#4)
+- `lib/logger.ts` — JSON-line stdout/stderr split with LOG_LEVEL env.
+  Replaced 3 production-path console.error/warn in
+  `lib/conflict.ts`, `app/api/gsc/callback/route.ts`,
+  `lib/competitors.ts`. Scripts kept console.log for terminal output
+  (intentional). (#7 partial — Sentry deferred to §9E)
+- Migration `0003_rate_limits.sql` applied to prod.
+
+**Batch C — UX core fixes** (`4e045d6`)
+- Bulk-Check (#13) — replaced single POST → client-side worker pool
+  hitting /api/check per row, live `Running… 12/50` counter + slim
+  progress bar update on each finished row. vectorLimit dropped
+  100→30 + classifyLimit 15→5 in bulk mode for faster TTFB.
+- Sidebar (#19) — drawer + burger on < lg viewports, in-flow on
+  ≥ lg. Backdrop closes; route change auto-closes.
+- Pagination (#16) — built-in `useEffect(() => onJump(1))` when
+  current page falls past the new total. Kills the every-caller
+  `useEffect(() => setPage(1), [filter])` boilerplate.
+- Polish: search-console modal Esc-close (#14), GSC lookup `https://`
+  validation (#24), /conflict-checker 5s 'still working' hint (#15),
+  /catalog-conflicts subtitle now mentions weekly cron (#20), all 4
+  empty states rewritten to remove `npm run …` instructions (#17),
+  /internal-links button label fix (#21), bulk-check CSV download
+  disabled-while-running (#22).
+
+**Batch D — SEO data foundation** (`2be8227`)
+- Migration `0004_seo_columns.sql` — added to pages:
+    owner_url, gsc_clicks_28d, gsc_impressions_28d, gsc_position_28d,
+    gsc_synced_at, canonical_url, image_count, images_no_alt,
+    is_stale, stale_reason
+  Added to checks: verdict, outcome, resolved_at.
+  Plus filter-column indexes on content_type / course_type /
+  category (#9A item 8). Schema mirror in `lib/db/schema.ts` updated.
+- `lib/extract.ts` ExtractedPage now carries canonicalUrl,
+  imageCount, imagesNoAlt. Image counting happens BEFORE the noise
+  strip so we cover in-content images. (#32, #41)
+- `scripts/ingest.ts` + `/api/cron/reingest` UPSERT writes the new
+  columns.
+- `/api/cron/gsc-snapshot` rewritten into three jobs in one cron:
+    1. legacy daily totals (unchanged)
+    2. (new) per-page 28d clicks → pages.gsc_clicks_28d via one
+       searchanalytics.query + UNNEST UPDATE (#26)
+    3. (new) flag pages stale where clicks < 5 AND lastmod > 365d
+       AND content_type in (blog,course,category,subcategory). Reset
+       first so recovered pages unflag. (#28)
+  maxDuration 120 → 300.
+- `lib/conflict.ts` — new `impactWeighted(m)` sort:
+    impactWeighted = conflictScore × (1 + trafficBoost + ownerBoost)
+    trafficBoost = min(1, log10(clicks+1)/4)
+    ownerBoost   = +0.25 if matched URL IS the owner
+  A 70%-conflict with 12k clicks now outranks a 90%-conflict with a
+  dead page. (#26)
+- `lib/search.ts` SELECT and VectorMatch now include owner_url +
+  gsc_clicks_28d + gsc_impressions_28d.
+- `/api/pages` GET returns the new columns so the corpus UI can
+  display them.
+- New `POST /api/pages/owner` — Zod-validated set/clear of the
+  editorial owner per URL. (#25)
+- `scripts/db-setup.ts` hardened: strip line comments BEFORE the
+  `;`-split to fix the "cannot insert multiple commands" prepared-
+  statement error on inline-comment-after-semicolon migrations.
+
+**Batch E — Surface SEO data in the UI** (`165177a`)
+- Conflict Checker match cards — Owner / Non-owner pill (#25),
+  amber 'N clicks · 28d' chip when GSC clicks present (#26),
+  'Suggested action: redirect to the owner' hint on non-owner
+  matches.
+- Corpus rows — new 'Clicks 28d' column (bold ≥100). New 'Signals'
+  column with Owner / Stale / alt-debt / canonical-mismatch chips
+  (each with tooltip showing the underlying value).
+- Audit page — three new tabs:
+    Canonical: split between 'missing' (red) and 'cross-canonical'
+      (amber, target ≠ url). (#32)
+    Images: pages with images_no_alt > 0, sorted by absolute count.
+      Shows N missing / total / %. (#41)
+    Stale: pages where is_stale=true, sorted by lowest 28d clicks
+      first then oldest lastmod. (#28)
+- `/api/audit` handles kind=canonical / images / stale.
+
+**Batch F1 — CTR opportunity + sitemap-drift** (`b4ef97f`)
+- New `CTR Opportunity` tab on /search-console between Striking
+  Distance and Movers. (#27) Filter: position ≤ 10 AND impressions
+  ≥ 200 AND ctr < 0.5 × expected (industry curve 0.3/pos). Surfaces
+  title/meta rewrite candidates. CSV export, sorted by missed clicks.
+- New `GET /api/sitemap-drift` — fetches the live sitemap.xml,
+  recurses one level (capped 50) for sitemap-index, filters through
+  `isJunkUrl()` on both sides, returns publishedNotIngested +
+  removedFromSitemap. (#30) UI surfacing deferred — endpoint ready
+  for a future dashboard panel.
+
+**Batch F2 — Closes the editorial loop** (`2cebd14`)
+- Writer brief export (#35) — 'Copy brief' button on /conflict-
+  checker (only when suggestions have angles). Builds a Markdown
+  outline from check + suggestions + matches and copies to
+  clipboard. Sections: title from top angle, headline blockquote,
+  key/value meta, summary, keywords, alternative angles, 'Avoid
+  overlap' (with ownerUrl + gscClicks28d), 'Suggested internal-link
+  targets'.
+- Check outcome tracking (#36) — new `POST /api/check/outcome`
+  + dropdown in /history per row (published / merged / redirected /
+  discarded / no outcome). Writes outcome + resolved_at on the
+  check row. /api/check/history SELECT extended to include outcome.
+- Dashboard — new 3-tile row (renders only when at least one of the
+  three is > 0): `Caught in last 90 days` (merged/redirected/
+  discarded), `Published last 90 days`, `Stale pages`. Leadership
+  reporting without leaving the dashboard.
+
+**Skipped this sprint (still in §9 backlog):**
+- #5, #6, #10 — `as any` cleanup, LLM JSON validation, partial-
+  failure cron status codes. Each is a small follow-up.
+- #18 — terminology consistency pass (conflict score vs similarity).
+  Deferred because some surfaces use the distinction intentionally.
+- #23 — Health Score chip overflow on narrow viewports. Already
+  uses flex-wrap; verify on mobile.
+- #33 — NextAuth + Google SSO. Requires the OAuth consent screen
+  to leave testing mode; user action.
+- #39 — FAQ/PAA reuse in suggestions. Would need Serper-side parse
+  changes; defer until briefing flow is exercised.
+- #43 — Topic-cluster health view. Data is there
+  (data/taxonomy/course-types.json + content_type counts); deferred
+  pending UI decision (own page vs corpus sidebar).
+- #44 — Paragraph-level internal-link insertion. Bigger change
+  needing UX design.
+
+**Backlog gives the next ~10-15 commits a clear runway** without
+needing new external services.
 
 ---
 
