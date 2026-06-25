@@ -37,6 +37,45 @@ const nextConfig: NextConfig = {
       "node_modules/@xenova/transformers/**/*.json",
     ],
   },
+
+  /**
+   * Audit H1 (Session 6): basic security headers. CSP is intentionally
+   * permissive — Tailwind v4 emits inline `<style>` blocks and Next 16
+   * server-component runtime needs `unsafe-inline` for streaming scripts.
+   * A nonce-based strict CSP is a separate project (tracked as a follow-up).
+   *
+   * Frame-ancestors 'none' is set both via CSP and X-Frame-Options for
+   * legacy clients. HSTS sets a 2-year max-age with preload-eligible
+   * directives; once stable in prod, submit to hstspreload.org.
+   */
+  async headers() {
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https:",
+      "font-src 'self' data:",
+      "connect-src 'self' https:",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "object-src 'none'",
+    ].join("; ");
+
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "Content-Security-Policy", value: csp },
+          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), interest-cohort=()" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

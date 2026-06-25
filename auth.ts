@@ -51,7 +51,13 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
     strategy: "jwt",
     maxAge: 60 * 60 * 12,
   },
-  trustHost: true,
+  // Audit H4 (Session 6): hardcoded `trustHost: true` let host-header
+  // injection attacks spoof the auth callback URL outside Vercel's edge.
+  // Auto-enable only inside Vercel (where the edge is the trusted hop),
+  // otherwise require an explicit AUTH_TRUST_HOST=true opt-in.
+  trustHost:
+    !!process.env.VERCEL ||
+    process.env.AUTH_TRUST_HOST === "true",
   callbacks: {
     /** Reject sign-ins outside the allow-listed email domains. */
     async signIn({ profile }) {
