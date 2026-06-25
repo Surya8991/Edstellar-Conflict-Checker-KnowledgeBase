@@ -72,7 +72,13 @@ export default function CatalogConflictsPage() {
               aria-valuetext={`${minSim} percent`}
               className="w-32"
             />
-            <span className="tabular-nums text-slate-600">{minSim}%</span>
+            <input
+              type="number" min={0} max={100} value={minSim}
+              onChange={(e) => setMinSim(Math.min(100, Math.max(0, Number(e.target.value))))}
+              aria-label="Minimum similarity (number)"
+              className="w-14 rounded border border-slate-300 bg-white px-2 py-0.5 text-center tabular-nums text-slate-700"
+            />
+            <span className="text-slate-400">%</span>
             <span className="ml-auto text-slate-400">{filtered.length} of {rows.length}</span>
           </div>
         )}

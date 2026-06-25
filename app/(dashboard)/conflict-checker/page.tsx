@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader, Card, ConflictBadge, ScoreBar, TypeChip, TYPE_COLORS } from "@/app/components/ui";
 import { Pagination } from "@/app/components/Pagination";
 import { toast } from "@/app/components/Toast";
@@ -101,6 +101,14 @@ export default function ConflictCheckerPage() {
   // Search-depth control — how many corpus candidates the vector search retrieves.
   // Named tiers are shown to non-technical users; the numeric value drives the API.
   const [vectorLimit, setVectorLimit] = useState(100);
+
+  // Live-detect whether the input looks like a URL or a topic phrase so the
+  // user knows which mode will run before they click Check.
+  const detectedMode = useMemo(() => {
+    const trimmed = input.trim();
+    if (!trimmed) return null;
+    try { new URL(trimmed); return "url"; } catch { return "topic"; }
+  }, [input]);
 
   // New-content suggestions panel (on-demand).
   const [suggesting, setSuggesting] = useState(false);
@@ -258,6 +266,13 @@ export default function ConflictCheckerPage() {
               {loading ? "Checking…" : "Check"}
             </button>
           </div>
+          {detectedMode && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className={`rounded-full px-2.5 py-0.5 font-medium ${detectedMode === "url" ? "bg-indigo-50 text-indigo-700 border border-indigo-200" : "bg-slate-100 text-slate-600"}`}>
+                {detectedMode === "url" ? "Detected: URL · will fetch and embed" : "Detected: Topic · will embed directly"}
+              </span>
+            </div>
+          )}
           <div role="status" aria-live="polite" aria-atomic="true" className="text-xs text-slate-500">
             {slowHint && (
               <p className="mt-2">
@@ -460,7 +475,13 @@ export default function ConflictCheckerPage() {
                   aria-valuetext={`${scoreMin} percent`}
                   className="w-32"
                 />
-                <span className="w-10 tabular-nums text-slate-600">{scoreMin}%</span>
+                <input
+                  type="number" min={0} max={100} value={scoreMin}
+                  onChange={(e) => setScoreMin(Math.min(100, Math.max(0, Number(e.target.value))))}
+                  aria-label="Minimum conflict score (number)"
+                  className="w-14 rounded border border-slate-300 bg-white px-2 py-0.5 text-center tabular-nums text-slate-700"
+                />
+                <span className="text-slate-400">%</span>
                 <label className="ml-2 flex items-center gap-1 text-slate-600">
                   <input type="checkbox" checked={hideNeedsReview} onChange={(e) => setHideNeedsReview(e.target.checked)} />
                   hide unanalyzed

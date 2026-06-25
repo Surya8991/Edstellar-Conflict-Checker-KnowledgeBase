@@ -284,7 +284,13 @@ export default function BulkCheckPage() {
                   aria-valuetext={`${scoreMin} percent`}
                   className="w-24"
                 />
-                <span className="w-8 tabular-nums">{scoreMin}%</span>
+                <input
+                  type="number" min={0} max={100} value={scoreMin}
+                  onChange={(e) => setScoreMin(Math.min(100, Math.max(0, Number(e.target.value))))}
+                  aria-label="Minimum conflict score (number)"
+                  className="w-14 rounded border border-slate-300 bg-white px-2 py-0.5 text-center tabular-nums text-slate-700"
+                />
+                <span>%</span>
               </label>
               <button
                 onClick={downloadCsv}

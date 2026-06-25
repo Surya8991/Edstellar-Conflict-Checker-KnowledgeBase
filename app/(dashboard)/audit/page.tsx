@@ -52,7 +52,16 @@ export default function AuditPage() {
         subtitle="Title / meta length, broken links, duplicates, and composite per-page health."
       />
       <div className="space-y-5 p-8">
-        <Tabs tabs={TABS} param="tab" />
+        <div className="flex items-center justify-between gap-4">
+          <Tabs tabs={TABS} param="tab" className="flex-1" />
+          <button
+            onClick={load}
+            disabled={loading}
+            className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            {loading ? "Running…" : "Re-run audit"}
+          </button>
+        </div>
         {TAB_SUBTITLES[tab] && (
           <p className="text-sm text-slate-500">{TAB_SUBTITLES[tab]}</p>
         )}
@@ -355,7 +364,12 @@ function HealthTab({ rows }: { rows: any[] }) {
           aria-valuetext={`${minHealth} out of 100`}
           className="w-32"
         />
-        <span className="tabular-nums w-8 text-right">{minHealth}</span>
+        <input
+          type="number" min={0} max={100} value={minHealth}
+          onChange={(e) => setMinHealth(Math.min(100, Math.max(0, Number(e.target.value))))}
+          aria-label="Minimum health score (number)"
+          className="w-14 rounded border border-slate-300 bg-white px-2 py-0.5 text-center tabular-nums text-slate-700"
+        />
         {minHealth > 0 && (
           <button
             onClick={() => setMinHealth(0)}
