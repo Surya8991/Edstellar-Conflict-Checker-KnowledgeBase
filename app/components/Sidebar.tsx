@@ -75,16 +75,25 @@ export default function Sidebar({ user, signOutSlot }: { user?: SidebarUser | nu
         `}
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-5">
-          <div>
-            <div className="text-sm font-semibold tracking-tight text-slate-900">
-              Edstellar
+          <Link href="/" className="flex min-w-0 items-center gap-2.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/mark.svg"
+              alt=""
+              aria-hidden="true"
+              className="h-8 w-8 shrink-0"
+            />
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold tracking-tight text-slate-900">
+                Edstellar
+              </div>
+              <div className="truncate text-[11px] text-slate-500">Content Intelligence</div>
             </div>
-            <div className="text-xs text-slate-500">Content Intelligence</div>
-          </div>
+          </Link>
           <button
             onClick={() => setOpen(false)}
             aria-label="Close navigation"
-            className="rounded-md p-1 text-slate-500 hover:bg-slate-100 lg:hidden"
+            className="ml-2 rounded-md p-1 text-slate-500 hover:bg-slate-100 lg:hidden"
           >
             <X size={18} />
           </button>

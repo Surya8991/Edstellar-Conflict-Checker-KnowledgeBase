@@ -22,12 +22,15 @@ export default async function SignInPage({ searchParams }: PageProps) {
     <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
       <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
         <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-[#7c9cff] to-[#22d3ee] font-extrabold text-[#0b1020]">
-            CC
-          </div>
-          <div>
-            <div className="text-xs uppercase tracking-wider text-slate-500">Edstellar</div>
-            <div className="text-lg font-semibold text-slate-900">Conflict Checker</div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand/edstellar-primary.svg"
+            alt="Edstellar"
+            className="h-9 w-auto"
+          />
+          <div className="border-l border-slate-200 pl-3">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Internal tool</div>
+            <div className="text-base font-semibold text-slate-900">Conflict Checker</div>
           </div>
         </div>
 
