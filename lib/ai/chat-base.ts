@@ -95,10 +95,22 @@ export abstract class BaseChatProvider implements ChatProvider {
   abstract readonly name: string;
   protected abstract complete(system: string, user: string): Promise<string>;
 
+  /**
+   * SRE kill-switch: set LLM_KILL_SWITCH=1 in the environment and redeploy
+   * to disable all LLM calls instantly without a code push. All methods that
+   * call complete() go through this wrapper, so a single env var stops spend.
+   */
+  private async safeComplete(system: string, user: string): Promise<string> {
+    if (process.env.LLM_KILL_SWITCH === "1") {
+      throw new Error("LLM_KILL_SWITCH is active — all AI calls are disabled.");
+    }
+    return this.complete(system, user);
+  }
+
   /** Public passthrough to the underlying chat primitive for callers that
    *  don't fit summarize/classify/competitor. JSON mode is on per-adapter. */
   async generate(input: { system: string; prompt: string }): Promise<string> {
-    return this.complete(input.system, input.prompt);
+    return this.safeComplete(input.system, input.prompt);
   }
 
   async summarize(input: {
@@ -133,7 +145,7 @@ Return JSON: {
   "searchSynopsis": string (a dense 1-paragraph topical description for similarity search)
 }`;
 
-    const raw = await this.complete(system, user);
+    const raw = await this.safeComplete(system, user);
     const parsed = validateLlm(raw, SummarySchema);
     return {
       summary: parsed?.summary ?? "",
@@ -179,7 +191,7 @@ For each verdict:
 
 Return JSON object: {"verdicts": [{"url": string, "conflictScore": number, "conflictType": string, "rationale": string, "overlap": string[], "issue": string}]}`;
 
-    const raw = await this.complete(system, user);
+    const raw = await this.safeComplete(system, user);
     // Accept either { verdicts: [...] } OR a bare array — both shapes have
     // shown up in the wild. Validate strictly so a missing/wrong score or a
     // hallucinated conflictType doesn't NaN downstream blendScore() calls.
@@ -252,7 +264,7 @@ ${serpBlock}Produce a JSON object: {
 
 Choose "merge" when the existing page is already the right destination for this content; "skip" when the topic genuinely shouldn't be published; "rewrite" otherwise.`;
 
-    const raw = await this.complete(system, user);
+    const raw = await this.safeComplete(system, user);
     const parsed = validateLlm(raw, RewriteProposalSchema);
     return parsed ?? { diagnosis: "", angles: [], decision: "rewrite" };
   }
@@ -270,7 +282,7 @@ Competitor page: <data>${sanitizeForPrompt(input.url).slice(0, 500)}</data>
 Title: <data>${sanitizeForPrompt(input.title ?? "").slice(0, 400)}</data>
 Content: <data>${sanitizeForPrompt(input.content).slice(0, 6000)}</data>
 Return JSON: {"summary": string (2-3 sentences on what this competitor page covers), "angle": string (1 sentence on its unique angle / how to differentiate from it)}`;
-    const raw = await this.complete(system, user);
+    const raw = await this.safeComplete(system, user);
     const parsed = validateLlm(raw, CompetitorSchema);
     return { summary: parsed?.summary ?? "", angle: parsed?.angle ?? "" };
   }

@@ -36,6 +36,11 @@ New `/api/*` routes that should be cron-callable must be added to `proxy.ts PUBL
 - `AI_CHAT_PROVIDER` defaults to `groq` if neither `GROQ_API_KEY` nor `ANTHROPIC_API_KEY` is set, the app silently returns empty summaries.
 - First request after a cold deploy downloads `bge-small-en-v1.5` (~30 MB) inline — expect 8–25 s latency. Set `EMBEDDING_PROVIDER=openai` to skip this.
 
+## Emergency run-book shortcuts
+- **LLM cost runaway** → set `LLM_KILL_SWITCH=1` env var + redeploy. Disables all AI calls instantly without a code push.
+- **DB unreachable** → check Neon console → wake endpoint or rotate `DATABASE_URL` to read-replica.
+- **Cron stuck / partial corpus** → manually `POST /api/cron/reingest`. No resume cursor exists yet — workaround: check `SELECT max(ingested_at) FROM pages` to find the cutoff.
+
 ## What NOT to do
 - Do not force-push `main`. No exceptions.
 - Do not run destructive migrations without a DB backup — migrations are forward-only with no transactional wrapper.
