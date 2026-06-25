@@ -21,21 +21,27 @@ export default async function SignInPage({ searchParams }: PageProps) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
       <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="mb-6 flex items-center gap-3">
+        {/* Brand row — same circle-mark + wordmark + subtitle pattern as the
+            sidebar header so the two surfaces read as one app. Centered for
+            the sign-in context. */}
+        <div className="mb-8 flex items-center justify-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/brand/edstellar-primary.svg"
-            alt="Edstellar"
-            className="h-9 w-auto"
+            src="/brand/mark.svg"
+            alt=""
+            aria-hidden="true"
+            className="h-10 w-10"
           />
-          <div className="border-l border-slate-200 pl-3">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Internal tool</div>
-            <div className="text-base font-semibold text-slate-900">Conflict Checker</div>
+          <div>
+            <div className="text-base font-semibold tracking-tight text-slate-900">
+              Edstellar
+            </div>
+            <div className="text-xs text-slate-500">Content Intelligence</div>
           </div>
         </div>
 
-        <h1 className="text-xl font-semibold text-slate-900">Sign in</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <h1 className="text-center text-xl font-semibold text-slate-900">Sign in</h1>
+        <p className="mt-1 text-center text-sm text-slate-500">
           Use your Edstellar Google account. Other accounts are blocked.
         </p>
 
@@ -56,19 +62,20 @@ export default async function SignInPage({ searchParams }: PageProps) {
         >
           <button
             type="submit"
-            className="inline-flex w-full items-center justify-center gap-3 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="inline-flex w-full items-center justify-center gap-3 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
           >
-            <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
-              <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.6-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34 6.2 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/>
-              <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 16 18.9 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34 6.2 29.3 4 24 4 16.3 4 9.6 8.3 6.3 14.7z"/>
-              <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2c-2 1.5-4.5 2.4-7.2 2.4-5.3 0-9.8-3.4-11.4-8.1l-6.5 5C9.5 39.6 16.2 44 24 44z"/>
-              <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.7 2.1-2.1 4-3.9 5.3l6.2 5.2c-.4.4 6.6-4.8 6.6-14.5 0-1.3-.1-2.4-.6-3.5z"/>
+            {/* Google G — official multi-color logo. Each quadrant is one path. */}
+            <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+              <path fill="#4285F4" d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/>
+              <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
+              <path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/>
+              <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
             </svg>
             Continue with Google
           </button>
         </form>
 
-        <p className="mt-6 text-xs text-slate-400">
+        <p className="mt-6 text-center text-xs text-slate-400">
           By signing in you agree to the team's internal-tool acceptable use policy.
         </p>
       </div>
