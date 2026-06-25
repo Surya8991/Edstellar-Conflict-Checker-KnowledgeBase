@@ -6,7 +6,7 @@
 import { google } from "googleapis";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { getAuthorizedClient, resolveRange, type RangeKey } from "@/lib/gsc";
+import { getAuthorizedClient, resolveRange, resolveSiteUrl, type RangeKey } from "@/lib/gsc";
 
 export interface GscRow {
   keys?: string[];
@@ -193,8 +193,7 @@ function bestCatalogMatch(query: string): { kind: GapRow["matchKind"]; url: stri
 export async function buildInsights(range: RangeKey): Promise<Insights> {
   const client = await getAuthorizedClient();
   if (!client) throw new Error("Not connected to Google Search Console.");
-  const siteUrl = process.env.GSC_SITE_URL;
-  if (!siteUrl) throw new Error("GSC_SITE_URL is not set.");
+  const siteUrl = await resolveSiteUrl(client);
 
   const { startDate, endDate } = resolveRange(range);
   const prev = previousRange(range);
@@ -386,8 +385,7 @@ function computeBrandedSplit(byQuery: GscRow[]): BrandedSplit {
 export async function pageDrilldown(page: string, range: RangeKey) {
   const client = await getAuthorizedClient();
   if (!client) throw new Error("Not connected to Google Search Console.");
-  const siteUrl = process.env.GSC_SITE_URL;
-  if (!siteUrl) throw new Error("GSC_SITE_URL is not set.");
+  const siteUrl = await resolveSiteUrl(client);
   const { startDate, endDate } = resolveRange(range);
   const dim = (d: string[]) =>
     google.webmasters({ version: "v3", auth: client }).searchanalytics.query({
@@ -410,8 +408,7 @@ export async function pageDrilldown(page: string, range: RangeKey) {
 export async function indexCoverage(urls: string[]) {
   const client = await getAuthorizedClient();
   if (!client) throw new Error("Not connected to Google Search Console.");
-  const siteUrl = process.env.GSC_SITE_URL;
-  if (!siteUrl) throw new Error("GSC_SITE_URL is not set.");
+  const siteUrl = await resolveSiteUrl(client);
   const sc = google.searchconsole({ version: "v1", auth: client });
   const out: { url: string; verdict: string; coverageState: string; lastCrawl?: string }[] = [];
   for (const url of urls) {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { neon } from "@neondatabase/serverless";
 import { google } from "googleapis";
-import { getAuthorizedClient } from "@/lib/gsc";
+import { getAuthorizedClient, resolveSiteUrl } from "@/lib/gsc";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
   try {
     const client = await getAuthorizedClient();
     if (!client) throw new Error("Not connected to GSC.");
-    const siteUrl = process.env.GSC_SITE_URL!;
+    const siteUrl = await resolveSiteUrl(client);
     const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
     const webmasters = google.webmasters({ version: "v3", auth: client });
 

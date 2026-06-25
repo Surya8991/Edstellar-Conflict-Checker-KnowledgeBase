@@ -5,7 +5,7 @@
  *  - lookup(input)   → auto-detect URL vs query and return the right one
  */
 import { google } from "googleapis";
-import { getAuthorizedClient, resolveRange } from "@/lib/gsc";
+import { getAuthorizedClient, resolveRange, resolveSiteUrl } from "@/lib/gsc";
 
 interface GscRow { keys?: string[]; clicks: number; impressions: number; ctr: number; position: number }
 
@@ -59,8 +59,7 @@ async function runQuery(
 async function setup() {
   const client = await getAuthorizedClient();
   if (!client) throw new Error("Not connected to Google Search Console.");
-  const siteUrl = process.env.GSC_SITE_URL;
-  if (!siteUrl) throw new Error("GSC_SITE_URL is not set.");
+  const siteUrl = await resolveSiteUrl(client);
   const m6  = resolveRange("6m");
   const m12 = resolveRange("12m");
   return { client, siteUrl, m6, m12 };

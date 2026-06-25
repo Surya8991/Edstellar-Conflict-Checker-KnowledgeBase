@@ -94,8 +94,7 @@ export interface GscQueryOptions {
 export async function querySearchAnalytics(opts: GscQueryOptions) {
   const client = await getAuthorizedClient();
   if (!client) throw new Error("Not connected to Google Search Console.");
-  const siteUrl = process.env.GSC_SITE_URL;
-  if (!siteUrl) throw new Error("GSC_SITE_URL is not set.");
+  const siteUrl = await resolveSiteUrl(client);
 
   const { startDate, endDate } = resolveRange(opts.range);
   const webmasters = google.webmasters({ version: "v3", auth: client });
@@ -109,4 +108,94 @@ export async function querySearchAnalytics(opts: GscQueryOptions) {
     },
   });
   return { startDate, endDate, rows: res.data.rows ?? [] };
+}
+
+/**
+ * Build the candidate property URLs we'll probe against the connected
+ * account's verified-sites list.
+ *
+ * GSC distinguishes URL-prefix properties (must match scheme + host + path
+ * EXACTLY, including trailing slash) from Domain properties
+ * (`sc-domain:example.com` — covers all subdomains and schemes). The user only
+ * configures one `GSC_SITE_URL` value, but the property that's actually
+ * verified for their account might be any of these variants. We try them all.
+ */
+export function siteUrlCandidates(envValue: string): string[] {
+  const v = envValue.trim();
+  if (!v) return [];
+  const out = new Set<string>();
+  // 1. Exactly what was configured (URL-prefix or sc-domain).
+  out.add(v);
+  // 2. Toggled trailing slash (URL-prefix only).
+  if (/^https?:\/\//i.test(v)) {
+    out.add(v.endsWith("/") ? v.replace(/\/+$/, "") : v + "/");
+  }
+  // 3. Domain-property fallback derived from the host.
+  try {
+    if (/^https?:\/\//i.test(v)) {
+      const host = new URL(v).hostname;
+      out.add(`sc-domain:${host}`);
+      out.add(`sc-domain:${host.replace(/^www\./, "")}`);
+    }
+  } catch {
+    /* not a URL — that's fine */
+  }
+  return [...out];
+}
+
+// Module-level cache. First request through resolveSiteUrl probes the API;
+// every subsequent call in the same lambda instance returns the cached value.
+// Vercel functions reuse instances, so this typically only probes once per
+// cold start.
+let cachedResolvedSiteUrl: string | null = null;
+let cachedForCreds: string | null = null;
+function credsFingerprint(client: any): string {
+  // Cheap fingerprint so we re-probe if a different account connects.
+  const c = client?.credentials ?? {};
+  return `${c.access_token?.slice(-12) ?? ""}|${c.refresh_token?.slice(-12) ?? ""}`;
+}
+
+/**
+ * Pick a siteUrl variant the connected account actually has permission for.
+ * Throws a helpful error listing what IS verified if none of the candidates
+ * match — saves the "User does not have sufficient permission" debug loop.
+ */
+export async function resolveSiteUrl(client: any): Promise<string> {
+  const env = process.env.GSC_SITE_URL;
+  if (!env) throw new Error("GSC_SITE_URL is not set.");
+
+  const fp = credsFingerprint(client);
+  if (cachedResolvedSiteUrl && cachedForCreds === fp) return cachedResolvedSiteUrl;
+
+  const candidates = siteUrlCandidates(env);
+  const webmasters = google.webmasters({ version: "v3", auth: client });
+  const list = await webmasters.sites.list();
+  const verified = (list.data.siteEntry ?? [])
+    .filter((e) => e.permissionLevel && e.permissionLevel !== "siteUnverifiedUser")
+    .map((e) => e.siteUrl!)
+    .filter(Boolean);
+
+  // Match case-insensitive on URL-prefix and exact on sc-domain.
+  const match = candidates.find((c) =>
+    verified.some((v) =>
+      c.startsWith("sc-domain:") ? v === c : v.toLowerCase() === c.toLowerCase(),
+    ),
+  );
+
+  if (!match) {
+    const tried = candidates.join(", ");
+    const haveAccess = verified.length
+      ? verified.join(", ")
+      : "(none — this Google account has no verified Search Console properties)";
+    throw new Error(
+      `GSC_SITE_URL='${env}' does not match any property this Google account can access. ` +
+        `Tried: ${tried}. Account has access to: ${haveAccess}. ` +
+        `Fix: in Search Console, add this account as a user on the property, ` +
+        `OR set GSC_SITE_URL to one of the accessible properties listed above.`,
+    );
+  }
+
+  cachedResolvedSiteUrl = match;
+  cachedForCreds = fp;
+  return match;
 }
