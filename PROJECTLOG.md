@@ -4,7 +4,7 @@
 > and how the system fits together. Update this file with every meaningful
 > change.
 
-**Last updated:** 2026-06-25 (Session 7 — audit fixes shipped + docs sync)
+**Last updated:** 2026-06-25 (Session 8 — medium-batch cleanup shipped)
 **Owner:** marketing@edstellar.com
 **Repo:** https://github.com/Layruss98266/Edstellar-Conflict-Checker-KnowledgeBase
 **Prod:** https://edstellar-conflict-checker-knowledg.vercel.app/
@@ -1364,3 +1364,46 @@ Pick these up in Session 8.
 - **Shared helpers > inlined guards.** Both `requireCronAuth()` and `gateLlmEndpoint()` were duplicated logic before — extracting them into ~20-LOC modules removed all the inlined `if (!secret || ...)` variants and made the audit-trail comments single-source.
 - **Forward-only DB migrations are still the right call.** `0005_check_match_enrichment.sql` only ADDs nullable columns + one index — safe to apply against a live prod DB without downtime. No reversible migration needed.
 - **Phased-sequential audit + parallel-fan-out execution = fastest delivery.** Audit produced findings in 4 parallel agents (~3 min), but shipping them needs the human-in-the-loop confirmations from §10F. Stuck to the user's "commit only, push when authed" rhythm; saved a credential rotation mid-batch by batching all 10 commits behind one push.
+
+---
+
+## 12. Session 8 — Medium-batch cleanup + product upgrades (2026-06-25)
+
+All five §10C medium batches shipped. 7 atomic commits, all pushed to
+`Layruss98266/main`. Vercel build green. The headline product upgrades:
+score blend rebalanced base-heavy, owner-cannibal scoring flipped to
+match documented intent, competitor freshness now verified against
+on-page metadata not lying sitemaps, internal-link suggester gets
+content-type affinity + traffic weighting + LLM-generated anchor
+variants.
+
+### 12A. Batches shipped this session
+
+| Batch | SHA | Items | What landed |
+|---|---|---|---|
+| 3E | `cb2498f` | Polish | Dropped `<meta keywords>` (Google ignored since 2009 + dashboard is `index:false`). Per-route Cache-Control (24h + 7d SWR) on `/opengraph-image`, `/icon`, `/apple-icon` so DoS hits Vercel's edge cache instead of re-running ImageResponse. OpenAI chat error now includes status text + truncated body. Four slider inputs get `aria-label` + `aria-valuetext`. Sidebar active-route check uses exact-or-segment-boundary match (`/audit` won't false-positive on a future `/audit-archive`). Stripped inline doc rot. |
+| 3C | `17f3d10` | Tokenization | New `lib/score-bands.ts` is the single source of truth for the 80/60/35 thresholds + their Tailwind colors. `ScoreBar`, dashboard `scoreColor`/`scoreType`, `MatchCard` ternaries all migrated. New `<Button variant size>` in `ui.tsx` for the 3 parallel button styles. `lib/db neonRows<T>()` helper names the `(rows as any).rows ?? rows` pattern; routes migrate opportunistically. |
+| 3B | `f6d8b37` | AI + CSRF | `lib/ai/embed-local.ts`: batched xenova pipe call (was serial — ~Nx speedup on bulk ingest). `lib/ai/embed-openai.ts`: BATCH_MAX=256 chunking past OpenAI's 2,048-per-call cap; 5-retry exponential backoff with jitter; Retry-After header honoured on 429; truncated body in error message. `lib/ai/chat-claude.ts` documents current model id catalogue + catches `not_found` → "model not found, override via ANTHROPIC_MODEL". `proxy.ts` CSRF origin check on POST/PUT/PATCH/DELETE when `AUTH_ENABLED=true` (SameSite=Lax + this layer = belt-and-braces). |
+| 3A | `fb5033e` | Scoring + SEO | `blendScore` rebalanced **`0.6*base + 0.4*llm`** (was `0.4/0.6`). LLM bounded to ~40-point drift from empirical signal. `impactWeighted` owner-bonus flipped: +0.25 now applies when match is an **orphan cannibal** (`ownerUrl` set AND `ownerUrl !== match.url`), not when match IS the owner — code finally matches the documented intent. `competitorFreshness` samples up to 12 pages (concurrency 4), parses `article:modified_time` / `og:updated_time` / `<time datetime>` / `meta last-modified`, returns `recent90dVerified` extrapolated from the sample. `proposeRewrite` accepts optional `serpHints` (AI Overview / PAA / answer box) and the prompt asks the LLM to factor SERP-feature gaps into the angle suggestions. |
+| 3D | `1b2e224` | Internal-links | `/api/internal-links` is now composite-scored: similarity × content-type-affinity × log10(gsc_clicks). Pulls 3x the requested limit for re-rank headroom. One batched LLM call generates 2–3 anchor variants per top match — returned alongside the primary anchor so the UI can show alternatives. Falls back gracefully when LLM call fails or `anchorVariants=false`. Reciprocal/orphan check deferred (needs an inbound-links table the corpus doesn't store). |
+
+### 12B. New env vars / behaviour worth knowing
+
+- No new env vars added. `ANTHROPIC_MODEL` is the documented override for Claude model rename outages.
+- `CONFLICT_MIN_SIMILARITY` from Session 7 still applies; no change here.
+- The CSRF origin check (3B) only runs when `AUTH_ENABLED=true`, so the open-dashboard default is unaffected.
+- `competitorFreshness` now adds ~5–8 s of wall-clock per call (12 page fetches with concurrency 4); cache the result if calling from a hot path.
+
+### 12C. What's still NOT done (deferred)
+
+- **Stat-component unification.** The two `Stat` components (dashboard vs. competitors) still drift visually. Better as a focused PR than mixed in here.
+- **Reciprocal / orphan internal-link check.** Needs an inbound-links table the corpus doesn't store. Build this when the link-suggester gets its v2.
+- **Bulk-refactor of `(rows as any).rows ?? rows` to `neonRows<T>()`.** Eight call sites remain on the old pattern; migrate opportunistically when each route is next touched.
+- **`scripts/cluster.ts` deterministic seed + transactional truncate.** Audit flagged this as 🟡 polish; low priority while clustering is a manual one-off.
+- **Strict nonce-based CSP.** Replace the permissive CSP from 2A with per-request nonces. Project on its own — touches every inline script/style.
+
+### 12D. Lessons re-confirmed
+
+- **Don't ask the LLM for what plain code can do.** Anchor-variant generation needed the LLM (creative writing); content-type affinity / traffic weighting / composite ranking are plain code. Mixing the two in one route is fine when each is doing what it's best at.
+- **Cache headers are framework-shaped.** Tried adding cache headers in the OG route handler itself first; the right place was `next.config.ts headers()` matching the source path — Vercel's edge picks them up uniformly.
+- **Backfill comments to match code, not the other way around.** When you find a code-comment disagreement (3A owner-bonus), trust whichever one matches documented behaviour and fix the other. Don't ship "either could be right" patches.
