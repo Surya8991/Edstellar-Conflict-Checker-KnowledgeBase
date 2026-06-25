@@ -2,12 +2,19 @@
 
 import { useState } from "react";
 import { PageHeader, Card } from "@/app/components/ui";
+import { Tabs, useActiveTab } from "@/app/components/Tabs";
 
-const TABS = ["Research", "SERP Overlap", "Domain Compare", "Freshness"] as const;
-type Tab = typeof TABS[number];
+// Audit H15 (Session 6): tab id is the URL-stable identifier; the label
+// is what renders. The page body switches on the id so reload-/share-safe.
+const TABS = [
+  { id: "research", label: "Research" },
+  { id: "serp-overlap", label: "SERP Overlap" },
+  { id: "domain-compare", label: "Domain Compare" },
+  { id: "freshness", label: "Freshness" },
+] as const;
 
 export default function CompetitorsPage() {
-  const [tab, setTab] = useState<Tab>("Research");
+  const [tab] = useActiveTab(TABS, "tab");
   return (
     <div>
       <PageHeader
@@ -15,20 +22,11 @@ export default function CompetitorsPage() {
         subtitle="Who else ranks, how often, how recently — and what Edstellar can do differently."
       />
       <div className="space-y-5 p-8">
-        <div className="flex flex-wrap gap-1 border-b border-slate-200">
-          {TABS.map((t) => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${
-                tab === t ? "border-slate-900 text-slate-900" : "border-transparent text-slate-500 hover:text-slate-700"
-              }`}>
-              {t}
-            </button>
-          ))}
-        </div>
-        {tab === "Research" && <ResearchTab />}
-        {tab === "SERP Overlap" && <SerpOverlapTab />}
-        {tab === "Domain Compare" && <DomainCompareTab />}
-        {tab === "Freshness" && <FreshnessTab />}
+        <Tabs tabs={TABS} param="tab" />
+        {tab === "research" && <ResearchTab />}
+        {tab === "serp-overlap" && <SerpOverlapTab />}
+        {tab === "domain-compare" && <DomainCompareTab />}
+        {tab === "freshness" && <FreshnessTab />}
       </div>
     </div>
   );

@@ -46,16 +46,22 @@ export default function Sidebar({ user, signOutSlot }: { user?: SidebarUser | nu
 
   return (
     <>
-      {/* Mobile / narrow viewport: burger button. Fixed top-left so it
-          floats above content regardless of scroll. */}
-      <button
-        onClick={() => setOpen(true)}
-        aria-label="Open navigation"
-        className="fixed left-3 top-3 z-40 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm lg:hidden"
-      >
-        <Menu size={16} />
-        Menu
-      </button>
+      {/* Mobile / narrow viewport burger. Audit H17 (Session 6): hidden
+          while the drawer is open so the tap target doesn't sit on top of
+          the drawer header (and so screen readers don't see two
+          "open/close navigation" controls at once). */}
+      {!open && (
+        <button
+          onClick={() => setOpen(true)}
+          aria-label="Open navigation"
+          aria-expanded={false}
+          aria-controls="sidebar-drawer"
+          className="fixed left-3 top-3 z-40 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm lg:hidden"
+        >
+          <Menu size={16} />
+          Menu
+        </button>
+      )}
 
       {/* Backdrop for the mobile drawer. */}
       {open && (
@@ -65,8 +71,15 @@ export default function Sidebar({ user, signOutSlot }: { user?: SidebarUser | nu
         />
       )}
 
-      {/* Sidebar. Drawer on small, static on >= lg. */}
+      {/* Sidebar. Drawer on small, static on >= lg. Audit H18: when the
+          drawer is open on narrow viewports, surface it as a modal dialog
+          so assistive tech treats it correctly. The `lg:` static layout
+          isn't modal — only the mobile drawer is. */}
       <aside
+        id="sidebar-drawer"
+        role={open ? "dialog" : undefined}
+        aria-modal={open || undefined}
+        aria-label={open ? "Navigation" : undefined}
         className={`
           fixed inset-y-0 left-0 z-50 flex w-60 shrink-0 flex-col border-r border-slate-200 bg-white
           transform transition-transform duration-200

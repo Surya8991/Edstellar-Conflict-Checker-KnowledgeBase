@@ -3,29 +3,30 @@
 import { useEffect, useState } from "react";
 import { PageHeader, Card } from "@/app/components/ui";
 import { Pagination } from "@/app/components/Pagination";
+import { Tabs, useActiveTab } from "@/app/components/Tabs";
 
-const TABS = ["Meta", "Link Audit", "Duplicates", "Health Score", "Canonical", "Images", "Stale", "Clusters"] as const;
-type Tab = typeof TABS[number];
+// Audit H15 (Session 6): tab id IS the audit kind in /api/audit, so the
+// URL `?tab=` value also drives the fetch — single source of truth.
+const TABS = [
+  { id: "meta", label: "Meta" },
+  { id: "links", label: "Link Audit" },
+  { id: "duplicates", label: "Duplicates" },
+  { id: "health", label: "Health Score" },
+  { id: "canonical", label: "Canonical" },
+  { id: "images", label: "Images" },
+  { id: "stale", label: "Stale" },
+  { id: "clusters", label: "Clusters" },
+] as const;
 
 export default function AuditPage() {
-  const [tab, setTab] = useState<Tab>("Meta");
+  const [tab] = useActiveTab(TABS, "tab");
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [flagFilter, setFlagFilter] = useState<string>("");
 
   async function load() {
     setLoading(true);
-    const kindMap: Record<Tab, string> = {
-      "Meta": "meta",
-      "Link Audit": "links",
-      "Duplicates": "duplicates",
-      "Health Score": "health",
-      "Canonical": "canonical",
-      "Images": "images",
-      "Stale": "stale",
-      "Clusters": "clusters",
-    };
-    const res = await fetch(`/api/audit?kind=${kindMap[tab]}&limit=1000`);
+    const res = await fetch(`/api/audit?kind=${tab}&limit=1000`);
     const json = await res.json();
     setData(json);
     setLoading(false);
@@ -40,32 +41,20 @@ export default function AuditPage() {
         subtitle="Title / meta length, broken links, duplicates, and composite per-page health."
       />
       <div className="space-y-5 p-8">
-        <div className="flex flex-wrap gap-1 border-b border-slate-200">
-          {TABS.map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${
-                tab === t ? "border-slate-900 text-slate-900" : "border-transparent text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
+        <Tabs tabs={TABS} param="tab" />
 
         {loading && <div className="text-sm text-slate-400">Loading…</div>}
 
-        {tab === "Meta" && data?.rows && (
+        {tab === "meta" && data?.rows && (
           <MetaTab rows={data.rows} flagFilter={flagFilter} onFlagFilter={setFlagFilter} />
         )}
-        {tab === "Link Audit" && data?.rows && <LinksTab rows={data.rows} audited={data.audited} breakdown={data.breakdown} />}
-        {tab === "Duplicates" && data && <DupesTab data={data} />}
-        {tab === "Health Score" && data?.rows && <HealthTab rows={data.rows} />}
-        {tab === "Canonical" && data?.rows && <CanonicalTab rows={data.rows} />}
-        {tab === "Images" && data?.rows && <ImagesTab rows={data.rows} />}
-        {tab === "Stale" && data?.rows && <StaleTab rows={data.rows} />}
-        {tab === "Clusters" && data?.rows && <ClustersTab rows={data.rows} blogRows={data.blogRows ?? []} />}
+        {tab === "links" && data?.rows && <LinksTab rows={data.rows} audited={data.audited} breakdown={data.breakdown} />}
+        {tab === "duplicates" && data && <DupesTab data={data} />}
+        {tab === "health" && data?.rows && <HealthTab rows={data.rows} />}
+        {tab === "canonical" && data?.rows && <CanonicalTab rows={data.rows} />}
+        {tab === "images" && data?.rows && <ImagesTab rows={data.rows} />}
+        {tab === "stale" && data?.rows && <StaleTab rows={data.rows} />}
+        {tab === "clusters" && data?.rows && <ClustersTab rows={data.rows} blogRows={data.blogRows ?? []} />}
       </div>
     </div>
   );

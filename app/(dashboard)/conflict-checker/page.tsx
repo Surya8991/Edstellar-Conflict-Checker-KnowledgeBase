@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { PageHeader, Card, ConflictBadge, ScoreBar, TypeChip, TYPE_COLORS } from "@/app/components/ui";
 import { Pagination } from "@/app/components/Pagination";
+import { toast } from "@/app/components/Toast";
 
 interface Match {
   url: string;
@@ -942,7 +943,15 @@ function copyWriterBrief(result: CheckResult | null, suggestions: any, serp?: an
   lines.push(`_Generated from Conflict Checker · check #${result.checkId ?? "draft"}_`);
 
   const md = lines.join("\n");
-  navigator.clipboard.writeText(md).then(() => {
-    alert("Writer brief copied to clipboard as Markdown.");
-  });
+  // Audit H14 (Session 6): swapped the modal `alert()` for a transient
+  // toast. Also handle the clipboard rejection — writeText fails on
+  // non-HTTPS pages, denied permissions, or browsers that block during
+  // background tabs.
+  navigator.clipboard.writeText(md).then(
+    () => toast.success("Writer brief copied to clipboard as Markdown."),
+    (err) =>
+      toast.error(
+        `Couldn't copy to clipboard: ${(err as Error).message || "unknown error"}`,
+      ),
+  );
 }

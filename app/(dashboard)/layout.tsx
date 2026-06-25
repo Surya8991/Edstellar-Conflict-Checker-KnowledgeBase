@@ -1,6 +1,7 @@
 import Sidebar from "@/app/components/Sidebar";
 import HelpButton from "@/app/components/HelpButton";
 import SignOutButton from "@/app/components/SignOutButton";
+import { ToastViewport } from "@/app/components/Toast";
 import { auth, isAuthEnabled } from "@/auth";
 
 export default async function DashboardLayout({
@@ -24,6 +25,7 @@ export default async function DashboardLayout({
           overlap the PageHeader. Sidebar is in-flow on >= lg, drawer below. */}
       <main className="flex-1 min-w-0 pt-12 lg:pt-0">{children}</main>
       <HelpButton />
+      <ToastViewport />
     </div>
   );
 }

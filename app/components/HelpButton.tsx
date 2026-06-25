@@ -1,9 +1,58 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { HelpCircle, X } from "lucide-react";
 import { HELP, type HelpEntry } from "@/lib/help-content";
+
+/**
+ * Audit H18 (Session 6): mini focus trap. Constrains Tab/Shift+Tab to the
+ * focusable descendants of `containerRef.current` while the panel is open
+ * and restores focus to the previously-active element on close. Avoids
+ * pulling in focus-trap-react (~9 KB) for one dialog.
+ */
+function useFocusTrap(open: boolean, containerRef: React.RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    if (!open) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const container = containerRef.current;
+    const FOCUSABLE =
+      'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
+
+    function focusables(): HTMLElement[] {
+      if (!container) return [];
+      return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+        (el) => el.offsetParent !== null,
+      );
+    }
+
+    // Move focus into the panel on open.
+    const first = focusables()[0];
+    first?.focus();
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Tab") return;
+      const items = focusables();
+      if (!items.length) return;
+      const firstEl = items[0]!;
+      const lastEl = items[items.length - 1]!;
+      const active = document.activeElement as HTMLElement | null;
+      if (e.shiftKey && active === firstEl) {
+        e.preventDefault();
+        lastEl.focus();
+      } else if (!e.shiftKey && active === lastEl) {
+        e.preventDefault();
+        firstEl.focus();
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      previouslyFocused?.focus?.();
+    };
+  }, [open, containerRef]);
+}
 
 /** Match the longest-prefix HELP key for the current pathname. */
 function findEntry(pathname: string): HelpEntry | null {
@@ -23,6 +72,7 @@ export default function HelpButton() {
   const pathname = usePathname();
   const entry = findEntry(pathname);
   const [open, setOpen] = useState(false);
+  const panelRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => { setOpen(false) }, [pathname]);
   useEffect(() => {
@@ -31,6 +81,7 @@ export default function HelpButton() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
+  useFocusTrap(open, panelRef);
 
   if (!entry) return null;
 
@@ -53,8 +104,10 @@ export default function HelpButton() {
             className="fixed inset-0 z-40 bg-black/30"
           />
           <aside
+            ref={panelRef}
             className="fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-y-auto border-l border-slate-200 bg-white shadow-2xl"
             role="dialog"
+            aria-modal="true"
             aria-label={`Help — ${entry.title}`}
           >
             <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">

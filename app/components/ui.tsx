@@ -46,13 +46,29 @@ const TYPE_STYLES: Record<string, string> = {
   "needs-review": "bg-slate-100 text-slate-500",
 };
 
+/**
+ * Audit H16 (Session 6): each conflict-type badge gets a leading glyph so
+ * the status is readable for colorblind users + when the page is printed
+ * in greyscale. ● = filled (highest severity), ◐ = half (medium),
+ * ○ = empty (low/no), ⌛ = needs review.
+ */
+const TYPE_GLYPHS: Record<string, string> = {
+  duplicate: "●",
+  cannibalization: "●",
+  "partial-overlap": "◐",
+  none: "○",
+  "needs-review": "⌛",
+};
+
 export function ConflictBadge({ type }: { type: string }) {
+  const glyph = TYPE_GLYPHS[type];
   return (
     <span
-      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
+      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
         TYPE_STYLES[type] ?? "bg-slate-100 text-slate-600"
       }`}
     >
+      {glyph && <span aria-hidden="true">{glyph}</span>}
       {type}
     </span>
   );
