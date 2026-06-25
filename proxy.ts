@@ -30,13 +30,24 @@ const PUBLIC_PREFIXES = [
   "/opengraph-image",
   "/robots.txt",
   "/manifest.webmanifest",
+  "/brand",          // public/brand/* — logos used on the sign-in page itself,
+                     // so they MUST resolve for an unauthenticated browser
+                     // (otherwise the proxy redirects the <img> to /signin HTML
+                     // and the image renders as broken).
 ];
+
+// Anything that looks like a static asset (has a file extension) is also
+// bypassed — covers future cases where someone drops a file in public/.
+const STATIC_ASSET_RE = /\.[a-z0-9]{2,6}$/i;
 
 export default auth((req) => {
   if (!isAuthEnabled()) return NextResponse.next();
 
   const { pathname } = req.nextUrl;
   if (PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) {
+    return NextResponse.next();
+  }
+  if (STATIC_ASSET_RE.test(pathname)) {
     return NextResponse.next();
   }
 
