@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { runConflictCheck } from "@/lib/conflict";
 import { clientIp, consume, denied } from "@/lib/rate-limit";
+import { auth, isAuthEnabled } from "@/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,11 +57,20 @@ export async function POST(request: NextRequest) {
     }
     const body = parsed.data;
 
+    // Prefer the authenticated user's email over a body-supplied createdBy
+    // (which any caller could spoof). Falls back to whatever the request
+    // provided when auth isn't enabled.
+    let createdBy: string | undefined = body.createdBy ?? undefined;
+    if (isAuthEnabled()) {
+      const session = await auth().catch(() => null);
+      createdBy = session?.user?.email ?? createdBy;
+    }
+
     const result = await runConflictCheck(body.input, {
       vectorLimit: body.vectorLimit ?? body.limit ?? 100,
       classifyLimit: body.classifyLimit ?? 15,
       minSimilarity: body.minSimilarity ?? 0.30,
-      createdBy: body.createdBy ?? undefined,
+      createdBy,
     });
 
     const verdict =

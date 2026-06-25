@@ -155,6 +155,32 @@ Required before exposing the app publicly:
 
 ---
 
+## STEP 7 — Lock the dashboard with Google SSO (when ready)
+
+This is opt-in via `AUTH_ENABLED=true`. Leave it off until the OAuth consent screen is published — otherwise teammates outside the test-users list can't sign in.
+
+1. **Google Cloud Console** → APIs & Services → **OAuth consent screen** → click **Publish app**. Move the consent screen from **Testing** to **In production**. Anyone in `@edstellar.com` will then be able to sign in without being added as a test user.
+2. Same console → **Credentials** → your existing OAuth client → **Authorized redirect URIs** → add:
+   ```
+   https://edstellar-conflict-checker-knowledg.vercel.app/api/auth/callback/google
+   ```
+   (Keep the GSC one alongside it; same client serves both.)
+3. Generate a session secret:
+   ```bash
+   openssl rand -hex 32     # or run the snippet from earlier in this conversation
+   ```
+4. In Vercel → Settings → Environment Variables, set:
+   ```
+   AUTH_ENABLED=true
+   AUTH_SECRET=<the random string from step 3>
+   AUTH_ALLOWED_DOMAINS=edstellar.com   # comma-separated if you want extras
+   ```
+5. **Redeploy.** Visit any dashboard page — you'll get redirected to `/signin`. Click **Continue with Google**, sign in with an `@edstellar.com` account, you'll bounce back to where you were.
+
+To roll back without redeploying code: set `AUTH_ENABLED=false` (or delete it) → Redeploy. Dashboard is open again.
+
+---
+
 ## After Each Step
 
 The dev server **auto-reloads `.env`** — no restart needed. Just save the file.

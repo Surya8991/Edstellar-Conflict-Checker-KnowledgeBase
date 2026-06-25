@@ -45,6 +45,26 @@ export const HELP: Record<string, HelpEntry> = {
     ],
   },
 
+  "/signin": {
+    title: "Sign in",
+    what:
+      "Locked-down sign-in page. The dashboard only accepts Google accounts on the team's allow-listed domain (defaults to @edstellar.com).",
+    howToUse: [
+      "Click 'Continue with Google'.",
+      "Pick your Edstellar Google account from the chooser (or sign in if you're not).",
+      "You'll land back where you were trying to go.",
+    ],
+    readingIt: [
+      "There's no email/password form on purpose — SSO only.",
+      "If you see 'AccessDenied' it means the email you signed in with isn't on the allow-list. Switch accounts.",
+    ],
+    troubleshoot: [
+      { problem: "I see 'AccessDenied'", fix: "You're signed into the wrong Google account. In the Google chooser, pick 'Use another account' and sign in with your Edstellar email." },
+      { problem: "I see 'redirect_uri_mismatch'", fix: "An admin needs to add the prod redirect URI to Google Cloud Console → Credentials → OAuth client. The URI is `https://<host>/api/auth/callback/google`." },
+      { problem: "Loop back to sign-in after signing in", fix: "AUTH_SECRET may not be set in the deployed env. Ask an admin to set it and redeploy." },
+    ],
+  },
+
   "/conflict-checker": {
     title: "Conflict Checker",
     what:

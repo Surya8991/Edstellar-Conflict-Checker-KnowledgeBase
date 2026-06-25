@@ -741,9 +741,46 @@ H4 (`955b11c`) — paragraph-level link insertion (#44):
 
 **All free-path backlog items shipped.** Remaining open in §9:
 - #18 (terminology consistency) — intentional in some surfaces.
-- #33 (NextAuth + Google SSO) — needs OAuth consent screen out of
-  testing mode; user action.
 - All of §9E (paid-key items) — lift when funded.
+
+**Session 5 — Auth batch**
+
+NextAuth + Google SSO (#33). Code lands behind `AUTH_ENABLED` — flip to
+true once the OAuth consent screen is published.
+
+- `auth.ts` (root) — NextAuth v5 (`5.0.0-beta.31`). Google provider
+  reuses the existing GSC OAuth client. signIn callback rejects emails
+  outside `AUTH_ALLOWED_DOMAINS` (default `edstellar.com`). JWT
+  session, 12h TTL. Exports `auth`, `handlers`, `signIn`, `signOut`,
+  plus an `isAuthEnabled()` helper every gated consumer checks.
+- `app/api/auth/[...nextauth]/route.ts` — re-exports handlers.
+- `proxy.ts` (Next 16 file convention; renamed from middleware.ts to
+  resolve the build-time deprecation warning). When the env flag is
+  off the proxy returns `NextResponse.next()` immediately. When on
+  it gates every route except a small allow-list (`/signin`,
+  `/api/auth/*`, `/api/cron/*`, `/api/check*`, Next file-conventions).
+- `app/signin/page.tsx` — server component. 'Continue with Google'
+  form action calls `signIn('google', { redirectTo })`. Reads
+  `returnTo` from the proxy redirect. Error banner translates the
+  AccessDenied case.
+- `app/(dashboard)/layout.tsx` — fetches `auth()` server-side when
+  enabled, passes `user` to `<Sidebar user={...} />`.
+- `app/components/Sidebar.tsx` — accepts optional `user` prop, renders
+  avatar/name/email + 'Sign out' POST form at the bottom of the
+  drawer. Added `flex flex-col` so `mt-auto` pins it.
+- `app/api/check/route.ts` — session email overrides body-supplied
+  `createdBy` when auth is on (caller can't spoof attribution).
+- `.env.example` + `SETUP_GUIDE.md` STEP 7 walk through the
+  consent-screen publish, redirect URI add, AUTH_SECRET generate,
+  Vercel env + redeploy. Rollback path documented.
+- `lib/help-content.ts` got a `/signin` entry with the AccessDenied,
+  redirect_uri_mismatch, and AUTH_SECRET-loop troubleshoot pairs.
+
+Verified: `npx tsc --noEmit` exit 0, `npx next build` clean — both
+`/api/auth/[...nextauth]` and `/signin` register; the
+middleware-deprecation warning is gone after the proxy.ts rename.
+
+§9 backlog now down to: #18 (intentional) + all §9E (paid).
 
 ---
 

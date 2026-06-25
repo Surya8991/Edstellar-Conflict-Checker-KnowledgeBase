@@ -18,6 +18,12 @@ import {
   X,
 } from "lucide-react";
 
+interface SidebarUser {
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+}
+
 const NAV = [
   { href: "/",                   label: "Dashboard",         icon: LayoutDashboard },
   { href: "/conflict-checker",   label: "Conflict Checker",  icon: ScanSearch },
@@ -31,7 +37,7 @@ const NAV = [
   { href: "/corpus",             label: "Corpus",            icon: Database },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ user }: { user?: SidebarUser | null }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -62,7 +68,7 @@ export default function Sidebar() {
       {/* Sidebar. Drawer on small, static on >= lg. */}
       <aside
         className={`
-          fixed inset-y-0 left-0 z-50 w-60 shrink-0 border-r border-slate-200 bg-white
+          fixed inset-y-0 left-0 z-50 flex w-60 shrink-0 flex-col border-r border-slate-200 bg-white
           transform transition-transform duration-200
           ${open ? "translate-x-0" : "-translate-x-full"}
           lg:static lg:translate-x-0
@@ -103,6 +109,33 @@ export default function Sidebar() {
             );
           })}
         </nav>
+
+        {user && (
+          <div className="mt-auto border-t border-slate-200 p-3">
+            <div className="flex items-center gap-2.5 px-2 py-1.5 text-xs">
+              {user.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={user.image} alt="" className="h-7 w-7 rounded-full" />
+              ) : (
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-[11px] font-semibold text-slate-600">
+                  {(user.name ?? user.email ?? "?").slice(0, 1).toUpperCase()}
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-medium text-slate-700">{user.name || "Signed in"}</div>
+                <div className="truncate text-[11px] text-slate-400">{user.email}</div>
+              </div>
+            </div>
+            <form action="/api/auth/signout" method="post">
+              <button
+                type="submit"
+                className="mt-1 w-full rounded-md px-2 py-1.5 text-left text-xs text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+              >
+                Sign out
+              </button>
+            </form>
+          </div>
+        )}
       </aside>
     </>
   );
