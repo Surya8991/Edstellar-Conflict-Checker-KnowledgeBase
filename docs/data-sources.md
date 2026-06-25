@@ -36,7 +36,7 @@ The pgvector index on `pages.embedding` is HNSW with `vector_cosine_ops`.
 | **Anthropic Claude** | Alt chat provider. | `ANTHROPIC_API_KEY`, `AI_CHAT_PROVIDER=claude` | — |
 | **OpenAI** | Alt chat + alt embedder. | `OPENAI_API_KEY` | Inert if key missing. |
 | **Local embedder** (Transformers.js `bge-small-en-v1.5`) | Default — embeddings without an API call. | `AI_EMBED_PROVIDER=local` | Model downloads on first use (~30 MB). |
-| **Google Search Console** | `/search-console` page + GSC enrichment in matches. | `GSC_CLIENT_ID`, `GSC_CLIENT_SECRET`, `GSC_SITE_URL` | Pages render without GSC columns. |
+| **Google Search Console** | `/search-console` page + GSC enrichment in matches. | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `GSC_SITE_URL` | Pages render without GSC columns. |
 | **Serper.dev** | `/competitors`, SERP overlap, AI Overview detection. | `SERPER_API_KEY` | `/competitors` shows an empty state. |
 
 ## Pipelines (npm scripts)

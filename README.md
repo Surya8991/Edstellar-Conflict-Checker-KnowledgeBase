@@ -96,6 +96,15 @@ This repo is a single Next.js app at the root — Vercel will auto-detect it.
 5. **Crons** — [`vercel.json`](vercel.json) registers three schedules (`/api/cron/reingest`, `/api/cron/audit-links`, `/api/cron/gsc-snapshot`). Set `CRON_SECRET` so the routes can authenticate. **Warning:** the routes fail **open** if `CRON_SECRET` is unset — anyone can trigger them. Always set it in production.
 6. **External webhook (optional)** — to gate `POST /api/check` from a CMS pre-publish hook, set `WEBHOOK_API_KEY`; callers must then send `X-API-Key: <value>`.
 
+### Vercel pre-deploy checklist
+
+The audit below surfaced four things that need attention **before** the first prod deploy. They aren't auto-fixable without `npm install` (see [`AGENTS.md`](AGENTS.md) — Next 16 config must be written against the installed docs):
+
+1. **`next.config.ts` — add `serverExternalPackages`.** The runtime-only deps (`@xenova/transformers`, `jsdom`, `cheerio`, `googleapis`) should NOT be bundled by Next's tracer. After `npm install`, add them to `serverExternalPackages` in `next.config.ts` (key name + exact shape per Next 16 docs in `node_modules/next/dist/docs/`). Without this, the function bundle balloons past Vercel's size limit and the Transformers.js model loader breaks.
+2. **`next.config.ts` — `outputFileTracingIncludes` for `data/`.** [`lib/sitemap.ts`](lib/sitemap.ts), [`lib/taxonomy.ts`](lib/taxonomy.ts), and [`lib/gsc-insights.ts`](lib/gsc-insights.ts) all do `readFileSync(join(process.cwd(), "data", …))` at runtime. Next's file tracer won't pick those up (the path is dynamic), so add `data/**/*` to `outputFileTracingIncludes` for the API routes that need them (`/api/check/*`, `/api/cron/reingest`, `/api/cron/gsc-snapshot`, `/api/competitors/*`).
+3. **Embedder choice for prod.** The default local embedder downloads `bge-small-en-v1.5` (~30 MB) into `/tmp` on each cold start — fine for the long-lived `/api/cron/reingest` (`maxDuration = 300`), painful for `/api/check` (cold start ≈ 8–15 s the first time after a deploy). For prod, either: (a) set `AI_EMBED_PROVIDER=openai` after running the 384→1536 column-widen + re-ingest (SQL above), or (b) accept the cold-start cost and warm the function with the cron.
+4. **Vercel plan limits for crons.** [`vercel.json`](vercel.json) registers **three** crons, two of them **weekly**. Hobby allows max 2 crons and daily cadence only — you need **Pro** for this config. Also: `/api/cron/reingest` walks all 2,478 sitemap URLs sequentially with an embed call per URL. Even at 300 s, a full re-ingest from cold will timeout. Seed the corpus locally with `npm run ingest` once, then let the cron handle deltas only.
+
 ## Repository layout
 
 ```
