@@ -59,6 +59,47 @@ function isPublicPath(pathname: string): boolean {
  */
 const STATIC_ASSET_RE = /\.(png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|otf|eot|css|js|map|txt|xml)$/i;
 
+/**
+ * Audit 10C CSRF guard (Session 8): SameSite=Lax cookies (NextAuth's
+ * default) already block cross-site POSTs in modern browsers, but old
+ * Safari + a few edge cases let an attacker's page POST to /api/* with
+ * the user's session cookie attached. This origin check is the
+ * belt-and-braces layer:
+ *
+ *   - State-changing methods (POST / PUT / PATCH / DELETE) must carry
+ *     an Origin header matching the request host. Same-origin browser
+ *     POSTs always do; cross-site attacker POSTs don't, with the
+ *     exception of HTML form posts that omit Origin entirely on some
+ *     legacy browsers — we accept null Origin only when Referer matches.
+ *   - Read methods (GET/HEAD/OPTIONS) are unaffected.
+ *   - The proxy only runs when AUTH_ENABLED=true, so unauth'd webhook
+ *     posters (CMS hooks for /api/check etc.) don't trip the check.
+ */
+const STATEFUL_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+function originMatchesHost(req: { headers: Headers; nextUrl: URL }): boolean {
+  const origin = req.headers.get("origin");
+  const expectedHost = req.nextUrl.host;
+  if (origin) {
+    try {
+      return new URL(origin).host === expectedHost;
+    } catch {
+      return false;
+    }
+  }
+  // Some legacy clients omit Origin on same-origin posts; fall back to Referer.
+  const referer = req.headers.get("referer");
+  if (referer) {
+    try {
+      return new URL(referer).host === expectedHost;
+    } catch {
+      return false;
+    }
+  }
+  // No Origin and no Referer = no way to verify; reject for state-changing reqs.
+  return false;
+}
+
 export default auth((req) => {
   if (!isAuthEnabled()) return NextResponse.next();
 
@@ -66,7 +107,16 @@ export default auth((req) => {
   if (isPublicPath(pathname)) return NextResponse.next();
   if (STATIC_ASSET_RE.test(pathname)) return NextResponse.next();
 
-  if (req.auth) return NextResponse.next();
+  if (req.auth) {
+    // Authed; enforce CSRF origin check on mutating methods.
+    if (STATEFUL_METHODS.has(req.method) && !originMatchesHost(req)) {
+      return NextResponse.json(
+        { error: "Cross-origin request rejected." },
+        { status: 403 },
+      );
+    }
+    return NextResponse.next();
+  }
 
   // API requests: return 401 instead of redirecting to HTML.
   if (pathname.startsWith("/api/")) {
