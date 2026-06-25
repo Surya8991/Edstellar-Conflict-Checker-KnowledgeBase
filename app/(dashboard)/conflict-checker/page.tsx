@@ -506,7 +506,7 @@ export default function ConflictCheckerPage() {
                 <div className="flex items-center gap-2">
                   {suggestions?.suggestions?.angles?.length > 0 && (
                     <button
-                      onClick={() => copyWriterBrief(result, suggestions.suggestions)}
+                      onClick={() => copyWriterBrief(result, suggestions.suggestions, suggestions.serp)}
                       className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
                       title="Copy a Markdown brief for the writer"
                     >
@@ -540,6 +540,24 @@ export default function ConflictCheckerPage() {
               )}
               {suggestions && !suggestions?.suggestions?.angles?.length && !suggestions?.error && (
                 <p className="mt-3 text-xs text-slate-500">No angles returned — the LLM response wasn't parseable. Try Re-run.</p>
+              )}
+              {/* PAA — questions Google considers related. Free signal from
+                  the SERP, surfaced here so writers can answer them in-page
+                  (good for AI Overview citation). (#39) */}
+              {(suggestions?.serp?.peopleAlsoAsk?.length ?? 0) > 0 && (
+                <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Questions to address (from People-Also-Ask)
+                  </div>
+                  <ul className="space-y-1.5 text-sm text-slate-700">
+                    {suggestions.serp.peopleAlsoAsk.slice(0, 6).map((q: any, i: number) => (
+                      <li key={i} className="flex gap-2">
+                        <span className="text-slate-400">·</span>
+                        <span>{q.question}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
               {suggestions?.error && <div className="mt-3 text-sm text-red-600">{suggestions.error}</div>}
             </Card>
@@ -776,7 +794,7 @@ function MatchCard({
  * and drop it on the clipboard. Marketers paste this into Notion / Google
  * Docs as the starting outline. (#35)
  */
-function copyWriterBrief(result: CheckResult | null, suggestions: any) {
+function copyWriterBrief(result: CheckResult | null, suggestions: any, serp?: any) {
   if (!result) return;
   const angles = (suggestions?.angles ?? []) as Array<any>;
   const lines: string[] = [];
@@ -805,6 +823,25 @@ function copyWriterBrief(result: CheckResult | null, suggestions: any) {
   if (result.keywords?.length) {
     lines.push("## Keyword set");
     lines.push(result.keywords.map((k) => `- ${k}`).join("\n"));
+    lines.push("");
+  }
+
+  // PAA from Serper — questions Google considers related. Answering these
+  // in the article is the cheapest way to be eligible for AI Overview
+  // citations and featured snippets. (#39)
+  const paa = (serp?.peopleAlsoAsk ?? []) as { question: string; snippet?: string }[];
+  if (paa.length) {
+    lines.push("## Questions to address (Google PAA)");
+    for (const q of paa.slice(0, 8)) {
+      lines.push(`- **${q.question}**`);
+      if (q.snippet) lines.push(`  - Hint: ${q.snippet}`);
+    }
+    lines.push("");
+  }
+  if (serp?.answerBox?.snippet) {
+    lines.push("## Current featured snippet on this topic");
+    lines.push(`> ${serp.answerBox.snippet}`);
+    if (serp.answerBox.link) lines.push(`Source: ${serp.answerBox.link}`);
     lines.push("");
   }
 

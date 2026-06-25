@@ -10,12 +10,20 @@ interface SerpAiOverview {
   summary?: string;
   citations?: { title?: string; link?: string; snippet?: string }[];
 }
+interface SerpPeopleAlsoAsk {
+  question?: string;
+  snippet?: string;
+  title?: string;
+  link?: string;
+}
 interface SerperResponse {
   organic?: SerpOrganic[];
   /** Serper has used several field names for AI Overviews — handle both. */
   aiOverview?: SerpAiOverview;
   aiOverviews?: SerpAiOverview | SerpAiOverview[];
   answerBox?: { title?: string; link?: string; snippet?: string };
+  /** "People also ask" box on the SERP. (#39) */
+  peopleAlsoAsk?: SerpPeopleAlsoAsk[];
 }
 
 async function serperSearch(query: string, num = 10): Promise<SerperResponse> {
@@ -52,6 +60,11 @@ export interface SerpOverlapResult {
     citations: { domain: string; url: string; title: string; isEdstellar: boolean; isKnown: boolean }[];
     edstellarCited: boolean;
   } | null;
+  /** Questions Google considers related (PAA box). Used to seed the
+   *  'Questions to address' section of writer briefs (#39). */
+  peopleAlsoAsk: { question: string; snippet?: string }[];
+  /** Featured snippet / answer box, if present. */
+  answerBox: { title?: string; link?: string; snippet?: string } | null;
 }
 export async function serpOverlap(topic: string): Promise<SerpOverlapResult> {
   const res = await serperSearch(topic, 10);
@@ -84,6 +97,11 @@ export async function serpOverlap(topic: string): Promise<SerpOverlapResult> {
       }
     : null;
 
+  const peopleAlsoAsk = (res.peopleAlsoAsk ?? [])
+    .filter((p) => p.question && p.question.trim().length > 0)
+    .map((p) => ({ question: p.question!.trim(), snippet: p.snippet?.trim() }))
+    .slice(0, 8);
+
   return {
     topic,
     organic: list,
@@ -91,6 +109,8 @@ export async function serpOverlap(topic: string): Promise<SerpOverlapResult> {
     edstellarUrl: eds?.url ?? null,
     competitorsInTop10: compDomains,
     aiOverview,
+    peopleAlsoAsk,
+    answerBox: res.answerBox ?? null,
   };
 }
 

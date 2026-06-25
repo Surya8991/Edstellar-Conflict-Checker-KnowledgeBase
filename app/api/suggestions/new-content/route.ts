@@ -97,7 +97,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       topic,
       serp: serp?.organic
-        ? { edstellarRank: serp.edstellarRank, competitors: serp.organic }
+        ? {
+            edstellarRank: serp.edstellarRank,
+            competitors: serp.organic,
+            // #39 — surface PAA + answer box so the UI / writer brief can
+            // reuse them. Free data we were already paying Serper for.
+            peopleAlsoAsk: serp.peopleAlsoAsk ?? [],
+            answerBox: serp.answerBox ?? null,
+          }
         : null,
       suggestions,
     });
