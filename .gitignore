@@ -27,6 +27,7 @@ next-env.d.ts
 
 # Claude / local agent state
 .claude/
+.agentmaster/
 
 # OS / editor
 .DS_Store
