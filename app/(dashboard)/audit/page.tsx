@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { PageHeader, Card } from "@/app/components/ui";
 import { Pagination } from "@/app/components/Pagination";
 
-const TABS = ["Meta", "Broken Links", "Duplicates", "Health Score", "Canonical", "Images", "Stale", "Clusters"] as const;
+const TABS = ["Meta", "Link Audit", "Duplicates", "Health Score", "Canonical", "Images", "Stale", "Clusters"] as const;
 type Tab = typeof TABS[number];
 
 export default function AuditPage() {
@@ -17,7 +17,7 @@ export default function AuditPage() {
     setLoading(true);
     const kindMap: Record<Tab, string> = {
       "Meta": "meta",
-      "Broken Links": "links",
+      "Link Audit": "links",
       "Duplicates": "duplicates",
       "Health Score": "health",
       "Canonical": "canonical",
@@ -59,7 +59,7 @@ export default function AuditPage() {
         {tab === "Meta" && data?.rows && (
           <MetaTab rows={data.rows} flagFilter={flagFilter} onFlagFilter={setFlagFilter} />
         )}
-        {tab === "Broken Links" && data?.rows && <LinksTab rows={data.rows} audited={data.audited} />}
+        {tab === "Link Audit" && data?.rows && <LinksTab rows={data.rows} audited={data.audited} breakdown={data.breakdown} />}
         {tab === "Duplicates" && data && <DupesTab data={data} />}
         {tab === "Health Score" && data?.rows && <HealthTab rows={data.rows} />}
         {tab === "Canonical" && data?.rows && <CanonicalTab rows={data.rows} />}
@@ -131,47 +131,117 @@ function MetaTab({ rows, flagFilter, onFlagFilter }: { rows: any[]; flagFilter: 
   );
 }
 
-function LinksTab({ rows, audited }: { rows: any[]; audited: number }) {
+interface LinkBreakdown {
+  ok: number;
+  redirect: number;
+  clientError: number;
+  serverError: number;
+  unreachable: number;
+}
+type LinkBand = "all" | "broken" | "redirect" | "ok";
+
+function statusBand(s: number): "broken" | "redirect" | "ok" {
+  if (!s || s === 0 || s >= 400) return "broken";
+  if (s >= 300) return "redirect";
+  return "ok";
+}
+function statusStyle(s: number): string {
+  const b = statusBand(s);
+  if (b === "broken") return "bg-red-100 text-red-700";
+  if (b === "redirect") return "bg-amber-100 text-amber-700";
+  return "bg-emerald-100 text-emerald-700";
+}
+
+function LinksTab({ rows, audited, breakdown }: { rows: any[]; audited: number; breakdown?: LinkBreakdown }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
-  const slice = rows.slice((page - 1) * pageSize, page * pageSize);
+  const [band, setBand] = useState<LinkBand>("all");
+
   const total = audited ?? 0;
   if (total === 0) return (
     <Card className="text-sm text-slate-600">
       Link audit hasn't run yet. The weekly cron will populate this within 7 days, or ask an admin to trigger the audit manually.
     </Card>
   );
-  if (!rows.length) return <Card className="text-sm text-emerald-700">✓ All {total.toLocaleString()} audited URLs return a healthy status.</Card>;
+
+  const broken = (breakdown?.unreachable ?? 0) + (breakdown?.serverError ?? 0) + (breakdown?.clientError ?? 0);
+  const filtered = rows.filter((r) => {
+    if (band === "all") return true;
+    return statusBand(r.http_status) === band;
+  });
+  const slice = filtered.slice((page - 1) * pageSize, page * pageSize);
+
   return (
     <div className="space-y-3">
-    <Card className="p-0">
-      <div className="border-b border-slate-200 px-4 py-2 text-xs text-slate-500">
-        {total.toLocaleString()} URLs audited · <strong className="text-red-600">{rows.length}</strong> with errors
+      {/* Top-of-tab breakdown chips — read at a glance, click to filter. */}
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="text-slate-500">Status:</span>
+        <button
+          onClick={() => setBand("all")}
+          className={`rounded px-2 py-1 ${band === "all" ? "bg-slate-900 text-white" : "border border-slate-300 bg-white text-slate-600"}`}
+        >
+          all ({total.toLocaleString()})
+        </button>
+        <button
+          onClick={() => setBand("ok")}
+          className={`rounded px-2 py-1 ${band === "ok" ? "bg-emerald-600 text-white" : "border border-emerald-200 bg-emerald-50 text-emerald-700"}`}
+        >
+          ok 2xx ({(breakdown?.ok ?? 0).toLocaleString()})
+        </button>
+        <button
+          onClick={() => setBand("redirect")}
+          className={`rounded px-2 py-1 ${band === "redirect" ? "bg-amber-500 text-white" : "border border-amber-200 bg-amber-50 text-amber-700"}`}
+        >
+          redirect 3xx ({(breakdown?.redirect ?? 0).toLocaleString()})
+        </button>
+        <button
+          onClick={() => setBand("broken")}
+          className={`rounded px-2 py-1 ${band === "broken" ? "bg-red-600 text-white" : "border border-red-200 bg-red-50 text-red-700"}`}
+        >
+          broken 4xx / 5xx / unreachable ({broken.toLocaleString()})
+        </button>
       </div>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
-            <th className="px-4 py-3 font-medium">URL</th>
-            <th className="px-4 py-3 font-medium">Status</th>
-            <th className="px-4 py-3 font-medium">Type</th>
-            <th className="px-4 py-3 font-medium">Last audited</th>
-          </tr>
-        </thead>
-        <tbody>
-          {slice.map((r) => (
-            <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50">
-              <td className="max-w-md truncate px-4 py-2">
-                <a href={r.url} target="_blank" rel="noreferrer" className="text-slate-700 hover:underline">{r.title || r.url}</a>
-              </td>
-              <td className="px-4 py-2"><span className="rounded bg-red-100 px-2 py-0.5 text-xs font-mono text-red-700">{r.http_status}</span></td>
-              <td className="px-4 py-2 capitalize text-slate-500">{r.content_type}</td>
-              <td className="px-4 py-2 text-xs text-slate-400">{r.last_audited_at}</td>
+
+      <Card className="p-0">
+        <div className="border-b border-slate-200 px-4 py-2 text-xs text-slate-500">
+          Showing {filtered.length.toLocaleString()} of {total.toLocaleString()} audited URLs
+          {band !== "all" && <button onClick={() => setBand("all")} className="ml-2 text-slate-400 underline hover:text-slate-600">clear filter</button>}
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
+              <th className="px-4 py-3 font-medium">URL</th>
+              <th className="px-4 py-3 font-medium">Status</th>
+              <th className="px-4 py-3 font-medium">Type</th>
+              <th className="px-4 py-3 font-medium">Last audited</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </Card>
-      <Pagination page={page} pageSize={pageSize} total={rows.length} onJump={setPage} onPageSize={setPageSize} unit="broken pages" />
+          </thead>
+          <tbody>
+            {slice.map((r) => (
+              <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50">
+                <td className="max-w-md truncate px-4 py-2">
+                  <a href={r.url} target="_blank" rel="noreferrer" className="text-slate-700 hover:underline">{r.title || r.url}</a>
+                </td>
+                <td className="px-4 py-2">
+                  <span className={`rounded px-2 py-0.5 text-xs font-mono ${statusStyle(r.http_status)}`}>
+                    {r.http_status === 0 ? "—" : r.http_status}
+                  </span>
+                </td>
+                <td className="px-4 py-2 capitalize text-slate-500">{r.content_type}</td>
+                <td className="px-4 py-2 text-xs text-slate-400">{r.last_audited_at}</td>
+              </tr>
+            ))}
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={4} className="px-4 py-8 text-center text-slate-400">
+                  No URLs match this filter.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </Card>
+      <Pagination page={page} pageSize={pageSize} total={filtered.length} onJump={setPage} onPageSize={setPageSize} unit="audited URLs" />
     </div>
   );
 }

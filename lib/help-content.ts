@@ -26,10 +26,11 @@ export const HELP: Record<string, HelpEntry> = {
     what:
       "Single-screen view of everything the team should care about today: high-risk drafts, broken links, thin pages, recent checks, and the worst catalog conflicts.",
     howToUse: [
-      "Scan the red and amber attention banners first — those are things to act on today.",
-      "Click any stat tile to drop into the relevant tab (Pages ingested → Corpus, Checks run → History, etc.).",
-      "Read the 'Recent checks' panel to see what your team has been screening. Click an entry to re-run the same check.",
-      "The 'Top catalog conflicts' panel shows the worst duplicate/cannibalization pairs from the precomputed catalog scan. Click either URL to inspect.",
+      "Sections from top to bottom: Needs attention → Today's signals → Editorial outcomes → Recent activity → Quick actions. Each section is gated, so empty ones disappear instead of filling the page with zeros.",
+      "Scan 'Needs attention' first — red and amber items are things to act on today.",
+      "Click any stat tile in 'Today's signals' to drop into the relevant tab (Pages ingested → Corpus, Checks run → History, etc.).",
+      "'Editorial outcomes' appears once your team marks outcomes on the History page — leadership reporting comes from here.",
+      "'Recent activity' shows the last 8 checks + the 5 worst catalogue conflicts. Click any check to re-run it.",
     ],
     readingIt: [
       "Red 'High-risk last 7d' tile means somebody ran a check that scored ≥ 80 — that's a 'don't publish' verdict.",
@@ -122,7 +123,7 @@ export const HELP: Record<string, HelpEntry> = {
     what:
       "Per-page health scanner. Catches meta-length issues, broken links, duplicate titles/H1s, canonical bugs, missing image alt text, and stale low-traffic pages.",
     howToUse: [
-      "Pick a tab: Meta / Broken Links / Duplicates / Health Score / Canonical / Images / Stale.",
+      "Pick a tab: Meta / Link Audit / Duplicates / Health Score / Canonical / Images / Stale / Clusters.",
       "On Meta: filter by flag pill (title-too-long etc.) to focus on one class of issue.",
       "On Health Score: drag the 'Min health' slider or click a severity chip to scope the list.",
       "On Canonical: red 'missing' rows have no canonical tag; amber 'cross-canonical' rows point to another URL (often a CMS template bug).",
@@ -136,7 +137,8 @@ export const HELP: Record<string, HelpEntry> = {
       "Stale tab is only populated after the gsc-snapshot cron has run with a connected GSC account.",
     ],
     troubleshoot: [
-      { problem: "Broken Links tab is empty even though I expect 404s", fix: "The link audit cron runs weekly. Empty means the cron hasn't run yet OR there are genuinely no broken URLs in the corpus." },
+      { problem: "Link Audit tab is empty even though I expect data", fix: "The link audit cron runs weekly and only populates pages that have been HEAD-checked. Empty means the cron hasn't run yet — ask an admin or wait a week." },
+      { problem: "Link Audit only shows 4xx/5xx but I want to see 2xx too", fix: "Click the 'ok 2xx' or 'redirect 3xx' chip at the top of the tab — the default 'all' view also shows them. Status bands also filter via the chips." },
       { problem: "Canonical tab shows pages I think are fine", fix: "Theme/CMS templates often emit a canonical pointing at the un-trailing-slash variant, or a category root. Audit the actual <link> tag in the page source." },
       { problem: "Images tab shows 0 missing alt but the live page clearly has alt-less images", fix: "Re-ingest with --force. The image_count / images_no_alt columns are only filled on new ingestion." },
     ],

@@ -214,7 +214,7 @@ export default async function DashboardHome() {
         title="Content Intelligence Hub"
         subtitle="Conflict detection, Search Console performance, and competitor research for Edstellar."
       />
-      <div className="space-y-8 p-8">
+      <div className="space-y-10 p-8">
         {!stats.dbReady && (
           <Card className="border-amber-200 bg-amber-50 text-sm text-amber-800">
             Database not connected yet. Set <code>DATABASE_URL</code> in{" "}
@@ -223,29 +223,37 @@ export default async function DashboardHome() {
           </Card>
         )}
 
-        {/* Attention banners */}
+        {/* SECTION 1 — Needs attention. Only renders when there's something
+            to act on, so the dashboard's empty state isn't a wall of red. */}
         {attention.length > 0 && (
-          <div className="space-y-2">
-            {attention.map((a, i) => {
-              const tone = {
-                danger: "border-red-200 bg-red-50 text-red-800 hover:bg-red-100",
-                warn:   "border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100",
-                info:   "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100",
-              }[a.tone];
-              return (
-                <Link key={i} href={a.href}>
-                  <Card className={`flex items-center justify-between gap-3 p-3 text-sm transition ${tone}`}>
-                    <span>{a.text}</span>
-                    <span className="text-xs opacity-70">→</span>
-                  </Card>
-                </Link>
-              );
-            })}
-          </div>
+          <section>
+            <SectionHeader title="Needs attention" subtitle="Click any item to drill into the relevant tab." />
+            <div className="space-y-2">
+              {attention.map((a, i) => {
+                const tone = {
+                  danger: "border-red-200 bg-red-50 text-red-800 hover:bg-red-100",
+                  warn:   "border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100",
+                  info:   "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100",
+                }[a.tone];
+                return (
+                  <Link key={i} href={a.href}>
+                    <Card className={`flex items-center justify-between gap-3 p-3 text-sm transition ${tone}`}>
+                      <span>{a.text}</span>
+                      <span className="text-xs opacity-70">→</span>
+                    </Card>
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
         )}
 
-        {/* Corpus + activity stats */}
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+        {/* SECTION 2 — Today's signals. The 6 headline counters grouped
+            with their own header so they read as one block instead of a
+            free-floating tile cloud. */}
+        <section>
+          <SectionHeader title="Today's signals" subtitle="Corpus state + workload across the team." />
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
           <Stat
             label="Sitemap URLs"
             value={stats.sitemapCount.toLocaleString()}
@@ -281,38 +289,47 @@ export default async function DashboardHome() {
             value={stats.competitors.toLocaleString()}
             href="/competitors"
           />
-        </div>
-
-        {/* Editorial outcomes — only show when the team is using the
-            outcome dropdown on the history page. (#36) */}
-        {(stats.blocked90d > 0 || stats.published90d > 0 || stats.stalePages > 0) && (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <Stat
-              label="Caught in last 90 days"
-              value={stats.blocked90d.toLocaleString()}
-              hint="merged · redirected · discarded"
-              accent="ok"
-              href="/history"
-            />
-            <Stat
-              label="Published last 90 days"
-              value={stats.published90d.toLocaleString()}
-              hint="conflict check passed"
-              href="/history"
-            />
-            <Stat
-              label="Stale pages"
-              value={stats.stalePages.toLocaleString()}
-              hint="<5 clicks/28d, lastmod > 12mo"
-              accent={stats.stalePages > 0 ? "warn" : "ok"}
-              href="/audit"
-            />
           </div>
+        </section>
+
+        {/* SECTION 3 — Editorial outcomes. Only shows once the team starts
+            marking outcomes; explicit header so leadership knows what
+            they're looking at when it appears. */}
+        {(stats.blocked90d > 0 || stats.published90d > 0 || stats.stalePages > 0) && (
+          <section>
+            <SectionHeader title="Editorial outcomes (last 90 days)" subtitle="What the team actually did with the checks they ran." />
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <Stat
+                label="Caught"
+                value={stats.blocked90d.toLocaleString()}
+                hint="merged · redirected · discarded"
+                accent="ok"
+                href="/history"
+              />
+              <Stat
+                label="Published"
+                value={stats.published90d.toLocaleString()}
+                hint="conflict check passed"
+                href="/history"
+              />
+              <Stat
+                label="Stale"
+                value={stats.stalePages.toLocaleString()}
+                hint="<5 clicks/28d, lastmod > 12mo"
+                accent={stats.stalePages > 0 ? "warn" : "ok"}
+                href="/audit"
+              />
+            </div>
+          </section>
         )}
 
-        {/* Recent checks + top conflicts */}
+        {/* SECTION 4 — Recent activity. Two parallel feeds: what the team
+            has been screening + the worst standing duplicates in the
+            catalogue. Empty case suppresses the whole section. */}
         {stats.dbReady && (stats.recentChecks.length > 0 || stats.topConflicts.length > 0) && (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <section>
+            <SectionHeader title="Recent activity" subtitle="Latest checks + worst catalogue conflicts." />
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <Card className="p-0">
               <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
                 <h2 className="text-sm font-semibold text-slate-900">Recent checks</h2>
@@ -390,12 +407,14 @@ export default async function DashboardHome() {
                 </ul>
               )}
             </Card>
-          </div>
+            </div>
+          </section>
         )}
 
-        {/* Quick actions */}
-        <div>
-          <h2 className="mb-3 text-sm font-semibold text-slate-900">Quick actions</h2>
+        {/* SECTION 5 — Quick actions. Always rendered at the bottom so the
+            'what should I do next?' bridge is always one click away. */}
+        <section>
+          <SectionHeader title="Quick actions" subtitle="Jump straight into the most-used flows." />
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <Action
               href="/conflict-checker"
@@ -413,8 +432,17 @@ export default async function DashboardHome() {
               body="See who ranks for a topic and how to differentiate."
             />
           </div>
-        </div>
+        </section>
       </div>
+    </div>
+  );
+}
+
+function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div className="mb-4 flex items-baseline justify-between gap-3 border-b border-slate-200 pb-2">
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-900">{title}</h2>
+      {subtitle && <span className="hidden text-xs text-slate-500 sm:inline">{subtitle}</span>}
     </div>
   );
 }

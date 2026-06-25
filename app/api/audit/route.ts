@@ -42,19 +42,46 @@ export async function GET(request: NextRequest) {
     }
 
     if (kind === "links") {
+      // Return every audited row (http_status NOT NULL) so the UI can
+      // distinguish broken from working, not just the 4xx/5xx slice.
+      // Pages that were never audited (http_status IS NULL) are excluded —
+      // they'd swamp the list and aren't a finding either way.
       const rows = await db.execute(sql`
         SELECT id, url, title, content_type, http_status, last_audited_at
         FROM pages
-        WHERE http_status IS NOT NULL AND http_status >= 400
-        ORDER BY http_status DESC, id
+        WHERE http_status IS NOT NULL
+        ORDER BY
+          CASE
+            WHEN http_status = 0 OR http_status >= 500 THEN 0
+            WHEN http_status >= 400 THEN 1
+            WHEN http_status >= 300 THEN 2
+            ELSE 3
+          END,
+          http_status DESC,
+          id
         LIMIT ${limit}
       `);
-      const audited = await db.execute(sql`
-        SELECT count(*)::int AS n FROM pages WHERE http_status IS NOT NULL
+      const breakdown = await db.execute(sql`
+        SELECT
+          count(*)::int                                                    AS audited,
+          count(*) FILTER (WHERE http_status = 0)::int                     AS unreachable,
+          count(*) FILTER (WHERE http_status BETWEEN 500 AND 599)::int     AS server_error,
+          count(*) FILTER (WHERE http_status BETWEEN 400 AND 499)::int     AS client_error,
+          count(*) FILTER (WHERE http_status BETWEEN 300 AND 399)::int     AS redirect,
+          count(*) FILTER (WHERE http_status BETWEEN 200 AND 299)::int     AS ok
+        FROM pages WHERE http_status IS NOT NULL
       `);
+      const b = ((breakdown as any).rows ?? breakdown)[0] ?? {};
       return NextResponse.json({
         rows: (rows as any).rows ?? rows,
-        audited: ((audited as any).rows ?? audited)[0]?.n ?? 0,
+        audited: b.audited ?? 0,
+        breakdown: {
+          ok: b.ok ?? 0,
+          redirect: b.redirect ?? 0,
+          clientError: b.client_error ?? 0,
+          serverError: b.server_error ?? 0,
+          unreachable: b.unreachable ?? 0,
+        },
       });
     }
 
