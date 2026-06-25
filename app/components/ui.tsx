@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { scoreBarColor } from "@/lib/score-bands";
 
 export function PageHeader({
   title,
@@ -106,22 +107,66 @@ export function TypeChip({
 }
 
 export function ScoreBar({ score }: { score: number }) {
-  const color =
-    score >= 80
-      ? "bg-red-500"
-      : score >= 60
-        ? "bg-orange-500"
-        : score >= 35
-          ? "bg-amber-500"
-          : "bg-green-500";
+  // Audit 10C tokenization: band colors live in lib/score-bands.ts now.
   return (
     <div className="flex items-center gap-3">
       <div className="h-2 w-32 overflow-hidden rounded-full bg-slate-100">
-        <div className={`h-full ${color}`} style={{ width: `${score}%` }} />
+        <div
+          className={`h-full ${scoreBarColor(score)}`}
+          style={{ width: `${score}%` }}
+        />
       </div>
       <span className="w-10 text-right text-sm font-semibold tabular-nums">
         {score}%
       </span>
     </div>
+  );
+}
+
+/**
+ * Audit 10C tokenization (Session 8): single Button component to replace
+ * the three parallel style variants littered across pages. Drop-in
+ * replacement for `<button>` — same children, same `onClick`, etc.
+ *
+ *   <Button>             primary   medium
+ *   <Button variant="secondary">   bordered
+ *   <Button variant="ghost">       transparent hover
+ *   <Button size="sm">             tighter padding
+ *   <Button size="md">             default
+ *
+ * The :focus-visible ring from globals.css (audit S8) applies to every
+ * variant automatically.
+ */
+type ButtonVariant = "primary" | "secondary" | "ghost";
+type ButtonSize = "sm" | "md";
+
+const BUTTON_VARIANT: Record<ButtonVariant, string> = {
+  primary:
+    "bg-slate-900 text-white shadow-sm hover:bg-slate-800 disabled:opacity-50",
+  secondary:
+    "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50",
+  ghost:
+    "text-slate-600 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50",
+};
+
+const BUTTON_SIZE: Record<ButtonSize, string> = {
+  sm: "px-3 py-1.5 text-xs",
+  md: "px-4 py-2 text-sm",
+};
+
+export function Button({
+  variant = "primary",
+  size = "md",
+  className = "",
+  ...rest
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+}) {
+  return (
+    <button
+      {...rest}
+      className={`inline-flex items-center justify-center gap-2 rounded-lg font-medium transition ${BUTTON_VARIANT[variant]} ${BUTTON_SIZE[size]} ${className}`}
+    />
   );
 }

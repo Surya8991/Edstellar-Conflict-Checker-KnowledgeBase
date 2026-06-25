@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { PageHeader, Card, ConflictBadge, ScoreBar, TypeChip, TYPE_COLORS } from "@/app/components/ui";
 import { Pagination } from "@/app/components/Pagination";
 import { toast } from "@/app/components/Toast";
+import { scoreBarColor as bandBarColor, scoreTextColor as bandTextColor } from "@/lib/score-bands";
 
 interface Match {
   url: string;
@@ -647,16 +648,9 @@ function MatchCard({
   const [open, setOpen] = useState(false);
   const hasRationale = !!m.rationale;
 
-  const scoreBarColor =
-    m.conflictScore >= 80 ? "bg-red-500"
-    : m.conflictScore >= 60 ? "bg-orange-500"
-    : m.conflictScore >= 35 ? "bg-amber-500"
-    : "bg-emerald-500";
-  const scoreTextColor =
-    m.conflictScore >= 80 ? "text-red-600"
-    : m.conflictScore >= 60 ? "text-orange-600"
-    : m.conflictScore >= 35 ? "text-amber-600"
-    : "text-emerald-600";
+  // Audit 10C tokenization: lib/score-bands.ts is the single source of truth.
+  const scoreBarColor = bandBarColor(m.conflictScore);
+  const scoreTextColor = bandTextColor(m.conflictScore);
 
   return (
     <Card className="transition hover:border-slate-300 hover:shadow-sm">

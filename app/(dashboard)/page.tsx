@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { readSitemapCsv } from "@/lib/sitemap";
 import { PageHeader, Card, ConflictBadge, TypeChip } from "@/app/components/ui";
+import { scoreTextColor, scoreType } from "@/lib/score-bands";
 
 export const dynamic = "force-dynamic";
 
@@ -161,18 +162,8 @@ function relativeTime(iso: string | null): string {
   return `${Math.round(hr / 24)}d ago`;
 }
 
-function scoreColor(s: number): string {
-  if (s >= 80) return "text-red-600";
-  if (s >= 60) return "text-orange-600";
-  if (s >= 35) return "text-amber-600";
-  return "text-emerald-600";
-}
-function scoreType(s: number): string {
-  if (s >= 80) return "duplicate";
-  if (s >= 60) return "cannibalization";
-  if (s >= 35) return "partial-overlap";
-  return "none";
-}
+// Audit 10C tokenization: lib/score-bands.ts is the single source of truth
+// for the 80/60/35 thresholds.
 
 export default async function DashboardHome() {
   const stats = await getStats();
@@ -356,7 +347,7 @@ export default async function DashboardHome() {
                         {c.input_value}
                       </Link>
                       <ConflictBadge type={scoreType(c.top_score)} />
-                      <span className={`w-12 text-right text-sm font-semibold tabular-nums ${scoreColor(c.top_score)}`}>
+                      <span className={`w-12 text-right text-sm font-semibold tabular-nums ${scoreTextColor(c.top_score)}`}>
                         {c.top_score}
                       </span>
                       <span className="w-16 text-right text-xs text-slate-400">{relativeTime(c.created_at)}</span>

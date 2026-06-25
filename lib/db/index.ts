@@ -16,3 +16,23 @@ if (!url) {
 const sql = neon(url || "postgresql://user:password@localhost/db");
 export const db = drizzle(sql, { schema });
 export { schema };
+
+/**
+ * Audit 10C tokenization (Session 8): `@neondatabase/serverless` returns
+ * either a bare `T[]` (newer SDK) or `{ rows: T[] }` (older shape) from
+ * `sql.query()` depending on the call path. Routes that handle both
+ * littered `const data = (rows as any).rows ?? rows;` everywhere. This
+ * tiny helper centralises the cast so the pattern is named instead of
+ * inlined, and future SDK changes touch one file.
+ */
+export type NeonRowsOrWrapped<T> = T[] | { rows: T[] };
+
+/** Normalise a Neon query result to a plain `T[]`. */
+export function neonRows<T>(input: unknown): T[] {
+  if (Array.isArray(input)) return input as T[];
+  if (input && typeof input === "object" && "rows" in input) {
+    const r = (input as { rows?: unknown }).rows;
+    if (Array.isArray(r)) return r as T[];
+  }
+  return [];
+}
