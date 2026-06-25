@@ -99,6 +99,17 @@ export default function OpengraphImage() {
         </div>
       </div>
     ),
-    { ...size },
+    {
+      ...size,
+      // Audit 10C (Session 8): ImageResponse defaults to max-age=0. Override
+      // so the rendered OG image lives at Vercel's edge for 24h with a 7-day
+      // stale-while-revalidate. The image only changes on redeploy.
+      // next.config.ts headers() can't reach this — ImageResponse owns its
+      // response object.
+      headers: {
+        "cache-control":
+          "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800",
+      },
+    },
   );
 }

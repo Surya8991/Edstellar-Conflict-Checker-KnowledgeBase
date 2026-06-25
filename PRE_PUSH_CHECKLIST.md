@@ -112,7 +112,11 @@ for path in /api/cron/reingest /api/cron/audit-links /api/cron/gsc-snapshot; do
   printf '%-40s ' "$path"; curl -sS -o /dev/null -w "HTTP %{http_code}\n" "$BASE$path"
 done
 
-# 2. LLM endpoints must 401 without WEBHOOK_API_KEY (or 429 if rate-limited)
+# 2. LLM endpoints — behaviour depends on whether WEBHOOK_API_KEY is set:
+#    - WEBHOOK_API_KEY set in Vercel: requests WITHOUT the X-API-Key header get 401.
+#    - WEBHOOK_API_KEY unset: per-IP rate-limit (~30/min) — first ~30 calls per
+#      minute return 200 (and burn LLM tokens), subsequent get 429.
+# In production, prefer to set WEBHOOK_API_KEY so the gate fails closed.
 for path in /api/summarize /api/rewrite-suggestion; do
   printf '%-40s ' "$path"
   curl -sS -o /dev/null -w "HTTP %{http_code}\n" -X POST "$BASE$path" \
