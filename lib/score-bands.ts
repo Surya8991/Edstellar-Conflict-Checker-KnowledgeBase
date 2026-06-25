@@ -51,3 +51,20 @@ export function scoreTextColor(score: number): string {
 export function scoreType(score: number): ConflictVerdict["conflictType"] {
   return conflictTypeFromScore(score);
 }
+
+export type IntentStage = "TOFU" | "MOFU" | "BOFU";
+
+const INTENT_MAP: Record<string, IntentStage> = {
+  blog:        "TOFU",
+  topic:       "TOFU",
+  category:    "MOFU",
+  subcategory: "MOFU",
+  course:      "BOFU",
+  mentor:      "BOFU",
+};
+
+/** Map a content-type string to a funnel stage badge, or null if unknown. */
+export function intentStage(contentType: string | null | undefined): IntentStage | null {
+  if (!contentType) return null;
+  return INTENT_MAP[contentType.toLowerCase()] ?? null;
+}

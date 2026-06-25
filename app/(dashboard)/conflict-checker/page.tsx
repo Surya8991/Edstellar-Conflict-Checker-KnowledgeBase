@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PageHeader, Card, ConflictBadge, ScoreBar, TypeChip, TYPE_COLORS } from "@/app/components/ui";
 import { Pagination } from "@/app/components/Pagination";
 import { toast } from "@/app/components/Toast";
-import { scoreBarColor as bandBarColor, scoreTextColor as bandTextColor } from "@/lib/score-bands";
+import { scoreBarColor as bandBarColor, scoreTextColor as bandTextColor, intentStage } from "@/lib/score-bands";
 
 interface Match {
   url: string;
@@ -684,6 +684,7 @@ function MatchCard({
   // Audit 10C tokenization: lib/score-bands.ts is the single source of truth.
   const scoreBarColor = bandBarColor(m.conflictScore);
   const scoreTextColor = bandTextColor(m.conflictScore);
+  const stage = intentStage(m.contentType);
 
   return (
     <Card className="transition hover:border-slate-300 hover:shadow-sm">
@@ -694,6 +695,19 @@ function MatchCard({
         <div className="min-w-0 flex-1">
           <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
             <TypeChip type={m.contentType} />
+            {stage && (
+              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                stage === "TOFU" ? "border border-blue-200 bg-blue-50 text-blue-700" :
+                stage === "MOFU" ? "border border-violet-200 bg-violet-50 text-violet-700" :
+                "border border-emerald-200 bg-emerald-50 text-emerald-700"
+              }`} title={
+                stage === "TOFU" ? "Top of Funnel — awareness content" :
+                stage === "MOFU" ? "Middle of Funnel — consideration content" :
+                "Bottom of Funnel — conversion content"
+              }>
+                {stage}
+              </span>
+            )}
             {m.ownerUrl && m.ownerUrl === m.url && (
               <span className="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700">
                 Owner

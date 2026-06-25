@@ -526,6 +526,13 @@ function ImagesTab({ rows }: { rows: any[] }) {
   );
 }
 
+function staleAction(clicks: number, impressions: number): { label: "Refresh" | "Merge" | "Retire"; cls: string } {
+  if (clicks >= 50) return { label: "Refresh", cls: "bg-amber-100 text-amber-700" };
+  if (impressions >= 500) return { label: "Refresh", cls: "bg-amber-100 text-amber-700" };
+  if (impressions >= 50)  return { label: "Merge",   cls: "bg-indigo-100 text-indigo-700" };
+  return { label: "Retire", cls: "bg-red-100 text-red-700" };
+}
+
 function StaleTab({ rows }: { rows: any[] }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
@@ -549,10 +556,13 @@ function StaleTab({ rows }: { rows: any[] }) {
               <th className="px-4 py-3 font-medium text-right">Clicks 28d</th>
               <th className="px-4 py-3 font-medium text-right">Impr 28d</th>
               <th className="px-4 py-3 font-medium">Last modified</th>
+              <th className="px-4 py-3 font-medium">Action</th>
             </tr>
           </thead>
           <tbody>
-            {slice.map((r) => (
+            {slice.map((r) => {
+              const action = staleAction(r.gsc_clicks_28d ?? 0, r.gsc_impressions_28d ?? 0);
+              return (
               <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50">
                 <td className="max-w-md truncate px-4 py-2">
                   <a href={r.url} target="_blank" rel="noreferrer" className="text-slate-700 hover:underline">{r.title || r.url}</a>
@@ -561,8 +571,12 @@ function StaleTab({ rows }: { rows: any[] }) {
                 <td className="px-4 py-2 text-right tabular-nums">{r.gsc_clicks_28d ?? 0}</td>
                 <td className="px-4 py-2 text-right tabular-nums text-slate-500">{(r.gsc_impressions_28d ?? 0).toLocaleString()}</td>
                 <td className="px-4 py-2 text-xs text-slate-500">{r.lastmod ?? <span className="text-slate-300">—</span>}</td>
+                <td className="px-4 py-2">
+                  <span className={`rounded px-2 py-0.5 text-xs font-medium ${action.cls}`}>{action.label}</span>
+                </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </Card>
