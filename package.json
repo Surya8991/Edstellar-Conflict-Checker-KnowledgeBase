@@ -3,12 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
     "db:setup": "tsx scripts/db-setup.ts",
     "ingest": "tsx scripts/ingest.ts",
     "backfill:tags": "tsx scripts/backfill-tags.ts",

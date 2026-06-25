@@ -48,9 +48,12 @@ Without this, nothing gets saved and the Conflict Checker can't compare against 
    ```
 6. Save the file, then:
    ```bash
-   npm run db:setup       # enables pgvector + creates all tables
-   npm run ingest         # crawls ~2,461 URLs (2,479 in sitemap minus junk filter)
+   npm run db:setup                  # enables pgvector + creates all tables
+   npm run ingest -- --limit=50      # smoke-test: crawl 50 pages first to verify DB + embedder work
+   # If that succeeds, run the full crawl:
+   npm run ingest                    # crawls ~2,461 URLs (takes 10–30 min on first run)
    ```
+   **Do not** run the full `npm run ingest` against the production Neon project on day one. Use a separate branch or a personal Neon project for development.
 
 ---
 

@@ -80,7 +80,7 @@ export interface ConflictCheckOpts {
   vectorLimit?: number;
   /** How many of those to send to the LLM for full classification. Default 15. */
   classifyLimit?: number;
-  /** Drop matches below this cosine similarity. 0..1, default 0.30. */
+  /** Drop matches below this cosine similarity. 0..1, default 0.50 (raised from 0.30 in Session 6 H11). */
   minSimilarity?: number;
   createdBy?: string;
   persist?: boolean;
