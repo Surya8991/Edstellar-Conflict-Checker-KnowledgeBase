@@ -736,12 +736,20 @@ export default function ConflictCheckerPage() {
               <Card>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-semibold text-slate-900">AI Draft (local Claude)</h3>
-                    <p className="text-xs text-slate-500">
-                      Queues a full-page Markdown draft. A local worker on your machine runs Claude Code
-                      against your Max 20x subscription — no API cost. Worker must be running (
-                      <code className="rounded bg-slate-100 px-1 text-[10px]">npm run draft-worker</code>).
+                    <h3 className="text-sm font-semibold text-slate-900">AI Draft</h3>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      Generates a 1500–2500 word publish-ready blog draft in Markdown,
+                      tailored to this check: differentiated from your high-overlap matches,
+                      linked to your related-not-overlapping ones, and structured to answer
+                      Google's People-Also-Ask questions for SEO.
                     </p>
+                    <ul className="mt-2 space-y-0.5 text-[11px] text-slate-500">
+                      <li>• Click <strong>Generate draft</strong> — it queues a row in the database.</li>
+                      <li>• A worker on your machine picks it up within ~10s and runs Claude or Gemini against your subscription (no API cost).</li>
+                      <li>• Worker command (run once, leave open): <code className="rounded bg-slate-100 px-1 text-[10px]">npm run draft-worker</code></li>
+                      <li>• When status flips to <strong>done</strong>, the Markdown appears below. Use <strong>Copy draft</strong> to paste into your CMS, or <strong>Regenerate</strong> for a fresh angle.</li>
+                      <li>• Drafts are deterministic-ish: same check + same model usually produces similar output. Regenerate if the first pass is off.</li>
+                    </ul>
                   </div>
                   <div className="flex items-center gap-2">
                     {draft?.status === "done" && draft.draftMd && (
