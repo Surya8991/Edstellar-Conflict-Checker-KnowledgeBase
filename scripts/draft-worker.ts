@@ -17,7 +17,13 @@
  * The worker exits with a clear error if `claude` isn't on PATH; install
  * Claude Code before running.
  */
-import "dotenv/config";
+// Load .env.local first (higher priority, Next.js convention), then .env as a
+// fallback for shared values like DATABASE_URL. Without this, worker-only
+// secrets in .env.local are invisible to plain `tsx` scripts.
+import { config as loadEnv } from "dotenv";
+loadEnv({ path: ".env.local" });
+loadEnv();
+
 import { spawn } from "node:child_process";
 
 interface DraftRow {
