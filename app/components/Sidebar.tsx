@@ -26,19 +26,22 @@ interface SidebarUser {
   image?: string | null;
 }
 
-const NAV = [
+const NAV: { href: string; label: string; icon: any }[] = [
   { href: "/",                   label: "Dashboard",         icon: LayoutDashboard },
   { href: "/manager",            label: "Manager View",      icon: BarChart3 },
-  { href: "/strategy",           label: "Funnel Strategy",   icon: Compass },
   { href: "/conflict-checker",   label: "Conflict Checker",  icon: ScanSearch },
   { href: "/bulk-check",         label: "Bulk Check",        icon: Layers },
-  { href: "/internal-links",     label: "Internal Links",    icon: Link2 },
-  { href: "/audit",              label: "Content Audit",     icon: ClipboardCheck },
   { href: "/history",            label: "Score History",     icon: History },
   { href: "/catalog-conflicts",  label: "Catalog Conflicts", icon: GitCompareArrows },
   { href: "/search-console",     label: "Search Console",    icon: LineChart },
   { href: "/competitors",        label: "Competitors",       icon: Swords },
   { href: "/corpus",             label: "Corpus",            icon: Database },
+];
+
+const ADDITIONAL_NAV: { href: string; label: string; icon: any }[] = [
+  { href: "/audit",              label: "Content Audit",     icon: ClipboardCheck },
+  { href: "/internal-links",     label: "Internal Links",    icon: Link2 },
+  { href: "/strategy",           label: "Funnel Strategy",   icon: Compass },
 ];
 
 export default function Sidebar({ user, signOutSlot }: { user?: SidebarUser | null; signOutSlot?: React.ReactNode }) {
@@ -115,7 +118,7 @@ export default function Sidebar({ user, signOutSlot }: { user?: SidebarUser | nu
             <X size={18} />
           </button>
         </div>
-        <nav className="space-y-1 p-3">
+        <nav className="space-y-1 overflow-y-auto p-3">
           {NAV.map(({ href, label, icon: Icon }) => {
             // Audit 10C polish (Session 8): exact-or-boundary match so a
             // future `/audit-archive` route doesn't false-positive as
@@ -125,6 +128,27 @@ export default function Sidebar({ user, signOutSlot }: { user?: SidebarUser | nu
               href === "/"
                 ? pathname === "/"
                 : pathname === href || pathname.startsWith(href + "/");
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
+                  active
+                    ? "bg-slate-900 text-white"
+                    : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                <Icon size={17} />
+                {label}
+              </Link>
+            );
+          })}
+
+          <div className="px-3 pb-1 pt-5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            Additional Tools
+          </div>
+          {ADDITIONAL_NAV.map(({ href, label, icon: Icon }) => {
+            const active = pathname === href || pathname.startsWith(href + "/");
             return (
               <Link
                 key={href}
