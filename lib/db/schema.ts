@@ -175,6 +175,35 @@ export const competitors = pgTable("competitors", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+/** Pre-generated draft library (Batch 15). Populated by
+ *  scripts/pregen-drafts.ts on the operator's laptop using Antigravity
+ *  (Gemini) or Claude Code. /api/drafts does vector search here at
+ *  runtime; on cache miss the runtime path calls Groq and writes the
+ *  result back, so the library grows itself. */
+export const pregeneratedDrafts = pgTable(
+  "pregenerated_drafts",
+  {
+    id: serial("id").primaryKey(),
+    topic: text("topic").notNull(),
+    sourceUrl: text("source_url"),
+    draftMd: text("draft_md").notNull(),
+    embedding: vector("embedding", { dimensions: EMBED_DIM }).notNull(),
+    model: text("model").notNull(),
+    contextHash: text("context_hash"),
+    tokensIn: integer("tokens_in"),
+    tokensOut: integer("tokens_out"),
+    generatedAt: timestamp("generated_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("pregenerated_drafts_embedding_idx").using(
+      "hnsw",
+      t.embedding.op("vector_cosine_ops"),
+    ),
+    index("pregenerated_drafts_source_url_idx").on(t.sourceUrl),
+  ],
+);
+
 /** AI-generated content drafts (Batch 11). Queue + storage for the
  *  local-Claude pipeline. Web UI inserts queued rows; scripts/draft-worker.ts
  *  polls, generates via Claude Code locally, PATCHes the markdown back. */
@@ -201,3 +230,5 @@ export type CheckMatch = typeof checkMatches.$inferSelect;
 export type Competitor = typeof competitors.$inferSelect;
 export type Draft = typeof drafts.$inferSelect;
 export type NewDraft = typeof drafts.$inferInsert;
+export type PregeneratedDraft = typeof pregeneratedDrafts.$inferSelect;
+export type NewPregeneratedDraft = typeof pregeneratedDrafts.$inferInsert;
