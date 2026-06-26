@@ -175,8 +175,29 @@ export const competitors = pgTable("competitors", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+/** AI-generated content drafts (Batch 11). Queue + storage for the
+ *  local-Claude pipeline. Web UI inserts queued rows; scripts/draft-worker.ts
+ *  polls, generates via Claude Code locally, PATCHes the markdown back. */
+export const drafts = pgTable("drafts", {
+  id: serial("id").primaryKey(),
+  checkId: integer("check_id").references(() => checks.id, { onDelete: "set null" }),
+  status: text("status").notNull().default("queued"), // queued | running | done | failed
+  briefMd: text("brief_md").notNull(),
+  draftMd: text("draft_md"),
+  model: text("model"),
+  tokensIn: integer("tokens_in"),
+  tokensOut: integer("tokens_out"),
+  error: text("error"),
+  requestedBy: text("requested_by"),
+  requestedAt: timestamp("requested_at").defaultNow(),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+});
+
 export type Page = typeof pages.$inferSelect;
 export type NewPage = typeof pages.$inferInsert;
 export type Check = typeof checks.$inferSelect;
 export type CheckMatch = typeof checkMatches.$inferSelect;
 export type Competitor = typeof competitors.$inferSelect;
+export type Draft = typeof drafts.$inferSelect;
+export type NewDraft = typeof drafts.$inferInsert;
