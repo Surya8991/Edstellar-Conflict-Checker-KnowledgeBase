@@ -182,14 +182,19 @@ function buildBrief(p: PageRow): string {
 
 function invokeAgent(prompt: string): Promise<{ text: string; tokensOut: number; model: string }> {
   const isAgy = DRAFT_PROVIDER === "agy";
-  const bin   = isAgy ? "agy" : "claude";
+  // Windows: append .exe so spawn(shell:false) can find it on PATH.
+  // Without shell:false the prompt (which contains markdown, newlines,
+  // and unquoted words) gets reparsed by cmd.exe and the first space
+  // turns subsequent words into "command not found" errors.
+  const binBase = isAgy ? "agy" : "claude";
+  const bin = process.platform === "win32" ? `${binBase}.exe` : binBase;
   const model = isAgy ? AGY_MODEL : CLAUDE_MODEL;
   const args  = isAgy
     ? ["-p", prompt, "--model", model, "--dangerously-skip-permissions"]
     : ["-p", prompt, "--model", model];
 
   return new Promise((resolve, reject) => {
-    const child = spawn(bin, args, { shell: process.platform === "win32" });
+    const child = spawn(bin, args, { shell: false });
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (b) => { stdout += b.toString() });
