@@ -34,6 +34,7 @@ const PUBLIC_PATHS = [
   "/api/cron",            // each cron route enforces its own CRON_SECRET
   "/api/check",           // protected by WEBHOOK_API_KEY when set; rate-limited otherwise
   "/api/check/bulk",
+  "/api/drafts",          // routes enforce WORKER_API_KEY (worker) OR session (UI) internally
   "/api/summarize",       // gated by WEBHOOK_API_KEY + rate-limit (audit S3, Batch 1B)
   "/api/rewrite-suggestion", // gated by WEBHOOK_API_KEY + rate-limit (audit S3, Batch 1B)
   "/icon",
