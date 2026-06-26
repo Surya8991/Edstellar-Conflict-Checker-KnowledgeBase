@@ -5,9 +5,12 @@ import { db } from "@/lib/db";
 import { drafts, checks } from "@/lib/db/schema";
 import { auth, isAuthEnabled } from "@/auth";
 import { clientIp } from "@/lib/rate-limit";
+import { getEmbedder } from "@/lib/ai";
+import { resolveDraft } from "@/lib/drafts/runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 /**
  * POST /api/drafts  — enqueue a draft generation request from a checkId.
@@ -18,8 +21,19 @@ export const dynamic = "force-dynamic";
  * GET /api/drafts?status=    — worker poll (requires X-Worker-Key)
  */
 
+// Batch 17: POST /api/drafts is now SYNCHRONOUS. It does a vector lookup
+// against pregenerated_drafts and either returns the cached row (instant)
+// or calls Groq to adapt/generate (~2-8s).
+// We accept either `input` directly (URL or topic string) or `checkId`
+// (we look up the input from the checks row). `context` is the optional
+// editorial brief — same shape as the existing copyWriterBrief output.
 const CreateBody = z.object({
-  checkId: z.coerce.number().int().positive(),
+  input: z.string().trim().min(1).max(4000).optional(),
+  checkId: z.coerce.number().int().positive().optional(),
+  context: z.string().max(12_000).optional(),
+  forceFresh: z.boolean().optional(),
+}).refine((v) => v.input || v.checkId, {
+  message: "Either input or checkId is required.",
 });
 
 function workerKeyOk(req: NextRequest): boolean {
@@ -50,30 +64,86 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
+    const body = parsed.data;
 
-    const check = await db.query.checks.findFirst({
-      where: eq(checks.id, parsed.data.checkId),
-    });
-    if (!check) {
-      return NextResponse.json({ error: "Check not found." }, { status: 404 });
+    // 1. Resolve the topic string. Prefer the inline `input` (sidesteps
+    //    the in-flight persist bug where checkId is sometimes missing
+    //    from /api/check responses); fall back to the check row.
+    let topic = body.input?.trim() ?? "";
+    let context = body.context ?? "";
+    let checkId: number | null = body.checkId ?? null;
+
+    if (!topic && checkId) {
+      const check = await db.query.checks.findFirst({
+        where: eq(checks.id, checkId),
+      });
+      if (!check) {
+        return NextResponse.json({ error: "Check not found." }, { status: 404 });
+      }
+      topic = check.inputValue;
+      if (!context) {
+        // Build the same brief the legacy queue used, so editorial
+        // context (avoid-list, link targets) still reaches the LLM.
+        context = await buildBriefFromCheckId(checkId);
+      }
     }
 
-    const briefMd = await buildBriefFromCheckId(parsed.data.checkId);
+    if (!topic) {
+      return NextResponse.json({ error: "input or checkId is required." }, { status: 400 });
+    }
 
-    const [row] = await db
-      .insert(drafts)
-      .values({
-        checkId: parsed.data.checkId,
-        status: "queued",
-        briefMd,
-        requestedBy: requester,
-      })
-      .returning();
+    // 2. Embed the topic so we can vector-search the cache.
+    const embedder = getEmbedder();
+    const [embedding] = await embedder.embed([topic]);
+    if (!embedding) {
+      return NextResponse.json({ error: "Embedding failed." }, { status: 500 });
+    }
 
-    return NextResponse.json({ id: row.id, status: row.status });
+    // 3. Cache-first resolver. Cached returns instantly; Groq fallback
+    //    takes 2-8s and self-caches the output for next time.
+    const resolved = await resolveDraft(topic, embedding, {
+      context,
+      forceFresh: body.forceFresh ?? false,
+    });
+
+    // 4. Best-effort audit row in `drafts` (Batch 11 table) so /api/drafts
+    //    GET history still works. Failure here doesn't block the response.
+    let auditId: number | null = null;
+    try {
+      const [row] = await db
+        .insert(drafts)
+        .values({
+          checkId,
+          status: "done",
+          briefMd: context || `Topic: ${topic}`,
+          draftMd: resolved.draftMd,
+          model: resolved.model,
+          tokensIn: resolved.tokensIn ?? null,
+          tokensOut: resolved.tokensOut ?? null,
+          requestedBy: requester,
+          startedAt: new Date(),
+          completedAt: new Date(),
+        })
+        .returning();
+      auditId = row.id;
+    } catch (e) {
+      console.warn("[api/drafts] audit insert failed:", (e as Error).message);
+    }
+
+    return NextResponse.json({
+      id: auditId,
+      status: "done",
+      draftMd: resolved.draftMd,
+      source: resolved.source,
+      similarity: resolved.similarity,
+      model: resolved.model,
+      sourceUrl: resolved.sourceUrl,
+      tokensIn: resolved.tokensIn ?? null,
+      tokensOut: resolved.tokensOut ?? null,
+    });
   } catch (e) {
     return NextResponse.json(
-      { error: (e as Error).message || "Failed to enqueue draft." },
+      { error: (e as Error).message || "Draft generation failed." },
       { status: 500 },
     );
   }

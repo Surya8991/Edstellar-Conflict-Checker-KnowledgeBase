@@ -39,7 +39,14 @@ New `/api/*` routes that should be cron-callable must be added to `proxy.ts PUBL
 - `AI_CHAT_PROVIDER` defaults to `groq` if neither `GROQ_API_KEY` nor `ANTHROPIC_API_KEY` is set, the app silently returns empty summaries.
 - First request after a cold deploy downloads `bge-small-en-v1.5` (~30 MB) inline — expect 8–25 s latency. Set `EMBEDDING_PROVIDER=openai` to skip this.
 
-## Local draft worker (Batch 11–14)
+## Draft pipeline (Batch 15–18 — current)
+- **Architecture: cache-first.** `pregenerated_drafts` is a vector library populated offline by `npm run pregen-drafts` (uses local Antigravity/Claude, $0). At runtime `/api/drafts` does cosine top-1 in that table; ≥0.85 returns instantly; lower = Groq (`llama-3.3-70b-versatile`) adapts or generates fresh, and the result is upserted back to the cache.
+- **Required env on Vercel:** `GROQ_API_KEY` (for runtime fallback). `LLM_KILL_SWITCH=1` disables Groq calls but cache hits still serve.
+- **Local pregen:** `npm run pregen-drafts` → top 300 high-value pages (hubs + GSC top + No-TOFU clusters). Resumable; `--limit=N`, `--force`, `--concurrency=N` flags. Uses `DRAFT_PROVIDER=agy` (default) or `claude`.
+- **Migrations 0006 + 0007** must be applied to Neon (`npm run db:setup`).
+- **Legacy** (`/api/drafts/[id]` PATCH + `scripts/draft-worker.ts`) still exists for backward-compat but is no longer the hot path.
+
+## Local draft worker (Batch 11–14 — legacy)
 - `/api/drafts` enqueues a draft for a `checkId`; `scripts/draft-worker.ts` polls it locally and runs a CLI agent against the operator's subscription — no server-side LLM cost.
 - Pluggable provider via `DRAFT_PROVIDER`:
   - `claude` (Claude Code, Max 20x) — `CLAUDE_MODEL=claude-sonnet-4-6` (default)

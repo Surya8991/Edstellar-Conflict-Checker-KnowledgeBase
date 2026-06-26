@@ -118,19 +118,29 @@ export default function ConflictCheckerPage() {
   // a URL check completes; surfaced as a banner above the matches list.
   const [cannibals, setCannibals] = useState<any[]>([]);
 
-  // AI Draft state (Batch 12). One row per "Generate" click; polled until done.
-  const [draft, setDraft] = useState<{
-    id: number; status: string; draftMd?: string | null;
-    model?: string | null; tokensIn?: number | null; tokensOut?: number | null;
-    error?: string | null;
-  } | null>(null);
-  const [draftEnqueueing, setDraftEnqueueing] = useState(false);
+  // AI Draft state (Batch 18). Cache-first synchronous resolver — either
+  // returns instantly from pregenerated_drafts or 2-8s via Groq fallback.
+  // No polling, no queued/running states.
+  interface DraftState {
+    id: number | null;
+    draftMd: string;
+    source: "cached" | "groq-adapted" | "groq-fresh";
+    similarity: number | null;
+    model: string;
+    sourceUrl: string | null;
+    tokensIn: number | null;
+    tokensOut: number | null;
+  }
+  const [draft, setDraft] = useState<DraftState | null>(null);
+  const [draftLoading, setDraftLoading] = useState(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
 
   async function run(e: React.FormEvent) {
     e.preventDefault();
     if (!input.trim()) return;
     setLoading(true); setError(null); setResult(null); setEnrich(null); setSuggestions(null);
-    setExplained({}); setPage(1); setCannibals([]); setDraft(null);
+    setExplained({}); setPage(1); setCannibals([]);
+    setDraft(null); setDraftError(null);
     try {
       const res = await fetch("/api/check", {
         method: "POST",
@@ -214,41 +224,46 @@ export default function ConflictCheckerPage() {
     return () => { cancelled = true };
   }, [result]);
 
-  // Poll the draft row every 3s while it's not finished. Stops on done/failed.
-  useEffect(() => {
-    if (!draft || draft.status === "done" || draft.status === "failed") return;
-    const t = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/drafts/${draft.id}`);
-        if (!res.ok) return;
-        const row = await res.json();
-        setDraft({
-          id: row.id, status: row.status, draftMd: row.draftMd,
-          model: row.model, tokensIn: row.tokensIn, tokensOut: row.tokensOut,
-          error: row.error,
-        });
-      } catch { /* keep polling */ }
-    }, 3000);
-    return () => clearInterval(t);
-  }, [draft?.id, draft?.status]);
-
-  async function enqueueDraft() {
-    if (!result?.checkId || draftEnqueueing) return;
-    setDraftEnqueueing(true);
+  // Cache-first generator. Sends the input directly (so it works even
+  // when checkId persistence fails). Resolves synchronously: instant on
+  // cache hit, ~2-8s on Groq fallback. No polling, no queue.
+  async function generateDraft(forceFresh = false) {
+    if (!result || draftLoading) return;
+    setDraftLoading(true);
+    setDraftError(null);
     try {
       const res = await fetch("/api/drafts", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ checkId: result.checkId }),
+        body: JSON.stringify({
+          input: result.inputValue,
+          checkId: result.checkId,
+          forceFresh,
+        }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Enqueue failed");
-      setDraft({ id: data.id, status: data.status });
-      toast.success(`Draft #${data.id} queued — local worker will pick it up.`);
+      if (!res.ok) throw new Error(data.error || "Draft generation failed");
+      setDraft({
+        id: data.id,
+        draftMd: data.draftMd,
+        source: data.source,
+        similarity: data.similarity,
+        model: data.model,
+        sourceUrl: data.sourceUrl,
+        tokensIn: data.tokensIn,
+        tokensOut: data.tokensOut,
+      });
+      const label =
+        data.source === "cached" ? "Cached draft loaded instantly." :
+        data.source === "groq-adapted" ? "Groq adapted the nearest cached draft." :
+        "Groq generated a fresh draft.";
+      toast.success(label);
     } catch (e) {
-      toast.error(`Couldn't enqueue draft: ${(e as Error).message}`);
+      const msg = (e as Error).message;
+      setDraftError(msg);
+      toast.error(`Draft failed: ${msg}`);
     } finally {
-      setDraftEnqueueing(false);
+      setDraftLoading(false);
     }
   }
 
@@ -731,86 +746,97 @@ export default function ConflictCheckerPage() {
               {suggestions?.error && <div className="mt-3 text-sm text-red-600">{suggestions.error}</div>}
             </Card>
 
-            {/* AI Draft panel — enqueues a row for the local Claude worker. */}
-            {result.checkId && (
-              <Card>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-semibold text-slate-900">AI Draft</h3>
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      Generates a 1500–2500 word publish-ready blog draft in Markdown,
-                      tailored to this check: differentiated from your high-overlap matches,
-                      linked to your related-not-overlapping ones, and structured to answer
-                      Google's People-Also-Ask questions for SEO.
-                    </p>
-                    <ul className="mt-2 space-y-0.5 text-[11px] text-slate-500">
-                      <li>• Click <strong>Generate draft</strong> — it queues a row in the database.</li>
-                      <li>• A worker on your machine picks it up within ~10s and runs Claude or Gemini against your subscription (no API cost).</li>
-                      <li>• Worker command (run once, leave open): <code className="rounded bg-slate-100 px-1 text-[10px]">npm run draft-worker</code></li>
-                      <li>• When status flips to <strong>done</strong>, the Markdown appears below. Use <strong>Copy draft</strong> to paste into your CMS, or <strong>Regenerate</strong> for a fresh angle.</li>
-                      <li>• Drafts are deterministic-ish: same check + same model usually produces similar output. Regenerate if the first pass is off.</li>
-                    </ul>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {draft?.status === "done" && draft.draftMd && (
-                      <button
-                        onClick={copyDraft}
-                        className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                      >
-                        Copy draft
-                      </button>
-                    )}
-                    <button
-                      onClick={enqueueDraft}
-                      disabled={draftEnqueueing || (draft != null && draft.status !== "done" && draft.status !== "failed")}
-                      className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-                    >
-                      {draftEnqueueing ? "Queuing…" :
-                       draft?.status === "done" ? "Regenerate" :
-                       draft?.status === "failed" ? "Retry" :
-                       "Generate draft"}
-                    </button>
-                  </div>
+            {/* AI Draft panel — cache-first via pregenerated_drafts; Groq fallback. */}
+            <Card>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-semibold text-slate-900">AI Draft</h3>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Cache-first: looks for the nearest pre-generated draft in the database. If similarity ≥ 85% you get it instantly. Otherwise Groq (llama-3.3-70b-versatile) adapts the nearest match or generates fresh in 2–8s, and the result is cached for next time.
+                  </p>
+                  <ul className="mt-2 space-y-0.5 text-[11px] text-slate-500">
+                    <li>• <strong>Cached</strong> badge = served from the offline-generated library, free + instant.</li>
+                    <li>• <strong>Adapted</strong> badge = Groq rewrote the nearest cached draft for this exact topic.</li>
+                    <li>• <strong>Fresh</strong> badge = Groq generated from scratch (no near-neighbour in cache).</li>
+                    <li>• To grow the cached library, run <code className="rounded bg-slate-100 px-1 text-[10px]">npm run pregen-drafts</code> on your machine (uses Antigravity or Claude Code).</li>
+                  </ul>
                 </div>
+                <div className="flex items-center gap-2">
+                  {draft && (
+                    <button
+                      onClick={copyDraft}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Copy draft
+                    </button>
+                  )}
+                  <button
+                    onClick={() => generateDraft(false)}
+                    disabled={draftLoading}
+                    className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                  >
+                    {draftLoading ? "Working…" : draft ? "Re-fetch" : "Generate draft"}
+                  </button>
+                  {draft && (
+                    <button
+                      onClick={() => generateDraft(true)}
+                      disabled={draftLoading}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      title="Force a fresh Groq generation (skips cache)"
+                    >
+                      Regenerate
+                    </button>
+                  )}
+                </div>
+              </div>
 
-                {draft && (
-                  <div className="mt-4 space-y-3">
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className={`rounded-full px-2 py-0.5 font-semibold uppercase tracking-wider ${
-                        draft.status === "queued"  ? "bg-slate-100 text-slate-600" :
-                        draft.status === "running" ? "bg-amber-100 text-amber-700" :
-                        draft.status === "done"    ? "bg-emerald-100 text-emerald-700" :
-                                                     "bg-rose-100 text-rose-700"
-                      }`}>
-                        {draft.status}
+              {draftLoading && !draft && (
+                <p className="mt-4 text-xs text-slate-500">Checking cache, then falling back to Groq if needed…</p>
+              )}
+              {draftError && (
+                <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{draftError}</div>
+              )}
+
+              {draft && (
+                <div className="mt-4 space-y-3">
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className={`rounded-full px-2 py-0.5 font-semibold uppercase tracking-wider ${
+                      draft.source === "cached"        ? "bg-emerald-100 text-emerald-700" :
+                      draft.source === "groq-adapted"  ? "bg-violet-100 text-violet-700"   :
+                                                         "bg-blue-100 text-blue-700"
+                    }`}>
+                      {draft.source === "cached" ? "cached" : draft.source === "groq-adapted" ? "adapted" : "fresh"}
+                    </span>
+                    {draft.similarity != null && (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600 tabular-nums">
+                        match {(draft.similarity * 100).toFixed(0)}%
                       </span>
-                      <span className="text-slate-500">Draft #{draft.id}</span>
-                      {draft.model && <span className="text-slate-400">· {draft.model}</span>}
-                      {draft.tokensOut != null && (
-                        <span className="text-slate-400 tabular-nums">
-                          · {draft.tokensIn ?? 0} in / {draft.tokensOut} out tok
-                        </span>
-                      )}
-                    </div>
-
-                    {draft.status === "queued" && (
-                      <p className="text-xs text-slate-500">Waiting for the local worker to pick this up. Polls every 3s.</p>
                     )}
-                    {draft.status === "running" && (
-                      <p className="text-xs text-amber-700">Claude is writing — this usually takes 30–90s for a full draft.</p>
+                    {draft.sourceUrl && (
+                      <a
+                        href={draft.sourceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="truncate text-slate-500 hover:underline"
+                        title={draft.sourceUrl}
+                      >
+                        ← from {(() => { try { return new URL(draft.sourceUrl).pathname } catch { return draft.sourceUrl } })()}
+                      </a>
                     )}
-                    {draft.status === "failed" && draft.error && (
-                      <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{draft.error}</div>
-                    )}
-                    {draft.status === "done" && draft.draftMd && (
-                      <pre className="max-h-[480px] overflow-auto whitespace-pre-wrap rounded-md border border-slate-200 bg-slate-50 p-4 text-xs leading-relaxed text-slate-800">
-                        {draft.draftMd}
-                      </pre>
+                    <span className="text-slate-400 tabular-nums">· {draft.model}</span>
+                    {draft.tokensOut != null && (
+                      <span className="text-slate-400 tabular-nums">
+                        · {draft.tokensIn ?? 0} in / {draft.tokensOut} out
+                      </span>
                     )}
                   </div>
-                )}
-              </Card>
-            )}
+
+                  <pre className="max-h-[480px] overflow-auto whitespace-pre-wrap rounded-md border border-slate-200 bg-slate-50 p-4 text-xs leading-relaxed text-slate-800">
+                    {draft.draftMd}
+                  </pre>
+                </div>
+              )}
+            </Card>
           </>
         )}
       </div>
