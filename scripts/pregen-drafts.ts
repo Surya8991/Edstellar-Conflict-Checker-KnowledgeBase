@@ -85,56 +85,37 @@ function log(msg: string, extra?: Record<string, unknown>) {
 }
 
 async function selectTargetPages(limit: number): Promise<PageRow[]> {
-  // Union of three selection rules. UNION DISTINCT dedupes naturally.
-  // Order rules so high-traffic content lands first (resume-friendly).
-  const rows = await db.execute(sql`
-    WITH ranked AS (
-      -- Rule 1: hub pages (category + subcategory) — always include.
-      SELECT id, url, title, content_type, category, course_type,
-             content_text, meta_description,
-             gsc_clicks_28d, gsc_impressions_28d,
-             0 AS bucket,
-             coalesce(gsc_clicks_28d, 0) AS sort_key
-      FROM pages
-      WHERE content_type IN ('category', 'subcategory')
+  // Two cheap queries, merged + deduped in JS. The earlier single-CTE
+  // version with three UNIONs and a NOT EXISTS subquery hung on the
+  // Neon HTTP driver — each scan was fine alone, but unioned across
+  // 2,461 rows with a correlated subquery it timed out.
+  //
+  // Rule 1: top by 28d GSC clicks (covers traffic-priority pages).
+  // Rule 2: hub pages (category / subcategory) regardless of traffic.
+  // Cluster-gap rule has been dropped from selection — it can be a
+  // follow-up batch driven by the /strategy page once the cache exists.
+  const cols = sql`id, url, title, content_type, category, course_type,
+                   content_text, meta_description, gsc_clicks_28d, gsc_impressions_28d`;
 
-      UNION ALL
-
-      -- Rule 2: top by 28d GSC clicks.
-      SELECT id, url, title, content_type, category, course_type,
-             content_text, meta_description,
-             gsc_clicks_28d, gsc_impressions_28d,
-             1 AS bucket,
-             coalesce(gsc_clicks_28d, 0) AS sort_key
-      FROM pages
-      WHERE coalesce(gsc_clicks_28d, 0) > 0
-
-      UNION ALL
-
-      -- Rule 3: any page whose cluster has zero TOFU (blog/topic) content.
-      SELECT p.id, p.url, p.title, p.content_type, p.category, p.course_type,
-             p.content_text, p.meta_description,
-             p.gsc_clicks_28d, p.gsc_impressions_28d,
-             2 AS bucket,
-             coalesce(p.gsc_clicks_28d, 0) AS sort_key
-      FROM pages p
-      WHERE p.course_type IS NOT NULL AND p.category IS NOT NULL
-        AND NOT EXISTS (
-          SELECT 1 FROM pages t
-          WHERE t.course_type = p.course_type
-            AND t.category = p.category
-            AND t.content_type IN ('blog', 'topic')
-        )
-    )
-    SELECT DISTINCT ON (id) id, url, title, content_type, category, course_type,
-           content_text, meta_description, gsc_clicks_28d, gsc_impressions_28d
-    FROM ranked
-    ORDER BY id, bucket, sort_key DESC
+  const topByTraffic = await db.execute(sql`
+    SELECT ${cols} FROM pages
+    WHERE coalesce(gsc_clicks_28d, 0) > 0
+    ORDER BY gsc_clicks_28d DESC NULLS LAST
+    LIMIT ${limit * 2}
   `);
-  const all = rowsOf<PageRow>(rows);
-  // Final sort: highest GSC clicks first regardless of bucket origin.
-  all.sort((a, b) => (Number(b.gsc_clicks_28d ?? 0) - Number(a.gsc_clicks_28d ?? 0)));
-  return all.slice(0, limit);
+  const hubs = await db.execute(sql`
+    SELECT ${cols} FROM pages
+    WHERE content_type IN ('category', 'subcategory')
+    ORDER BY coalesce(gsc_clicks_28d, 0) DESC
+  `);
+
+  const seen = new Map<number, PageRow>();
+  for (const r of rowsOf<PageRow>(topByTraffic)) seen.set(Number(r.id), r);
+  for (const r of rowsOf<PageRow>(hubs))         seen.set(Number(r.id), r);
+
+  return [...seen.values()]
+    .sort((a, b) => Number(b.gsc_clicks_28d ?? 0) - Number(a.gsc_clicks_28d ?? 0))
+    .slice(0, limit);
 }
 
 async function alreadyCached(sourceUrl: string): Promise<boolean> {
