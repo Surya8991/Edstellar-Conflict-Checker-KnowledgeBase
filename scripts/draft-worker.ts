@@ -34,9 +34,19 @@ interface DraftRow {
 
 const APP_BASE_URL    = process.env.APP_BASE_URL    ?? "http://localhost:3000";
 const WORKER_API_KEY  = process.env.WORKER_API_KEY  ?? "";
+// Provider: claude (Claude Code CLI) | agy (Google Antigravity CLI).
+// Both use -p <prompt> --model <name> + capture stdout, so the dispatch
+// is identical apart from binary name and the agy permission flag.
+const DRAFT_PROVIDER  = (process.env.DRAFT_PROVIDER ?? "claude").toLowerCase();
 const CLAUDE_MODEL    = process.env.CLAUDE_MODEL    ?? "claude-sonnet-4-6";
+const AGY_MODEL       = process.env.AGY_MODEL       ?? "gemini-3-pro-preview";
 const POLL_MS         = Number(process.env.DRAFT_POLL_MS ?? 10_000);
 const MAX_RETRIES     = 1;
+
+if (DRAFT_PROVIDER !== "claude" && DRAFT_PROVIDER !== "agy") {
+  console.error(`[draft-worker] DRAFT_PROVIDER must be 'claude' or 'agy'. Got '${DRAFT_PROVIDER}'.`);
+  process.exit(1);
+}
 
 if (!WORKER_API_KEY) {
   console.error("[draft-worker] WORKER_API_KEY is not set. Aborting.");
@@ -79,15 +89,24 @@ async function patchDraft(id: number, body: Record<string, unknown>): Promise<vo
 }
 
 /**
- * Invoke `claude -p "<prompt>"` and collect stdout. Honors CLAUDE_MODEL via
- * `--model` flag if set. Returns markdown + a rough token estimate (Claude
- * Code CLI doesn't currently emit token counts to stdout in print mode, so
- * we estimate from char length / 4 as a sensible-enough metric for UI).
+ * Provider dispatch. Both Claude Code (`claude`) and Antigravity (`agy`) expose
+ *   `<bin> -p "<prompt>" --model <name>`  → markdown to stdout
+ * so the wiring is shared. agy additionally needs --dangerously-skip-permissions
+ * in headless mode or it pauses on tool prompts.
+ *
+ * Returns markdown + a rough token estimate (neither CLI emits token counts
+ * to stdout in print mode; chars/4 is good enough for UI display).
  */
-function invokeClaude(prompt: string): Promise<{ text: string; tokensOut: number }> {
+function invokeAgent(prompt: string): Promise<{ text: string; tokensOut: number; model: string }> {
+  const isAgy = DRAFT_PROVIDER === "agy";
+  const bin   = isAgy ? "agy" : "claude";
+  const model = isAgy ? AGY_MODEL : CLAUDE_MODEL;
+  const args  = isAgy
+    ? ["-p", prompt, "--model", model, "--dangerously-skip-permissions"]
+    : ["-p", prompt, "--model", model];
+
   return new Promise((resolve, reject) => {
-    const args = ["-p", prompt, "--model", CLAUDE_MODEL];
-    const child = spawn("claude", args, { shell: process.platform === "win32" });
+    const child = spawn(bin, args, { shell: process.platform === "win32" });
 
     let stdout = "";
     let stderr = "";
@@ -96,23 +115,26 @@ function invokeClaude(prompt: string): Promise<{ text: string; tokensOut: number
 
     child.on("error", (err: any) => {
       if (err?.code === "ENOENT") {
-        reject(new Error("`claude` not found on PATH. Install Claude Code: https://docs.claude.com/en/docs/claude-code"));
+        const install = isAgy
+          ? "Install Antigravity: https://antigravity.google"
+          : "Install Claude Code: https://docs.claude.com/en/docs/claude-code";
+        reject(new Error(`\`${bin}\` not found on PATH. ${install}`));
       } else {
         reject(err);
       }
     });
     child.on("close", (code) => {
       if (code !== 0) {
-        reject(new Error(`claude exited ${code}: ${stderr.trim() || "no stderr"}`));
+        reject(new Error(`${bin} exited ${code}: ${stderr.trim() || "no stderr"}`));
         return;
       }
       const text = stdout.trim();
       if (!text) {
-        reject(new Error("claude returned empty output"));
+        reject(new Error(`${bin} returned empty output`));
         return;
       }
       const tokensOut = Math.round(text.length / 4);
-      resolve({ text, tokensOut });
+      resolve({ text, tokensOut, model });
     });
   });
 }
@@ -124,16 +146,16 @@ async function processOne(row: DraftRow): Promise<void> {
   let lastErr: Error | null = null;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const { text, tokensOut } = await invokeClaude(row.briefMd);
+      const { text, tokensOut, model } = await invokeAgent(row.briefMd);
       const tokensIn = Math.round(row.briefMd.length / 4);
       await patchDraft(row.id, {
         status: "done",
         draftMd: text,
-        model: CLAUDE_MODEL,
+        model: `${DRAFT_PROVIDER}:${model}`,
         tokensIn,
         tokensOut,
       });
-      log(`draft #${row.id} done`, { tokensOut });
+      log(`draft #${row.id} done`, { provider: DRAFT_PROVIDER, model, tokensOut });
       return;
     } catch (e) {
       lastErr = e as Error;
@@ -157,7 +179,12 @@ async function tick(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  log(`starting`, { base: APP_BASE_URL, model: CLAUDE_MODEL, pollMs: POLL_MS });
+  log(`starting`, {
+    base: APP_BASE_URL,
+    provider: DRAFT_PROVIDER,
+    model: DRAFT_PROVIDER === "agy" ? AGY_MODEL : CLAUDE_MODEL,
+    pollMs: POLL_MS,
+  });
   // Single warm-up tick so the operator gets immediate feedback on auth /
   // network errors instead of waiting POLL_MS for the first heartbeat.
   await tick();

@@ -39,10 +39,14 @@ New `/api/*` routes that should be cron-callable must be added to `proxy.ts PUBL
 - `AI_CHAT_PROVIDER` defaults to `groq` if neither `GROQ_API_KEY` nor `ANTHROPIC_API_KEY` is set, the app silently returns empty summaries.
 - First request after a cold deploy downloads `bge-small-en-v1.5` (~30 MB) inline — expect 8–25 s latency. Set `EMBEDDING_PROVIDER=openai` to skip this.
 
-## Local Claude draft worker (Batch 11–13)
-- `/api/drafts` enqueues a draft for a `checkId`; `scripts/draft-worker.ts` polls it locally and runs `claude -p` via the operator's Max 20x subscription — no server-side LLM cost.
-- Worker needs: Claude Code installed on the operator's machine + `WORKER_API_KEY` set in both Vercel env AND worker `.env.local` + `APP_BASE_URL` pointed at the deployed app.
-- Run with `npm run draft-worker`. The worker exits with a clear error if `claude` isn't on PATH.
+## Local draft worker (Batch 11–14)
+- `/api/drafts` enqueues a draft for a `checkId`; `scripts/draft-worker.ts` polls it locally and runs a CLI agent against the operator's subscription — no server-side LLM cost.
+- Pluggable provider via `DRAFT_PROVIDER`:
+  - `claude` (Claude Code, Max 20x) — `CLAUDE_MODEL=claude-sonnet-4-6` (default)
+  - `agy` (Google Antigravity, Gemini) — `AGY_MODEL=gemini-3-pro-preview`
+- Both CLIs invoked as `<bin> -p <prompt> --model <name>`; agy also gets `--dangerously-skip-permissions` for headless runs.
+- Worker needs: chosen CLI on PATH + `WORKER_API_KEY` set in both Vercel env AND worker `.env.local` + `APP_BASE_URL` pointed at the deployed app.
+- Run with `npm run draft-worker`; override per-run: `DRAFT_PROVIDER=agy npm run draft-worker`.
 - Migration `drizzle/0006_drafts.sql` MUST be applied to Neon before the API works.
 
 ## Emergency run-book shortcuts
