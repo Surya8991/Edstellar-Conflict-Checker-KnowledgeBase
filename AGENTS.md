@@ -27,6 +27,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 |------|-----------------|--------|
 | `WEBHOOK_API_KEY` | `X-Api-Key` | `/api/check/outcome`, `/api/pages/owner`, `/api/competitors`, `/api/check/bulk` |
 | `CRON_SECRET` | `Authorization: Bearer` | All `/api/cron/*` routes |
+| `WORKER_API_KEY` | `X-Worker-Key` | `/api/drafts?status=queued` (GET) + `/api/drafts/:id` (PATCH). Used by `scripts/draft-worker.ts`. |
 | NextAuth session cookie | `AUTH_ENABLED=true` | All dashboard pages via `proxy.ts` |
 
 **`/api/check` is special**: accepts EITHER a valid `X-Api-Key` (webhook callers) OR a valid NextAuth session (dashboard UI). When `WEBHOOK_API_KEY` is set and the header is absent, it falls back to session auth. This prevents dashboard users from being locked out when the webhook key is configured in production.
@@ -37,6 +38,12 @@ New `/api/*` routes that should be cron-callable must be added to `proxy.ts PUBL
 - `minSimilarity` in `lib/conflict.ts` defaults to **0.50** (raised from 0.30 in Session 6). The JSDoc previously said 0.30 — trust the code, not the comment.
 - `AI_CHAT_PROVIDER` defaults to `groq` if neither `GROQ_API_KEY` nor `ANTHROPIC_API_KEY` is set, the app silently returns empty summaries.
 - First request after a cold deploy downloads `bge-small-en-v1.5` (~30 MB) inline — expect 8–25 s latency. Set `EMBEDDING_PROVIDER=openai` to skip this.
+
+## Local Claude draft worker (Batch 11–13)
+- `/api/drafts` enqueues a draft for a `checkId`; `scripts/draft-worker.ts` polls it locally and runs `claude -p` via the operator's Max 20x subscription — no server-side LLM cost.
+- Worker needs: Claude Code installed on the operator's machine + `WORKER_API_KEY` set in both Vercel env AND worker `.env.local` + `APP_BASE_URL` pointed at the deployed app.
+- Run with `npm run draft-worker`. The worker exits with a clear error if `claude` isn't on PATH.
+- Migration `drizzle/0006_drafts.sql` MUST be applied to Neon before the API works.
 
 ## Emergency run-book shortcuts
 - **LLM cost runaway** → set `LLM_KILL_SWITCH=1` env var + redeploy. Disables all AI calls instantly without a code push.
