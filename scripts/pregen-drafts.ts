@@ -21,9 +21,15 @@
  * Idempotent: rows with the same source_url get UPDATEd via upsertDraft.
  * Skips pages already cached unless --force is set.
  */
+// Side-effect import runs SYNCHRONOUSLY at module-init, BEFORE the
+// `@/lib/db` import below initializes Drizzle with process.env.DATABASE_URL.
+// `import { config }` + a top-level call doesn't work — ES modules hoist
+// all imports above any code in the body.
+import "dotenv/config"; // loads .env (DATABASE_URL lives here)
 import { config as loadEnv } from "dotenv";
-loadEnv({ path: ".env.local" });
-loadEnv();
+// .env.local has the worker-only vars (DRAFT_PROVIDER, AGY_MODEL). These
+// are read inside main(), well after this line runs.
+loadEnv({ path: ".env.local", override: true });
 
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
