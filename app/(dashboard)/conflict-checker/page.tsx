@@ -114,11 +114,15 @@ export default function ConflictCheckerPage() {
   const [suggesting, setSuggesting] = useState(false);
   const [suggestions, setSuggestions] = useState<any>(null);
 
+  // Cannibalization groups for the input URL (GSC-driven). Auto-fetched after
+  // a URL check completes; surfaced as a banner above the matches list.
+  const [cannibals, setCannibals] = useState<any[]>([]);
+
   async function run(e: React.FormEvent) {
     e.preventDefault();
     if (!input.trim()) return;
     setLoading(true); setError(null); setResult(null); setEnrich(null); setSuggestions(null);
-    setExplained({}); setPage(1);
+    setExplained({}); setPage(1); setCannibals([]);
     try {
       const res = await fetch("/api/check", {
         method: "POST",
@@ -177,6 +181,26 @@ export default function ConflictCheckerPage() {
         if (!cancelled) setEnrich(data);
       } finally {
         if (!cancelled) setEnriching(false);
+      }
+    })();
+    return () => { cancelled = true };
+  }, [result]);
+
+  // Cannibalization fetch — only meaningful for URL inputs (GSC keys by page).
+  useEffect(() => {
+    if (!result || result.inputType !== "url") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/check/cannibalization", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ url: result.inputValue, range: "28d" }),
+        });
+        const data = await res.json();
+        if (!cancelled) setCannibals(data.groups ?? []);
+      } catch {
+        if (!cancelled) setCannibals([]);
       }
     })();
     return () => { cancelled = true };
@@ -336,6 +360,56 @@ export default function ConflictCheckerPage() {
                 </div>
               )}
             </Card>
+
+            {/* Cannibalization banner — fires only when input is a URL
+                and GSC shows this URL competing with siblings for a query. */}
+            {cannibals.length > 0 && (
+              <Card className="border-amber-200 bg-amber-50">
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 shrink-0 text-amber-600">⚠</span>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-sm font-semibold text-amber-900">
+                      Cannibalization detected · {cannibals.length} query{cannibals.length === 1 ? "" : "s"}
+                    </h3>
+                    <p className="mt-0.5 text-xs text-amber-800">
+                      This URL is competing with other pages on your site for the same Google query.
+                      Consider redirecting, merging, or differentiating the weaker ones.
+                    </p>
+                    <ul className="mt-3 space-y-2.5">
+                      {cannibals.slice(0, 5).map((g) => (
+                        <li key={g.query} className="rounded-md border border-amber-200 bg-white/70 p-2.5">
+                          <div className="flex flex-wrap items-baseline justify-between gap-2">
+                            <span className="font-mono text-xs font-medium text-slate-900">"{g.query}"</span>
+                            <span className="text-[11px] text-slate-500 tabular-nums">
+                              {g.totalImpressions.toLocaleString()} impr · {g.totalClicks} clk · {g.pages.length} pages
+                            </span>
+                          </div>
+                          <ul className="mt-1.5 space-y-0.5">
+                            {g.pages.slice(0, 4).map((p: any) => {
+                              const isThis = p.page === result.inputValue;
+                              return (
+                                <li key={p.page} className="flex items-center gap-2 text-[11px]">
+                                  <span className={`shrink-0 rounded px-1.5 py-0.5 tabular-nums ${isThis ? "bg-amber-200 text-amber-900 font-semibold" : "bg-slate-100 text-slate-600"}`}>
+                                    pos {p.position.toFixed(1)}
+                                  </span>
+                                  <a href={p.page} target="_blank" rel="noreferrer"
+                                    className={`truncate hover:underline ${isThis ? "font-semibold text-amber-900" : "text-slate-700"}`}>
+                                    {(() => { try { return new URL(p.page).pathname } catch { return p.page } })()}
+                                  </a>
+                                  <span className="ml-auto shrink-0 text-slate-500 tabular-nums">
+                                    {p.impressions.toLocaleString()} impr
+                                  </span>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </Card>
+            )}
 
             {/* Competitor SERP + AI Overview + GSC rank + keyword gap.
                 Sits right under the Summary so the user sees external

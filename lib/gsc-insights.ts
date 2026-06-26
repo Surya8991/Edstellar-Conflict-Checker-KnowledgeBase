@@ -409,6 +409,43 @@ export async function pageDrilldown(page: string, range: RangeKey) {
 }
 
 /**
+ * Cannibalization groups that contain a specific URL.
+ * Single GSC API call (query+page breakdown), filtered to groups where this URL ranks.
+ * Used by the conflict-checker to show an inline banner when the input URL is
+ * competing with sibling pages for the same query.
+ */
+export async function pageCannibalization(
+  url: string,
+  range: RangeKey = "28d",
+): Promise<CannibalGroup[]> {
+  const client = await getAuthorizedClient();
+  if (!client) throw new Error("Not connected to Google Search Console.");
+  const siteUrl = await resolveSiteUrl(client);
+  const { startDate, endDate } = resolveRange(range);
+
+  const rows = await runQuery(client, siteUrl, startDate, endDate, ["query", "page"], 5000);
+
+  const groups = new Map<string, CannibalGroup>();
+  for (const r of rows) {
+    const q = r.keys?.[0] ?? "";
+    const p = r.keys?.[1] ?? "";
+    if (!q || !p) continue;
+    let g = groups.get(q);
+    if (!g) { g = { query: q, totalImpressions: 0, totalClicks: 0, pages: [] }; groups.set(q, g) }
+    g.totalImpressions += r.impressions;
+    g.totalClicks += r.clicks;
+    g.pages.push({ page: p, clicks: r.clicks, impressions: r.impressions, position: r.position, ctr: r.ctr });
+  }
+
+  return [...groups.values()]
+    .filter((g) => g.pages.length >= 2 && g.totalImpressions >= 50)
+    .filter((g) => g.pages.some((p) => p.page === url))
+    .map((g) => ({ ...g, pages: g.pages.sort((a, b) => b.impressions - a.impressions) }))
+    .sort((a, b) => b.totalImpressions - a.totalImpressions)
+    .slice(0, 10);
+}
+
+/**
  * Index coverage — for each sitemap URL, ask GSC if it's indexed.
  * Quota: 600 inspections / 24h per site. Caller should batch / pass a slice.
  */
