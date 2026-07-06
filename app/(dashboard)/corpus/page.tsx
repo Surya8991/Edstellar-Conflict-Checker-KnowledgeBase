@@ -9,6 +9,8 @@ interface PageRow {
   id: number;
   url: string;
   title: string | null;
+  h1: string | null;
+  meta_description: string | null;
   content_type: string | null;
   course_type: string | null;
   category: string | null;
@@ -18,9 +20,6 @@ interface PageRow {
   embedded: boolean;
   // Batch D SEO columns
   owner_url: string | null;
-  gsc_clicks_28d: number | null;
-  gsc_impressions_28d: number | null;
-  gsc_position_28d: number | null;
   canonical_url: string | null;
   image_count: number | null;
   images_no_alt: number | null;
@@ -53,6 +52,8 @@ export default function CorpusPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
   const [totalPages, setTotalPages] = useState(1);
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
 
   async function load(targetPage = page) {
     setLoading(true);
@@ -71,6 +72,33 @@ export default function CorpusPage() {
       setTotalPages(data.totalPages ?? 1);
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Download the whole filtered corpus as CSV (server-side export, no paging).
+  function downloadCsv() {
+    const qs = new URLSearchParams({ q, type, courseType, category, tag });
+    window.open(`/api/pages/export?${qs}`, "_blank");
+  }
+
+  // Upload a CSV to upsert corpus metadata by URL, then reload.
+  async function uploadCsv(file: File) {
+    setImporting(true);
+    setImportMsg(null);
+    try {
+      const res = await fetch("/api/pages/import", {
+        method: "POST",
+        headers: { "Content-Type": "text/csv" },
+        body: await file.text(),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Import failed");
+      setImportMsg(`Imported ${data.upserted} of ${data.received} rows.`);
+      await load(1);
+    } catch (e) {
+      setImportMsg((e as Error).message);
+    } finally {
+      setImporting(false);
     }
   }
 
@@ -190,18 +218,43 @@ export default function CorpusPage() {
           >
             Search
           </button>
+          <button
+            type="button"
+            onClick={downloadCsv}
+            className="rounded-lg border border-slate-300 bg-white px-4 py-1.5 text-sm font-medium text-slate-700 hover:border-slate-400"
+            title="Export the filtered corpus as CSV"
+          >
+            Download CSV
+          </button>
+          <label className="cursor-pointer rounded-lg border border-slate-300 bg-white px-4 py-1.5 text-sm font-medium text-slate-700 hover:border-slate-400">
+            {importing ? "Uploading…" : "Upload CSV"}
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              hidden
+              disabled={importing}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) uploadCsv(f);
+                e.target.value = "";
+              }}
+            />
+          </label>
         </form>
+        {importMsg && (
+          <div className="text-xs text-slate-500">{importMsg}</div>
+        )}
 
         <Card className="p-0">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
                 <th className="px-4 py-3 font-medium">Title</th>
+                <th className="px-4 py-3 font-medium">H1</th>
+                <th className="px-4 py-3 font-medium">Description</th>
                 <th className="px-4 py-3 font-medium">Type</th>
                 <th className="px-4 py-3 font-medium">Category</th>
-                <th className="px-4 py-3 font-medium text-right">Clicks 28d</th>
                 <th className="px-4 py-3 font-medium">Signals</th>
-                <th className="px-4 py-3 font-medium">Modified</th>
               </tr>
             </thead>
             <tbody>
@@ -220,6 +273,16 @@ export default function CorpusPage() {
                       <span className="ml-2 text-xs text-amber-600">not embedded</span>
                     )}
                   </td>
+                  <td className="px-4 py-2.5 text-slate-600">
+                    <div className="max-w-xs truncate" title={r.h1 ?? undefined}>
+                      {r.h1 || <span className="text-slate-300">—</span>}
+                    </div>
+                  </td>
+                  <td className="px-4 py-2.5 text-slate-600">
+                    <div className="max-w-sm truncate" title={r.meta_description ?? undefined}>
+                      {r.meta_description || <span className="text-slate-300">—</span>}
+                    </div>
+                  </td>
                   <td className="px-4 py-2.5">
                     {r.content_type && (
                       <span
@@ -232,15 +295,6 @@ export default function CorpusPage() {
                   <td className="px-4 py-2.5 text-slate-600">
                     <div>{r.category || <span className="text-slate-300">—</span>}</div>
                     {r.subcategory && <div className="text-xs text-slate-400">{r.subcategory}</div>}
-                  </td>
-                  <td className="px-4 py-2.5 text-right text-sm tabular-nums">
-                    {r.gsc_clicks_28d != null ? (
-                      <span className={r.gsc_clicks_28d >= 100 ? "font-semibold text-slate-900" : "text-slate-500"}>
-                        {r.gsc_clicks_28d.toLocaleString()}
-                      </span>
-                    ) : (
-                      <span className="text-slate-300">—</span>
-                    )}
                   </td>
                   <td className="px-4 py-2.5">
                     <div className="flex flex-wrap items-center gap-1.5">
@@ -272,7 +326,6 @@ export default function CorpusPage() {
                       ))}
                     </div>
                   </td>
-                  <td className="px-4 py-2.5 text-xs text-slate-500">{r.lastmod}</td>
                 </tr>
               ))}
               {!loading && rows.length === 0 && (

@@ -1,0 +1,110 @@
+import { NextRequest, NextResponse } from "next/server";
+import { sql } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { pages } from "@/lib/db/schema";
+import { parseCsv } from "@/lib/csv";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const MAX_ROWS = 10_000;
+const BATCH = 500;
+
+/**
+ * POST /api/pages/import — bulk upsert corpus metadata from a CSV.
+ *
+ * Body: raw CSV text (Content-Type text/csv) or multipart form-data with a
+ * `file` field. Header row must include `url`; recognised columns are the
+ * ones the export route emits. Rows are upserted by `url` — only the
+ * metadata columns below are touched; embeddings/content are left intact.
+ *
+ * Session-gated by the auth proxy (not in PUBLIC_PATHS), same as the page.
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const text = await readCsvBody(request);
+    if (!text.trim()) {
+      return NextResponse.json({ error: "Empty upload." }, { status: 400 });
+    }
+
+    const parsed = parseCsv(text);
+    if (parsed.length === 0) {
+      return NextResponse.json({ error: "No data rows found." }, { status: 400 });
+    }
+    if (parsed.length > MAX_ROWS) {
+      return NextResponse.json(
+        { error: `Too many rows (${parsed.length}). Max ${MAX_ROWS}.` },
+        { status: 400 },
+      );
+    }
+    if (!("url" in parsed[0])) {
+      return NextResponse.json(
+        { error: "CSV must have a `url` column." },
+        { status: 400 },
+      );
+    }
+
+    const clean = (v: string | undefined) => {
+      const s = (v ?? "").trim();
+      return s === "" ? null : s;
+    };
+
+    const values = parsed
+      .filter((r) => (r.url ?? "").trim() !== "")
+      .map((r) => ({
+        url: r.url.trim(),
+        title: clean(r.title),
+        metaDescription: clean(r.meta_description),
+        h1: clean(r.h1),
+        contentType: clean(r.content_type) ?? "page",
+        courseType: clean(r.course_type),
+        category: clean(r.category),
+        subcategory: clean(r.subcategory),
+        tags: r.tags ? r.tags.split("|").map((t) => t.trim()).filter(Boolean) : null,
+        lastmod: clean(r.lastmod),
+      }));
+
+    if (values.length === 0) {
+      return NextResponse.json({ error: "No rows with a url." }, { status: 400 });
+    }
+
+    let upserted = 0;
+    for (let i = 0; i < values.length; i += BATCH) {
+      const chunk = values.slice(i, i + BATCH);
+      await db
+        .insert(pages)
+        .values(chunk)
+        .onConflictDoUpdate({
+          target: pages.url,
+          set: {
+            title: sql`excluded.title`,
+            metaDescription: sql`excluded.meta_description`,
+            h1: sql`excluded.h1`,
+            contentType: sql`excluded.content_type`,
+            courseType: sql`excluded.course_type`,
+            category: sql`excluded.category`,
+            subcategory: sql`excluded.subcategory`,
+            tags: sql`excluded.tags`,
+            lastmod: sql`excluded.lastmod`,
+          },
+        });
+      upserted += chunk.length;
+    }
+
+    return NextResponse.json({ ok: true, upserted, received: parsed.length });
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  }
+}
+
+/** Read CSV text from either a multipart `file` field or the raw request body. */
+async function readCsvBody(request: NextRequest): Promise<string> {
+  const contentType = request.headers.get("content-type") ?? "";
+  if (contentType.includes("multipart/form-data")) {
+    const form = await request.formData();
+    const file = form.get("file");
+    if (file && typeof file !== "string") return await file.text();
+    return "";
+  }
+  return await request.text();
+}
