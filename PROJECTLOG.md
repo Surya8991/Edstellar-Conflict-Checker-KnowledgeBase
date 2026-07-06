@@ -1643,16 +1643,24 @@ New pure, unit-tested modules (Node `node:test`; run `npx tsx --test lib/<x>.tes
 - `runConflictCheck` now attaches `{signals, intent, resolution}` per match +
   `inputIntent`. The page renders a **Resolution card** (4 signal bars, intent
   chip, action badge, winner ★, copyable 301 line).
-- **Similar-page groups** live on the Conflict Checker page: `/api/groups`
-  computes near-duplicate pairs **live over the whole corpus** (every embedded
-  page, all content types) via a single pgvector top-k lateral join, then
-  connected components → per-group winner + action + member intents. Considers
-  all **2,463** pages (~2.5 s); at the `0.90` default (`CONFLICT_GROUP_SIMILARITY`)
-  it groups **675 pages into 176 groups** spanning course/blog/category/etc.
-  Threshold tuning matters: `0.82` chained everything into one 1,947-page
-  hairball; `0.90` yields meaningful groups (biggest ~71). Winner uses depth +
-  URL cleanliness here — inbound authority is skipped for the corpus scan
-  (`fetchInboundCounts` is O(members × corpus) and times out at that scale).
+- **Content Clusters** — its own top-level page (`/clusters`, sidebar next to
+  Conflict Checker), auto-loading on visit. `/api/groups` computes near-duplicate
+  pairs **live over the whole corpus** (every embedded page, all content types)
+  via a single pgvector top-k lateral join, then connected components → per-group
+  winner + action + member intents. Considers all **2,463** pages (~2.5 s); at
+  the `0.90` default (`CONFLICT_GROUP_SIMILARITY`) it groups **675 pages into 176
+  clusters** spanning course/blog/category/etc. Threshold tuning matters: `0.82`
+  chained everything into one 1,947-page hairball; `0.90` yields meaningful
+  clusters (biggest ~71). Winner uses depth + URL cleanliness here — inbound
+  authority is skipped for the corpus scan (`fetchInboundCounts` is
+  O(members × corpus) and times out at that scale).
+- **Catalog Conflicts scan solidified** (`scripts/catalog-conflicts.ts`, moved
+  under Additional Tools in the sidebar): one lateral-join query instead of a
+  ~2,400-query loop; a single bulk `UNNEST` insert instead of a per-row loop
+  under a fake HTTP "transaction" (neon-http is stateless — cross-call
+  BEGIN/COMMIT isn't real). Pair typing is now **intent-aware** (same *search
+  intent*, not just content_type, is the real cannibalization). Re-run refreshed
+  the stale June-25 table: 130 → **4,033 pairs**.
 - Fixed a **latent bug** in `lib/inbound-links.ts`: drizzle's `sql\`\`` expanded
   the URL array into `unnest($1,$2,…)` (a record) — rebound as a single
   `$1::text[]` via the raw neon client. Also unbreaks `/api/internal-links`.
