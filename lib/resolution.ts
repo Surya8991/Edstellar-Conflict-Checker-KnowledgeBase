@@ -141,3 +141,24 @@ export function decidePair(
     reason: `Same intent but only ${(signals.body * 100).toFixed(0)}% body overlap → rewrite to separate.`,
   };
 }
+
+/**
+ * Cluster-level action (Stage 7) for a group of ≥2 similar pages. Uses the
+ * strongest pairwise similarity in the group and whether every member shares
+ * one intent:
+ *   - mixed intent            → differentiate (they serve different searchers)
+ *   - same intent, maxSim≥merge      → merge (collapse into the winner)
+ *   - same intent, maxSim≥consolidate → consolidate
+ *   - else                    → differentiate
+ */
+export function groupAction(
+  maxBodySim: number,
+  intents: Intent[],
+  t: Thresholds = THRESHOLDS,
+): ResolutionAction {
+  const sameIntent = intents.length > 0 && intents.every((i) => i === intents[0]);
+  if (!sameIntent) return "differentiate";
+  if (maxBodySim >= t.bodyCosineMerge) return "merge";
+  if (maxBodySim >= t.bodyCosineConsolidate) return "consolidate";
+  return "differentiate";
+}

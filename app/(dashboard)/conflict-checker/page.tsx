@@ -42,12 +42,52 @@ interface CheckResult {
   checkId?: number;
   inputIntent?: Intent;
 }
+interface GroupMember {
+  url: string;
+  title: string | null;
+  type: string | null;
+  intent: Intent;
+  inbound: number;
+  tokens: number | null;
+  authority: number;
+  isWinner: boolean;
+}
+interface GroupSummary {
+  size: number;
+  maxSimilarity: number;
+  action: Resolution["action"];
+  winnerUrl: string;
+  pairTypes: string[];
+  members: GroupMember[];
+}
 
 export default function ConflictCheckerPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CheckResult | null>(null);
+
+  // Similar-page groups (corpus-wide connected components). Loaded on demand.
+  const [groups, setGroups] = useState<GroupSummary[] | null>(null);
+  const [groupsMeta, setGroupsMeta] = useState<{ totalGroups: number; totalPairs: number } | null>(null);
+  const [groupsLoading, setGroupsLoading] = useState(false);
+  const [groupsError, setGroupsError] = useState<string | null>(null);
+
+  async function loadGroups() {
+    setGroupsLoading(true);
+    setGroupsError(null);
+    try {
+      const res = await fetch("/api/groups?limit=100");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to load groups");
+      setGroups(data.groups ?? []);
+      setGroupsMeta({ totalGroups: data.totalGroups ?? 0, totalPairs: data.totalPairs ?? 0 });
+    } catch (e) {
+      setGroupsError((e as Error).message);
+    } finally {
+      setGroupsLoading(false);
+    }
+  }
 
   // After 5 s of a check, flip a hint so the user doesn't think the tab froze.
   // Local embedder cold-start is the usual cause of >5s first responses.
@@ -307,6 +347,15 @@ export default function ConflictCheckerPage() {
             </span>
           </div>
         </form>
+
+        {/* ── SIMILAR-PAGE GROUPS (corpus-wide) ─────────────────────── */}
+        <GroupsSection
+          groups={groups}
+          meta={groupsMeta}
+          loading={groupsLoading}
+          error={groupsError}
+          onLoad={loadGroups}
+        />
 
         {error && <Card className="border-red-200 bg-red-50 text-sm text-red-700">{error}</Card>}
 
@@ -698,6 +747,110 @@ function ResolutionPanel({ m, inputUrl }: { m: Match; inputUrl?: string }) {
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+function pathOf(url: string) {
+  try { return new URL(url).pathname; } catch { return url; }
+}
+
+function GroupsSection({
+  groups, meta, loading, error, onLoad,
+}: {
+  groups: GroupSummary[] | null;
+  meta: { totalGroups: number; totalPairs: number } | null;
+  loading: boolean;
+  error: string | null;
+  onLoad: () => void;
+}) {
+  return (
+    <Card>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-900">Similar-page groups</h2>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Corpus pages clustered by overlap (connected components of the near-duplicate scan),
+            with a suggested action + winner per group.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onLoad}
+          disabled={loading}
+          className="shrink-0 rounded-lg bg-slate-700 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+        >
+          {loading ? "Scanning…" : groups ? "Rescan" : "Scan corpus for groups"}
+        </button>
+      </div>
+
+      {error && <div className="mt-3 text-xs text-red-600">{error}</div>}
+
+      {meta && !loading && (
+        <div className="mt-3 text-xs text-slate-500">
+          {meta.totalGroups.toLocaleString()} group{meta.totalGroups === 1 ? "" : "s"} from{" "}
+          {meta.totalPairs.toLocaleString()} conflicting pairs.
+        </div>
+      )}
+
+      {groups && groups.length > 0 && (
+        <div className="mt-3 space-y-2.5">
+          {groups.map((g) => <GroupCard key={g.winnerUrl + g.size} g={g} />)}
+        </div>
+      )}
+      {groups && groups.length === 0 && !loading && (
+        <div className="mt-3 text-xs text-slate-400">
+          No groups yet — run the corpus scan (<code className="rounded bg-slate-100 px-1">npm run catalog-conflicts</code>) to populate pairs first.
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function GroupCard({ g }: { g: GroupSummary }) {
+  const [open, setOpen] = useState(false);
+  const style = ACTION_STYLE[g.action];
+  const shown = open ? g.members : g.members.slice(0, 4);
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2.5 text-left hover:bg-slate-50"
+      >
+        <span className={`inline-block transition-transform ${open ? "rotate-90" : ""} text-slate-400`}>▸</span>
+        <span className="text-sm font-semibold text-slate-900">{g.size} pages</span>
+        <span className="text-xs text-slate-500">· max {(g.maxSimilarity * 100).toFixed(0)}% similar</span>
+        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${style.cls}`} title={style.hint}>
+          {style.label}
+        </span>
+        <span className="ml-auto truncate text-xs text-slate-400" title={`Winner: ${g.winnerUrl}`}>
+          winner: <span className="text-slate-600">{pathOf(g.winnerUrl)}</span>
+        </span>
+      </button>
+      <ul className="border-t border-slate-100 px-3 py-2">
+        {shown.map((m) => (
+          <li key={m.url} className="flex items-center gap-2 py-1 text-xs">
+            <span className={`w-3 shrink-0 text-center ${m.isWinner ? "text-amber-500" : "text-transparent"}`} title={m.isWinner ? "Suggested winner" : undefined}>★</span>
+            <span className={`inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[9px] font-medium capitalize ${INTENT_STYLE[m.intent]}`}>
+              {m.intent.slice(0, 4)}
+            </span>
+            <a href={m.url} target="_blank" rel="noreferrer" className={`truncate hover:underline ${m.isWinner ? "font-semibold text-slate-900" : "text-slate-600"}`} title={m.title || m.url}>
+              {pathOf(m.url)}
+            </a>
+            <span className="ml-auto shrink-0 tabular-nums text-slate-400" title="internal inbound links · content tokens">
+              {m.inbound} in · {m.tokens ?? 0} tok
+            </span>
+          </li>
+        ))}
+        {!open && g.members.length > 4 && (
+          <li>
+            <button type="button" onClick={() => setOpen(true)} className="mt-1 text-[11px] text-slate-500 hover:text-slate-700">
+              + {g.members.length - 4} more
+            </button>
+          </li>
+        )}
+      </ul>
     </div>
   );
 }

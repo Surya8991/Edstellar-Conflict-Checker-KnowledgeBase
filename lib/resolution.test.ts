@@ -6,6 +6,7 @@ import {
   pageAuthority,
   pickWinner,
   decidePair,
+  groupAction,
   type AuthorityInput,
 } from "./resolution";
 import type { SignalScores } from "./signals";
@@ -68,4 +69,14 @@ test("mid body → consolidate", () => {
 test("low body + same intent → differentiate", () => {
   const r = decidePair(page({ url: "a" }), page({ url: "b" }), sig({ body: 0.4 }), "informational", "informational");
   assert.equal(r.action, "differentiate");
+});
+
+test("groupAction: same intent scales with max similarity", () => {
+  assert.equal(groupAction(0.9, ["commercial", "commercial"]), "merge");
+  assert.equal(groupAction(0.65, ["commercial", "commercial"]), "consolidate");
+  assert.equal(groupAction(0.4, ["commercial", "commercial"]), "differentiate");
+});
+
+test("groupAction: mixed intent → differentiate regardless of similarity", () => {
+  assert.equal(groupAction(0.95, ["commercial", "informational"]), "differentiate");
 });
