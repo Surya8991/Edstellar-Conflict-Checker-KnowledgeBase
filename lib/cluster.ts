@@ -8,8 +8,47 @@
  * Pure + deterministic (union-find with path compression). Unit-tested.
  */
 
+import { jaccard, tokenize } from "@/lib/signals";
+import { THRESHOLDS, type Thresholds } from "@/lib/thresholds";
+
 /** A single similarity edge between two node ids (e.g. page URLs). */
 export type Edge = readonly [string, string];
+
+export interface CandidatePair {
+  aType: string | null;
+  bType: string | null;
+  aTitle: string | null;
+  bTitle: string | null;
+  /** Body cosine similarity 0..1. */
+  sim: number;
+}
+
+/**
+ * Should two pages form a cluster edge? (Stage 6 precision rules, Session 11
+ * 15G — measured against the live corpus.)
+ *
+ *  - Cross-type pairs never group. They're "bleed" (category ↔ course etc.),
+ *    surfaced on Catalog Conflicts; chaining them is what created the
+ *    0.86-threshold 1,200-page hairball.
+ *  - course↔course: template boilerplate inflates cosine, so require
+ *    sim ≥ groupSimCourse (true duplicate), OR sim ≥ groupSimCourseTitle AND
+ *    title Jaccard ≥ groupTitleJaccardCourse (same offering re-listed).
+ *    Calibrated: "Express.js Training" vs "Node.js Training" = title 0.5,
+ *    body 0.74 → never groups. Identically-titled duplicates → group.
+ *  - other same-type: sim ≥ groupSimilarity (0.85 default — surfaces the
+ *    140 blog↔blog pairs that a global 0.90 bar hid).
+ */
+export function shouldGroupPair(p: CandidatePair, t: Thresholds = THRESHOLDS): boolean {
+  if (!p.aType || p.aType !== p.bType) return false;
+  if (p.aType === "course") {
+    if (p.sim >= t.groupSimCourse) return true;
+    if (p.sim >= t.groupSimCourseTitle) {
+      return jaccard(tokenize(p.aTitle), tokenize(p.bTitle)) >= t.groupTitleJaccardCourse;
+    }
+    return false;
+  }
+  return p.sim >= t.groupSimilarity;
+}
 
 class UnionFind {
   private parent = new Map<string, string>();

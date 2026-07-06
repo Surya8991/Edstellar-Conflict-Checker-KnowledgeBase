@@ -1,7 +1,7 @@
 /** npx tsx --test lib/cluster.test.ts */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { connectedComponents } from "./cluster";
+import { connectedComponents, shouldGroupPair } from "./cluster";
 
 test("transitive edges form one component", () => {
   // A-B, B-C ⇒ {A,B,C} even though A-C was never a direct edge.
@@ -42,4 +42,41 @@ test("chained merge across many edges", () => {
   assert.equal(groups.length, 2);
   assert.deepEqual(groups[0], ["1", "2", "3", "4"]);
   assert.deepEqual(groups[1], ["5", "6"]);
+});
+
+// ── shouldGroupPair (type-aware precision rules) ──────────────────────────
+
+test("cross-type pairs never group (bleed, not duplication)", () => {
+  assert.equal(shouldGroupPair({ aType: "category", bType: "course", aTitle: "x", bTitle: "x", sim: 0.99 }), false);
+  assert.equal(shouldGroupPair({ aType: null, bType: null, aTitle: "x", bTitle: "x", sim: 0.99 }), false);
+});
+
+test("distinct courses with template-inflated similarity do NOT group", () => {
+  // Express.js vs Node.js: different products, title Jaccard 0.5, body ~0.74-0.90.
+  assert.equal(shouldGroupPair({
+    aType: "course", bType: "course",
+    aTitle: "Express JS Training", bTitle: "Node JS Training",
+    sim: 0.90,
+  }), false);
+});
+
+test("true duplicate courses group at the hard bar", () => {
+  assert.equal(shouldGroupPair({
+    aType: "course", bType: "course",
+    aTitle: "Anything", bTitle: "Entirely Different",
+    sim: 0.95,
+  }), true);
+});
+
+test("re-listed course (same title) groups at the softer bar", () => {
+  assert.equal(shouldGroupPair({
+    aType: "course", bType: "course",
+    aTitle: "Leadership Skills Training", bTitle: "Leadership Skills Training",
+    sim: 0.89,
+  }), true);
+});
+
+test("blogs group at the editorial threshold", () => {
+  assert.equal(shouldGroupPair({ aType: "blog", bType: "blog", aTitle: "a", bTitle: "b", sim: 0.86 }), true);
+  assert.equal(shouldGroupPair({ aType: "blog", bType: "blog", aTitle: "a", bTitle: "b", sim: 0.84 }), false);
 });

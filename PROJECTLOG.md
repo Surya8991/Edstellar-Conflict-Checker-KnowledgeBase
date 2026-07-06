@@ -1687,6 +1687,54 @@ Tracked in [`plans/01-conflict-automation.md`](plans/01-conflict-automation.md):
 - **Phase 5 — corpus-wide UI.** Catalog Conflicts page shows clusters (not raw
   pairs) + resolutions + download.
 
+### 15G. Content Clusters — peak-accuracy plan (researched 2026-07-06, executed below)
+
+**Problem 1 — blogs & most non-course pages invisible.** One global 0.90 cosine
+bar served everything. Measured against the live corpus: course↔course cosine is
+*inflated* by shared template boilerplate (courses were 573 of 675 grouped
+pages), while editorial types are diverse — **140 blog↔blog pairs sit in the
+0.85–0.90 band**, below the bar. Real blog conflicts (ai-in-banking ↔
+digital-transformation-in-finance, 0.81) hide while template-noise course pairs
+surface. Express.js ↔ Node.js courses measure only **0.74** — genuinely distinct
+products that must never group.
+
+**Problem 2 — redirected pages appear as fake duplicates.**
+`/blog/trending-corporate-training-topics` 301s to
+`/blog/professional-development-training-topics`, but the crawl stored both as
+live rows (`canonical_url` NULL corpus-wide — nothing captured HTTP redirects).
+
+**Fix (all deterministic, all env-tunable via `lib/thresholds.ts`):**
+1. **Same-type edges only.** Clusters = same content_type near-duplicates.
+   Cross-type pairs are "bleed", already surfaced on Catalog Conflicts —
+   chaining them was what created the 0.86 hairball.
+2. **Type-aware thresholds.** course↔course groups only at sim ≥ 0.93 (true
+   duplicates) OR sim ≥ 0.88 + title Jaccard ≥ 0.6 (same offering, re-listed).
+   Other same-type pairs group at 0.85 — surfaces the hidden blog band.
+3. **Redirect exclusion.** New `scripts/detect-redirects.ts` probes every corpus
+   URL (`redirect: "manual"`), writes the 3xx target into `canonical_url` +
+   `is_stale`/`stale_reason`. `/api/groups` (and future consumers) exclude any
+   page whose canonical points elsewhere or is stale; winners can never be
+   redirected pages.
+4. **UI redesign per member row:** bold title as the link (href = page URL),
+   muted `type · full-url` line, full intent labels (no more "tran"/"comm"),
+   per-member "N% match" to its nearest cluster-mate (the *why grouped*), a
+   one-line cluster reason; token-count meta removed.
+
+**Executed + measured (same day):**
+- `npm run detect-redirects` probed all 2,463 URLs → **5 redirected pages**
+  marked (incl. the flagged `trending-corporate-training-topics` →
+  `professional-development-training-topics`). Live corpus for clustering is
+  now **2,458**; zero redirected pages appear in any cluster.
+- Result: **205 clusters · 782 pages grouped · 867 qualifying pairs** — blogs
+  went from 20 grouped members to **105**; Express.js ↔ Node.js confirmed never
+  grouped; a real 17-blog "Top N training companies" listicle cluster surfaced
+  at 91–93% match.
+- New knobs: `CONFLICT_GROUP_SIMILARITY` (0.85 non-course), `CONFLICT_GROUP_SIM_COURSE`
+  (0.93), `CONFLICT_GROUP_SIM_COURSE_TITLE` (0.88), `CONFLICT_GROUP_TITLE_JACCARD_COURSE`
+  (0.6). Edge rule is the pure, unit-tested `shouldGroupPair` in `lib/cluster.ts`.
+- Re-run `npm run detect-redirects -- --only-null` after future reingests to
+  keep redirect marks fresh (ingest doesn't capture 3xx yet — see backlog).
+
 **Known tuning notes for later:**
 - Grouping uses connected components, which are threshold-sensitive: too low and
   everything chains into one giant component. Default `0.90` is a good balance;

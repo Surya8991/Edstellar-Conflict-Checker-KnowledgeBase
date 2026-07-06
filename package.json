@@ -17,6 +17,7 @@
     "audit:links": "tsx scripts/audit-links.ts",
     "cluster": "tsx scripts/cluster.ts",
     "catalog-conflicts": "tsx scripts/catalog-conflicts.ts",
+    "detect-redirects": "tsx scripts/detect-redirects.ts",
     "draft-worker": "tsx scripts/draft-worker.ts",
     "pregen-drafts": "tsx scripts/pregen-drafts.ts"
   },

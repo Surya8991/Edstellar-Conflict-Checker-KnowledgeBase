@@ -46,8 +46,20 @@ export interface Thresholds {
   /** Below this body cosine (and no near-dup metadata) a same-intent pair is
    *  NOT a conflict — keep both. Guards decidePair when called with a low body. */
   noConflictFloor: number;
-  /** Corpus-grouping: body cosine ≥ this makes an edge in the group graph. */
+  /** Corpus-grouping: body cosine ≥ this makes an edge for NON-course
+   *  same-type pairs (blogs, categories, …). Editorial content is diverse, so
+   *  real conflicts live lower than course-template noise. */
   groupSimilarity: number;
+  /** Corpus-grouping: course↔course pairs group only at this cosine — course
+   *  bodies share heavy template boilerplate which inflates similarity, so a
+   *  much higher bar is needed to mean "actually the same offering". */
+  groupSimCourse: number;
+  /** Corpus-grouping: course↔course fallback — group at this (lower) cosine
+   *  when the titles ALSO near-match (Jaccard ≥ groupTitleJaccardCourse). */
+  groupSimCourseTitle: number;
+  /** Title-token Jaccard needed for the course fallback rule above. Calibrated
+   *  so "Express.js Training" vs "Node.js Training" (0.5) does NOT group. */
+  groupTitleJaccardCourse: number;
   /** Corpus-grouping: nearest-neighbours probed per page (ANN top-k). */
   groupTopK: number;
   /** Weights used to pick the surviving (canonical) page. */
@@ -61,8 +73,11 @@ export const THRESHOLDS: Thresholds = {
   h1JaccardDup:          envNum("CONFLICT_H1_JACCARD_DUP", 0.8),
   slugOverlapDup:        envNum("CONFLICT_SLUG_OVERLAP_DUP", 0.6),
   noConflictFloor:       envNum("CONFLICT_NO_CONFLICT_FLOOR", 0.5),
-  groupSimilarity:       envNum("CONFLICT_GROUP_SIMILARITY", 0.9),
-  groupTopK:             envNum("CONFLICT_GROUP_TOPK", 5),
+  groupSimilarity:        envNum("CONFLICT_GROUP_SIMILARITY", 0.85),
+  groupSimCourse:         envNum("CONFLICT_GROUP_SIM_COURSE", 0.93),
+  groupSimCourseTitle:    envNum("CONFLICT_GROUP_SIM_COURSE_TITLE", 0.88),
+  groupTitleJaccardCourse: envNum("CONFLICT_GROUP_TITLE_JACCARD_COURSE", 0.6),
+  groupTopK:              envNum("CONFLICT_GROUP_TOPK", 5),
   winner: {
     inbound:  envNum("CONFLICT_WINNER_INBOUND", 0.45),
     depth:    envNum("CONFLICT_WINNER_DEPTH", 0.3),
