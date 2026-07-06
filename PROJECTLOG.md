@@ -1735,6 +1735,17 @@ live rows (`canonical_url` NULL corpus-wide — nothing captured HTTP redirects)
 - Re-run `npm run detect-redirects -- --only-null` after future reingests to
   keep redirect marks fresh (ingest doesn't capture 3xx yet — see backlog).
 
+**Same principles applied to the Conflict Checker (same day):**
+- `vectorSearchPages` now excludes non-live pages (stale / canonicalized-away),
+  so a 301'd page can never be reported as a conflict match. Verified: searching
+  with the redirect-target's own embedding no longer surfaces its redirected twin.
+- `decidePair` gained the course↔course template-noise gate (same thresholds as
+  clustering): a course-URL input vs a *different* course resolves **keep-both**
+  ("template boilerplate") instead of merge/consolidate. Verified on a real pair:
+  "High Impact Leadership" vs "Leading for Organizational Impact" at 92% body /
+  50% title → keep-both. True duplicates (≥0.93, or ≥0.88 + near-identical
+  title) still merge. Input content type derived via `tagUrl` (topics: no gate).
+
 **Known tuning notes for later:**
 - Grouping uses connected components, which are threshold-sensitive: too low and
   everything chains into one giant component. Default `0.90` is a good balance;

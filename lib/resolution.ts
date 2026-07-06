@@ -122,12 +122,35 @@ export function decidePair(
    *  where the title signal is a text-vs-title fallback that must NOT drive the
    *  near-duplicate merge gate (H1 review finding). */
   lexicalMeta = true,
+  /** Content types of the two sides, when known. Enables the course↔course
+   *  template-noise gate (PROJECTLOG 15G): course bodies share boilerplate that
+   *  inflates cosine, so two *different* courses must not resolve to
+   *  merge/consolidate off body similarity alone. */
+  types?: { input: string | null; match: string | null },
 ): PairResolution {
   if (inputIntent !== matchIntent) {
     return {
       action: "keep-both",
       reason: `Different intent (${inputIntent} vs ${matchIntent}) — no conflict.`,
     };
+  }
+
+  // Course↔course template-noise gate. A pair of catalog courses is "the same
+  // offering" only at the hard bar, or the softer bar with near-matching
+  // titles. Distinct offerings (Express.js vs Node.js: body ~0.74-0.90 via
+  // template, title Jaccard 0.5) are curated as different products — no merge.
+  if (types?.input === "course" && types?.match === "course") {
+    const sameOffering =
+      signals.body >= t.groupSimCourse ||
+      (signals.body >= t.groupSimCourseTitle &&
+        lexicalMeta &&
+        signals.title >= t.groupTitleJaccardCourse);
+    if (!sameOffering) {
+      return {
+        action: "keep-both",
+        reason: `Distinct course offerings — ${(signals.body * 100).toFixed(0)}% body similarity is mostly shared course-template boilerplate.`,
+      };
+    }
   }
 
   const winner = pickWinner(input, match, t.winner);

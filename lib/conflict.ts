@@ -10,6 +10,7 @@ import {
 import { signalScores, type SignalScores } from "@/lib/signals";
 import { classifyIntent, type Intent } from "@/lib/intent";
 import { decidePair, type PairResolution, type AuthorityInput } from "@/lib/resolution";
+import { tagUrl } from "@/lib/taxonomy";
 import { fetchInboundCounts } from "@/lib/inbound-links";
 import type { SummaryResult } from "@/lib/ai/types";
 import { log } from "@/lib/logger";
@@ -172,6 +173,10 @@ export async function runConflictCheck(
     slug: inputMeta.url,
     text: `${inputMeta.text} ${summaryResult.keywords.join(" ")}`,
   }).label;
+  // Content type of the input page (URL inputs only) — drives the
+  // course↔course template-noise gate in decidePair. Topics have no type.
+  const inputContentType: string | null =
+    inputType === "url" ? tagUrl(input).contentType : null;
 
   // 2. Embed the candidate and find nearest corpus pages.
   const embedText = `${summaryResult.searchSynopsis}\n${summaryResult.keywords.join(", ")}`;
@@ -245,6 +250,7 @@ export async function runConflictCheck(
         matchIntent,
         undefined, // use default thresholds
         inputType === "url", // topic inputs have no real title/h1/url → don't trust the lexical merge gate
+        { input: inputContentType, match: m.contentType }, // course↔course template-noise gate
       );
       return {
         url: m.url,

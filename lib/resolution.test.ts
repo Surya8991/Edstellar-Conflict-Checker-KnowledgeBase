@@ -100,6 +100,58 @@ test("urlCleanliness('') is 0 (absent URL is not clean)", () => {
   assert.equal(urlCleanliness(""), 0);
 });
 
+// ── course↔course template-noise gate ─────────────────────────────────────
+
+test("two distinct courses never merge off template-inflated body", () => {
+  // Express.js vs Node.js style: body 0.86 (template), title Jaccard 0.5.
+  const r = decidePair(
+    page({ url: "https://x.com/course/express-js-training" }),
+    page({ url: "https://x.com/course/node-js-training" }),
+    sig({ body: 0.86, title: 0.5 }),
+    "transactional", "transactional",
+    undefined, true,
+    { input: "course", match: "course" },
+  );
+  assert.equal(r.action, "keep-both");
+  assert.match(r.reason, /template/i);
+});
+
+test("true duplicate courses still merge at the hard bar", () => {
+  const r = decidePair(
+    page({ url: "https://x.com/course/a" }),
+    page({ url: "https://x.com/course/b" }),
+    sig({ body: 0.95 }),
+    "transactional", "transactional",
+    undefined, true,
+    { input: "course", match: "course" },
+  );
+  assert.equal(r.action, "merge");
+});
+
+test("re-listed course (same title) merges at the softer bar", () => {
+  const r = decidePair(
+    page({ url: "https://x.com/course/a" }),
+    page({ url: "https://x.com/course/b" }),
+    sig({ body: 0.89, title: 0.9 }),
+    "transactional", "transactional",
+    undefined, true,
+    { input: "course", match: "course" },
+  );
+  assert.equal(r.action, "merge");
+});
+
+test("non-course pairs are unaffected by the course gate", () => {
+  const r = decidePair(
+    page({ url: "https://x.com/blog/a" }),
+    page({ url: "https://x.com/blog/b" }),
+    sig({ body: 0.86 }),
+    "informational", "informational",
+    undefined, true,
+    { input: "blog", match: "blog" },
+  );
+  assert.equal(r.action, "merge"); // ≥ bodyCosineMerge, no course gate
+});
+
 test("groupAction: same intent scales with max similarity", () => {
   assert.equal(groupAction(0.9, ["commercial", "commercial"]), "merge");
   assert.equal(groupAction(0.65, ["commercial", "commercial"]), "consolidate");

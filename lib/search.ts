@@ -53,6 +53,9 @@ export async function vectorSearchPages(
   const vec = toVectorLiteral(embedding);
   const exclude = opts.excludeUrl ?? "";
 
+  // Live pages only: a page that redirects / is canonicalized elsewhere
+  // (marked by scripts/detect-redirects.ts) must never be reported as a
+  // conflict target — it isn't a page any more.
   const rows = await db.execute(sql`
     SELECT id, url, title, h1, content_type, token_count,
            owner_url, gsc_clicks_28d, gsc_impressions_28d,
@@ -61,6 +64,8 @@ export async function vectorSearchPages(
     FROM pages
     WHERE embedding IS NOT NULL
       AND url <> ${exclude}
+      AND COALESCE(is_stale, false) = false
+      AND (canonical_url IS NULL OR rtrim(canonical_url, '/') = rtrim(url, '/'))
     ORDER BY embedding <=> ${vec}::vector
     LIMIT ${limit}
   `);
