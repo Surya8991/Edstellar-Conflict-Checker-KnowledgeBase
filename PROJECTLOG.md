@@ -955,6 +955,9 @@ CONFLICT_BODY_COSINE_CONSOLIDATE=0.55        # body cosine ≥ ⇒ consolidate
 CONFLICT_TITLE_JACCARD_DUP=0.80              # near-duplicate title cutoff
 CONFLICT_H1_JACCARD_DUP=0.80                 # near-duplicate H1 cutoff
 CONFLICT_SLUG_OVERLAP_DUP=0.60               # near-duplicate URL cutoff
+CONFLICT_NO_CONFLICT_FLOOR=0.50              # below this body cosine (no metadata match) = not a conflict
+CONFLICT_GROUP_SIMILARITY=0.90               # /api/groups edge threshold (0.82 → one giant hairball)
+CONFLICT_GROUP_TOPK=5                        # nearest neighbours probed per page in the grouping scan
 CONFLICT_WINNER_INBOUND=0.45                 # winner weight: internal inbound-link authority
 CONFLICT_WINNER_DEPTH=0.30                   # winner weight: content depth (tokens)
 CONFLICT_WINNER_URLCLEAN=0.25                # winner weight: URL cleanliness
@@ -1640,9 +1643,16 @@ New pure, unit-tested modules (Node `node:test`; run `npx tsx --test lib/<x>.tes
 - `runConflictCheck` now attaches `{signals, intent, resolution}` per match +
   `inputIntent`. The page renders a **Resolution card** (4 signal bars, intent
   chip, action badge, winner ★, copyable 301 line).
-- **Similar-page groups** live on the Conflict Checker page: `/api/groups` reads
-  `catalog_conflicts` pairs → connected components → per-group winner + action +
-  member intents. Verified live: 130 pairs → 3 groups (38/9/2 pages).
+- **Similar-page groups** live on the Conflict Checker page: `/api/groups`
+  computes near-duplicate pairs **live over the whole corpus** (every embedded
+  page, all content types) via a single pgvector top-k lateral join, then
+  connected components → per-group winner + action + member intents. Considers
+  all **2,463** pages (~2.5 s); at the `0.90` default (`CONFLICT_GROUP_SIMILARITY`)
+  it groups **675 pages into 176 groups** spanning course/blog/category/etc.
+  Threshold tuning matters: `0.82` chained everything into one 1,947-page
+  hairball; `0.90` yields meaningful groups (biggest ~71). Winner uses depth +
+  URL cleanliness here — inbound authority is skipped for the corpus scan
+  (`fetchInboundCounts` is O(members × corpus) and times out at that scale).
 - Fixed a **latent bug** in `lib/inbound-links.ts`: drizzle's `sql\`\`` expanded
   the URL array into `unnest($1,$2,…)` (a record) — rebound as a single
   `$1::text[]` via the raw neon client. Also unbreaks `/api/internal-links`.
@@ -1670,12 +1680,14 @@ Tracked in [`plans/01-conflict-automation.md`](plans/01-conflict-automation.md):
   pairs) + resolutions + download.
 
 **Known tuning notes for later:**
-- The near-duplicate scan (`catalog-conflicts.ts`, threshold 0.85) produces a few
-  large mixed-intent mega-clusters (e.g. a 38-page category+course blob). Options:
-  raise the threshold, or split components by intent before grouping.
+- Grouping uses connected components, which are threshold-sensitive: too low and
+  everything chains into one giant component. Default `0.90` is a good balance;
+  a future upgrade could split large components by intent or use community
+  detection instead of raw connected components.
 - `fetchInboundCounts` is a substring `ILIKE` over `content_text` (no parsed
-  anchors), so it currently returns 0 for most pages — winners fall back to depth
-  + URL cleanliness. A real internal-links table (Session 9 §13B) would fix it.
+  anchors) and O(members × corpus) — it returns ~0 for most pages AND times out
+  on the whole corpus, so it's skipped in `/api/groups` (used only on the ≤8-URL
+  per-match path). A real internal-links table (Session 9 §13B) would fix both.
 - External backlinks/referring domains are not in the data model; winner authority
   uses internal inbound links only. Wiring Ahrefs/GSC-links is a config slot in
   `lib/thresholds.ts` (`CONFLICT_WINNER_*`) away.
