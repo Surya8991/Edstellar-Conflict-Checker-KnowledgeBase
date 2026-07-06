@@ -2020,8 +2020,8 @@ vs sales) must **never** co-cluster.
   auto-learns the template vocabulary** — no hardcoded stopword list to maintain.
 - **Distinctive-token Jaccard after that filter**: big-data↔sales = 0.00,
   big-data-cat↔big-data-blog = 0.40, big-data↔data-analytics = 0.33. IDF-weighting
-  widens the gap (rare "big" outweighs common-ish "data"). Threshold ~0.35
-  (weighted) separates them with margin.
+  widens the gap (rare "big" outweighs common-ish "data"). (The final threshold
+  was calibrated on the *live* corpus, not this exploratory sample — see §17J.)
 - The true topic pair (79% body) IS in the category's top-5 ANN neighbours, so
   the true edge is recoverable once the fetch bar drops to ~0.70.
 
@@ -2047,9 +2047,9 @@ vs sales) must **never** co-cluster.
 2. **Seeds in pillar-priority order**: category → subcategory →
    excellence-program/services → course → blog. Deterministic (URL tiebreak).
 3. **Leader assignment**: each page joins the best-scoring qualifying seed by
-   IDF-weighted distinctive-token Jaccard ≥ `CONFLICT_TOPIC_OVERLAP` (0.35),
-   bigrams weighted above unigrams; else it becomes a new seed. Membership is
-   always page↔seed, never page↔page.
+   IDF-weighted distinctive-token Jaccard ≥ `CONFLICT_TOPIC_OVERLAP` (0.18,
+   calibrated live — §17J), bigrams weighted above unigrams; else it becomes a
+   new seed. Membership is always page↔seed, never page↔page.
 4. **Body floor vs seed** (`CONFLICT_TOPIC_BODY_FLOOR`, 0.70) — members failing
    it fall back to singletons.
 5. Clusters = seeds with ≥2 members. Singletons are unique-topic pages — an
@@ -2063,8 +2063,12 @@ different; big-data cat ↔ big-data blog → same; big-data cat ↔ big-data co
 New env knobs in `lib/thresholds.ts` (replacing the six removed
 `groupSimilarity`/`groupSimCourse`/`groupSimCourseTitle`/`groupTitleJaccardCourse`/
 `groupSupportJaccard`/`groupBodySelfSufficient` + `groupTopK`): `CONFLICT_TOPIC_DF_CAP`
-(0.05), `CONFLICT_TOPIC_OVERLAP` (0.35), `CONFLICT_TOPIC_BODY_FLOOR` (0.70).
-`evaluatePair`/`shouldGroupPair`/`connectedComponents` and their tests removed.
+(0.05), `CONFLICT_TOPIC_OVERLAP` (0.18, calibrated live), `CONFLICT_TOPIC_BODY_FLOOR`
+(0.70). `evaluatePair`/`shouldGroupPair`/`connectedComponents` and their tests
+removed. NOTE — the plan said remove all six group knobs, but `decidePair` (the
+Conflict Checker course gate, explicitly out of scope) still uses
+`groupSimCourse`/`groupSimCourseTitle`/`groupTitleJaccardCourse`, so those three
+were KEPT; only the four group-edge-only knobs were removed.
 
 ### 17F. Research: industry practice mapped to our data
 
@@ -2094,6 +2098,12 @@ AdvancedGSC, Search Engine Land, HubSpot, OnCrawl.
   topic label + shared tokens + `matchSim`, no `reason` field.
 - **Shared template-noise fix into the Conflict Checker** (17E's DF-distinctive
   filter applied to `lib/signals.ts` title/slug signals — one shared DF index).
+  Wired into `lib/conflict.ts`: a **global** corpus DF index (cached per
+  serverless instance, 10-min TTL, one read-only query, falls back to raw tokens
+  if <50 pages) feeds `signalScores`. It MUST be global, not the candidate set —
+  topic words are common *among* the vector-search matches, so a candidate-set DF
+  would filter the very topic tokens we want to keep. `decidePair`'s code is
+  untouched; only its signal *inputs* are denoised.
 - **`pillar` group action** (`groupAction` + `ACTION_STYLE`): category+courses+blog
   families suggest "Pillar + spokes — link spokes to the pillar" rather than
   merge/differentiate. Merge still fires for same-type near-duplicates.
@@ -2131,3 +2141,33 @@ flagging** (dead pages were never marked stale before).
   a hard prerequisite today). Persisted cluster snapshots (trend-over-time +
   faster loads vs today's live scan per visit). Cluster winner still ignores
   traffic/inbound at corpus scale.
+
+### 17J. Live verification (read-only, against the 2,458-page prod corpus)
+
+Ran a **read-only** SELECT-only cluster check over the live DB (no writes, no
+`runConflictCheck`, no ingest). Findings that changed the calibration:
+
+- **Measured weighted overlaps** (bigramWeight=2): big-data-cat↔sales = **0.000**,
+  big-data↔data-analytics = **0.046** (hardest false sibling), big-data-cat↔
+  big-data-blog = **0.257** (the true pair). Higher bigram weights (3, 4) *lowered*
+  the true pair (0.248, 0.243) — non-shared bigrams inflate the union too — so
+  weight 2 was kept.
+- The plan's exploratory 0.35 was **too high** — it missed the true 0.257 pair.
+  Retuned `CONFLICT_TOPIC_OVERLAP` to **0.18** (margin 0.077 below the true pair
+  for recall, 0.134 above the hardest false sibling for precision). Swept
+  0.15/0.18/0.20 on the full corpus: all four acceptance checks pass at every
+  value; 0.18 chosen as the balance.
+- **Acceptance at 0.18** (all pass): big-data ≠ sales; big-data ≠ data-analytics;
+  big-data category + big-data blog + big-data courses in ONE cluster (label
+  "big data", seed = the category pillar); coverage clustered + singletons =
+  2,458.
+- **No mega-cluster**: 356 clusters, 1,420 clustered / 1,038 unique-topic
+  singletons; largest cluster = 44 members and is a genuinely coherent single-
+  topic family (blog series "skills in demand in {country}", all one type) — the
+  real content family the old body-similarity hairball buried, not a mixed-topic
+  blob.
+
+The verification script (`scripts/local-verify-clusters.ts`) is gitignored
+(`scripts/local-*`), not committed. `LLM_KILL_SWITCH`/ingest paths were NOT run
+(they write to the shared prod DB) — the ingest/redirect fixes (§17H) still need
+a Neon-branch round-trip to verify end-to-end.

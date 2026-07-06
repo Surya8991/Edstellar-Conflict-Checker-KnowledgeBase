@@ -7,7 +7,7 @@ import {
   similarityToBaseScore,
   conflictTypeFromScore,
 } from "@/lib/score";
-import { signalScores, type SignalScores } from "@/lib/signals";
+import { signalScores, buildDfIndex, type SignalScores, type DfIndex } from "@/lib/signals";
 import { classifyIntent, type Intent } from "@/lib/intent";
 import { decidePair, type PairResolution, type AuthorityInput } from "@/lib/resolution";
 import { tagUrl } from "@/lib/taxonomy";
@@ -62,6 +62,40 @@ export interface ConflictCheckResult {
 
 function isUrl(value: string): boolean {
   return /^https?:\/\//i.test(value.trim());
+}
+
+/**
+ * Corpus document-frequency index for the checker's lexical signals
+ * (PROJECTLOG §17 2c). Template words every page shares ("corporate",
+ * "training", "courses") are learned from the whole corpus and dropped so the
+ * title/slug Jaccards stop lighting up for pure template matches.
+ *
+ * MUST be a GLOBAL index, not the candidate set: topic words are common *among*
+ * the vector-search matches (that's why they matched), so a candidate-set DF
+ * would filter the very topic tokens we want to keep. Cached per serverless
+ * instance with a short TTL; a single small read-only query.
+ */
+let dfCache: { index: DfIndex; at: number } | null = null;
+const DF_TTL_MS = 10 * 60 * 1000;
+async function getCorpusDfIndex(): Promise<DfIndex | undefined> {
+  if (!process.env.DATABASE_URL) return undefined;
+  const now = Date.now();
+  if (dfCache && now - dfCache.at < DF_TTL_MS) return dfCache.index;
+  try {
+    const sql = neon(process.env.DATABASE_URL);
+    const rows = (await sql.query(
+      `SELECT title, h1, url FROM pages
+       WHERE embedding IS NOT NULL AND COALESCE(is_stale, false) = false`,
+    )) as { title: string | null; h1: string | null; url: string }[];
+    // Too small a corpus makes DF ratios unreliable (a word in 1 of 5 docs is
+    // "20%") — fall back to raw tokens rather than over-filter.
+    if (rows.length < 50) return undefined;
+    const index = buildDfIndex(rows.map((r) => ({ title: r.title, h1: r.h1, url: r.url })));
+    dfCache = { index, at: now };
+    return index;
+  } catch {
+    return undefined; // never fail a check over the (optional) denoising index
+  }
 }
 
 /**
@@ -188,6 +222,9 @@ export async function runConflictCheck(
   // Drop matches below the threshold — keeps the UI signal-to-noise sane.
   const meaningful = nearest.filter((m) => m.similarity >= minSimilarity);
 
+  // Corpus DF index for template-word denoising of the lexical signals (2c).
+  const dfIndex = await getCorpusDfIndex();
+
   // 3. LLM judges only the top `classifyLimit` (cost control).
   const toClassify = meaningful.slice(0, classifyLimit);
   const verdicts = toClassify.length
@@ -235,6 +272,7 @@ export async function runConflictCheck(
         { title: inputMeta.title, h1: inputMeta.h1, url: inputMeta.url, text: inputMeta.text },
         { title: m.title, h1: m.h1, url: m.url },
         m.similarity,
+        dfIndex, // template-word denoising (2c); undefined → legacy raw tokens
       );
       const matchIntent = classifyIntent({
         title: m.title,
