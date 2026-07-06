@@ -18,6 +18,7 @@ import {
   Compass,
   Menu,
   X,
+  ChevronDown,
 } from "lucide-react";
 
 interface SidebarUser {
@@ -48,8 +49,17 @@ export default function Sidebar({ user, signOutSlot }: { user?: SidebarUser | nu
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
+  // "Additional Tools" is a collapsible group, closed by default. Auto-open it
+  // when the current route is one of its items so the active link isn't hidden.
+  const inAdditional = ADDITIONAL_NAV.some(
+    (n) => pathname === n.href || pathname.startsWith(n.href + "/"),
+  );
+  const [toolsOpen, setToolsOpen] = useState(inAdditional);
+
   // Close the drawer on route change so the user lands on the new page.
   useEffect(() => { setOpen(false) }, [pathname]);
+  // Reveal the group when navigating into one of its pages.
+  useEffect(() => { if (inAdditional) setToolsOpen(true) }, [inAdditional]);
 
   return (
     <>
@@ -144,26 +154,40 @@ export default function Sidebar({ user, signOutSlot }: { user?: SidebarUser | nu
             );
           })}
 
-          <div className="px-3 pb-1 pt-5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+          <button
+            type="button"
+            onClick={() => setToolsOpen((v) => !v)}
+            aria-expanded={toolsOpen}
+            aria-controls="additional-tools"
+            className="mt-5 flex w-full items-center justify-between rounded-lg px-3 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 transition hover:text-slate-600"
+          >
             Additional Tools
-          </div>
-          {ADDITIONAL_NAV.map(({ href, label, icon: Icon }) => {
-            const active = pathname === href || pathname.startsWith(href + "/");
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
-                  active
-                    ? "bg-slate-900 text-white"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                <Icon size={17} />
-                {label}
-              </Link>
-            );
-          })}
+            <ChevronDown
+              size={14}
+              className={`transition-transform duration-200 ${toolsOpen ? "" : "-rotate-90"}`}
+            />
+          </button>
+          {toolsOpen && (
+            <div id="additional-tools" className="space-y-1">
+              {ADDITIONAL_NAV.map(({ href, label, icon: Icon }) => {
+                const active = pathname === href || pathname.startsWith(href + "/");
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
+                      active
+                        ? "bg-slate-900 text-white"
+                        : "text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    <Icon size={17} />
+                    {label}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </nav>
 
         {user && (
