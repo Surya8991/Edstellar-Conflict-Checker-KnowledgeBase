@@ -31,19 +31,9 @@ interface CheckResult {
   checkId?: number;
 }
 
-interface PageStat {
-  url: string;
-  m6:  { clicks: number; impressions: number; ctr: number; position: number };
-  m12: { clicks: number; impressions: number; ctr: number; position: number };
-  topQueries: { query: string; clicks: number; impressions: number; ctr: number; position: number }[];
-  potentialQueries?: { query: string; clicks: number; impressions: number; ctr: number; position: number }[];
-}
 interface EnrichData {
-  stats: PageStat[];
   serp: any;
   gap: string[];
-  ourRank?: any;
-  gscError?: string;
 }
 
 /** Derive the primary keyword used for the SERP lookup.
@@ -114,10 +104,6 @@ export default function ConflictCheckerPage() {
   const [suggesting, setSuggesting] = useState(false);
   const [suggestions, setSuggestions] = useState<any>(null);
 
-  // Cannibalization groups for the input URL (GSC-driven). Auto-fetched after
-  // a URL check completes; surfaced as a banner above the matches list.
-  const [cannibals, setCannibals] = useState<any[]>([]);
-
   // AI Draft state (Batch 18). Cache-first synchronous resolver — either
   // returns instantly from pregenerated_drafts or 2-8s via Groq fallback.
   // No polling, no queued/running states.
@@ -139,7 +125,7 @@ export default function ConflictCheckerPage() {
     e.preventDefault();
     if (!input.trim()) return;
     setLoading(true); setError(null); setResult(null); setEnrich(null); setSuggestions(null);
-    setExplained({}); setPage(1); setCannibals([]);
+    setExplained({}); setPage(1);
     setDraft(null); setDraftError(null);
     try {
       const res = await fetch("/api/check", {
@@ -199,26 +185,6 @@ export default function ConflictCheckerPage() {
         if (!cancelled) setEnrich(data);
       } finally {
         if (!cancelled) setEnriching(false);
-      }
-    })();
-    return () => { cancelled = true };
-  }, [result]);
-
-  // Cannibalization fetch — only meaningful for URL inputs (GSC keys by page).
-  useEffect(() => {
-    if (!result || result.inputType !== "url") return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/check/cannibalization", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ url: result.inputValue, range: "28d" }),
-        });
-        const data = await res.json();
-        if (!cancelled) setCannibals(data.groups ?? []);
-      } catch {
-        if (!cancelled) setCannibals([]);
       }
     })();
     return () => { cancelled = true };
@@ -336,14 +302,11 @@ export default function ConflictCheckerPage() {
   const explainedCount = mergedMatches.filter((m) => m.conflictType !== "needs-review").length;
   const reviewCount    = mergedMatches.filter((m) => m.conflictType === "needs-review").length;
 
-  const statByUrl = new Map<string, PageStat>();
-  for (const s of enrich?.stats ?? []) statByUrl.set(s.url, s);
-
   return (
     <div>
       <PageHeader
         title="Conflict Checker"
-        subtitle="Paste a URL or a topic. We summarize it, score it (0–100%), and enrich each match with GSC + competitor data."
+        subtitle="Paste a URL or a topic. We summarize it, score it (0–100%), and enrich each match with competitor data."
       />
       <div className="p-8 space-y-6">
         <form onSubmit={run} className="space-y-3">
@@ -430,57 +393,7 @@ export default function ConflictCheckerPage() {
               )}
             </Card>
 
-            {/* Cannibalization banner — fires only when input is a URL
-                and GSC shows this URL competing with siblings for a query. */}
-            {cannibals.length > 0 && (
-              <Card className="border-amber-200 bg-amber-50">
-                <div className="flex items-start gap-3">
-                  <span className="mt-0.5 shrink-0 text-amber-600">⚠</span>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-semibold text-amber-900">
-                      Cannibalization detected · {cannibals.length} query{cannibals.length === 1 ? "" : "s"}
-                    </h3>
-                    <p className="mt-0.5 text-xs text-amber-800">
-                      This URL is competing with other pages on your site for the same Google query.
-                      Consider redirecting, merging, or differentiating the weaker ones.
-                    </p>
-                    <ul className="mt-3 space-y-2.5">
-                      {cannibals.slice(0, 5).map((g) => (
-                        <li key={g.query} className="rounded-md border border-amber-200 bg-white/70 p-2.5">
-                          <div className="flex flex-wrap items-baseline justify-between gap-2">
-                            <span className="font-mono text-xs font-medium text-slate-900">"{g.query}"</span>
-                            <span className="text-[11px] text-slate-500 tabular-nums">
-                              {g.totalImpressions.toLocaleString()} impr · {g.totalClicks} clk · {g.pages.length} pages
-                            </span>
-                          </div>
-                          <ul className="mt-1.5 space-y-0.5">
-                            {g.pages.slice(0, 4).map((p: any) => {
-                              const isThis = p.page === result.inputValue;
-                              return (
-                                <li key={p.page} className="flex items-center gap-2 text-[11px]">
-                                  <span className={`shrink-0 rounded px-1.5 py-0.5 tabular-nums ${isThis ? "bg-amber-200 text-amber-900 font-semibold" : "bg-slate-100 text-slate-600"}`}>
-                                    pos {p.position.toFixed(1)}
-                                  </span>
-                                  <a href={p.page} target="_blank" rel="noreferrer"
-                                    className={`truncate hover:underline ${isThis ? "font-semibold text-amber-900" : "text-slate-700"}`}>
-                                    {(() => { try { return new URL(p.page).pathname } catch { return p.page } })()}
-                                  </a>
-                                  <span className="ml-auto shrink-0 text-slate-500 tabular-nums">
-                                    {p.impressions.toLocaleString()} impr
-                                  </span>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              </Card>
-            )}
-
-            {/* Competitor SERP + AI Overview + GSC rank + keyword gap.
+            {/* Competitor SERP + AI Overview + keyword gap.
                 Sits right under the Summary so the user sees external
                 context before drilling into matches. */}
             {enrich && enrich.serp && enrich.serp.organic && (
@@ -493,24 +406,6 @@ export default function ConflictCheckerPage() {
                     ? <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">Edstellar #{enrich.serp.edstellarRank} on Google</span>
                     : <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">Edstellar not in top 10</span>}
                 </div>
-
-                {/* Our GSC rank for this exact keyword (from Search Console, not SERP scrape) */}
-                {enrich.ourRank && enrich.ourRank.impressions6m > 0 && (
-                  <div className="mb-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                    <span className="font-semibold text-slate-900">Your GSC rank for this keyword:</span>{" "}
-                    pos <span className="tabular-nums font-medium">{enrich.ourRank.position6m.toFixed(1)}</span>{" "}
-                    · <span className="tabular-nums">{enrich.ourRank.clicks6m}</span> clk
-                    · <span className="tabular-nums">{enrich.ourRank.impressions6m.toLocaleString()}</span> impr <span className="text-slate-400">(6m)</span>
-                    {enrich.ourRank.topPage?.url && (
-                      <>
-                        {" "}—{" "}
-                        <a href={enrich.ourRank.topPage.url} target="_blank" rel="noreferrer" className="text-slate-600 underline-offset-2 hover:underline">
-                          {(() => { try { return new URL(enrich.ourRank.topPage.url).pathname } catch { return enrich.ourRank.topPage.url } })()}
-                        </a>
-                      </>
-                    )}
-                  </div>
-                )}
 
                 <table className="w-full text-sm">
                   <thead><tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
@@ -645,7 +540,7 @@ export default function ConflictCheckerPage() {
                   · of {result.matches.length} total · {explainedCount} analyzed · {reviewCount} not yet analyzed
                 </span>
                 {enriching && (
-                  <span className="text-xs font-normal text-slate-400">· fetching GSC + competitor data…</span>
+                  <span className="text-xs font-normal text-slate-400">· fetching competitor data…</span>
                 )}
               </h2>
               {filtered.length === 0 ? (
@@ -659,7 +554,6 @@ export default function ConflictCheckerPage() {
                       <MatchCard
                         key={m.url}
                         m={m}
-                        stat={statByUrl.get(m.url)}
                         explainState={explained[m.url]}
                         onExplain={() => explain(m.url, m.title, m.similarity)}
                       />
@@ -844,71 +738,11 @@ export default function ConflictCheckerPage() {
   );
 }
 
-function KeywordList({
-  label,
-  badge,
-  accent,
-  empty,
-  rows,
-  showClicks,
-}: {
-  label: string;
-  badge?: string;
-  accent: "slate" | "emerald";
-  empty: string;
-  rows: { query: string; clicks: number; impressions: number; position: number }[];
-  showClicks?: boolean;
-}) {
-  const headerColor = accent === "emerald" ? "text-emerald-700" : "text-slate-500";
-  const badgeColor =
-    accent === "emerald"
-      ? "bg-emerald-100 text-emerald-700"
-      : "bg-slate-100 text-slate-600";
-  return (
-    <div>
-      <div className={`mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider ${headerColor}`}>
-        <span>{label}</span>
-        {badge && (
-          <span className={`rounded px-1 py-0.5 text-[9px] font-bold normal-case ${badgeColor}`}>
-            {badge}
-          </span>
-        )}
-      </div>
-      {rows.length === 0 ? (
-        <div className="text-xs text-slate-400">{empty}</div>
-      ) : (
-        <table className="w-full table-fixed text-xs">
-          <thead>
-            <tr className="border-b border-slate-200 text-slate-400">
-              <th className="py-1 pr-2 text-left font-medium">Query</th>
-              <th className="w-10 py-1 text-right font-medium">Pos</th>
-              {showClicks && <th className="w-10 py-1 text-right font-medium">Clk</th>}
-              <th className="w-14 py-1 pl-2 text-right font-medium">Impr</th>
-            </tr>
-          </thead>
-          <tbody className="text-slate-700">
-            {rows.map((q) => (
-              <tr key={q.query} className="border-b border-slate-50 last:border-0">
-                <td className="break-words py-1 pr-2 align-top">{q.query}</td>
-                <td className="py-1 text-right align-top tabular-nums">{q.position.toFixed(1)}</td>
-                {showClicks && <td className="py-1 text-right align-top tabular-nums">{q.clicks}</td>}
-                <td className="py-1 pl-2 text-right align-top tabular-nums text-slate-500">
-                  {q.impressions.toLocaleString()}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
-  );
-}
 
 function MatchCard({
-  m, stat, explainState, onExplain,
+  m, explainState, onExplain,
 }: {
   m: Match;
-  stat?: PageStat;
   explainState?: { loading?: boolean; error?: string; rationale?: string };
   onExplain?: () => void;
 }) {
@@ -1012,68 +846,6 @@ function MatchCard({
           <ConflictBadge type={m.conflictType} />
         </div>
       </div>
-
-      {/* ── GSC ENRICHMENT ─────────────────────────────────────────
-          Inline 3-col grid for the stats panel (no heavy boxed table)
-          + keyword lists on the right. Both share the same top divider
-          rule so they read as one section. */}
-      {stat && (
-        <div className="mt-4 grid grid-cols-1 gap-x-8 gap-y-4 border-t border-slate-100 pt-4 lg:grid-cols-2">
-          <div>
-            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-              GSC performance
-            </div>
-            <table className="w-full table-fixed text-xs">
-              <thead>
-                <tr className="border-b border-slate-200 text-slate-400">
-                  <th className="py-1 pr-2 text-left font-medium">Metric</th>
-                  <th className="py-1 text-right font-medium">6m</th>
-                  <th className="py-1 pl-2 text-right font-medium">12m</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b border-slate-50">
-                  <td className="py-1 pr-2 text-slate-500">Clicks</td>
-                  <td className="py-1 text-right font-semibold tabular-nums text-slate-900">{stat.m6.clicks}</td>
-                  <td className="py-1 pl-2 text-right font-semibold tabular-nums text-slate-900">{stat.m12.clicks}</td>
-                </tr>
-                <tr className="border-b border-slate-50">
-                  <td className="py-1 pr-2 text-slate-500">Impressions</td>
-                  <td className="py-1 text-right tabular-nums text-slate-700">{stat.m6.impressions.toLocaleString()}</td>
-                  <td className="py-1 pl-2 text-right tabular-nums text-slate-700">{stat.m12.impressions.toLocaleString()}</td>
-                </tr>
-                <tr className="border-b border-slate-50">
-                  <td className="py-1 pr-2 text-slate-500">CTR</td>
-                  <td className="py-1 text-right tabular-nums text-slate-700">{(stat.m6.ctr * 100).toFixed(2)}%</td>
-                  <td className="py-1 pl-2 text-right tabular-nums text-slate-700">{(stat.m12.ctr * 100).toFixed(2)}%</td>
-                </tr>
-                <tr>
-                  <td className="py-1 pr-2 text-slate-500">Position</td>
-                  <td className="py-1 text-right tabular-nums text-slate-700">{stat.m6.position.toFixed(1)}</td>
-                  <td className="py-1 pl-2 text-right tabular-nums text-slate-700">{stat.m12.position.toFixed(1)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div className="space-y-3.5">
-            <KeywordList
-              label="Top ranking keywords"
-              accent="slate"
-              empty="No GSC data for this URL."
-              rows={stat.topQueries}
-              showClicks
-            />
-            <KeywordList
-              label="Potential ranking keywords"
-              badge="pos 11–30"
-              accent="emerald"
-              empty="No striking-distance opportunities yet."
-              rows={stat.potentialQueries ?? []}
-            />
-          </div>
-        </div>
-      )}
 
       {/* ── DETAILS ──────────────────────────────────────────────── */}
       {hasRationale ? (
