@@ -4,8 +4,7 @@
 > and how the system fits together. Update this file with every meaningful
 > change.
 
-**Last updated:** 2026-07-06 (Session 12 — full project audit: 4 section reviews + 5 persona audits, real bugs fixed in the conflict engine/CSV import/catalog scan, dead code removed, docs/help fully re-synced)
-**Owner:** marketing@edstellar.com
+**Last updated:** 2026-07-06 (Session 13 — Content Clusters rewritten from body-embedding connected-components to topic-token leader clustering; template-noise fix shared into the Conflict Checker; ingest/redirect durability fixes; checker UX + sidebar cleanups)
 **Repo:** https://github.com/Layruss98266/Edstellar-Conflict-Checker-KnowledgeBase
 **Prod:** https://edstellar-conflict-checker-knowledg.vercel.app/
 
@@ -1982,3 +1981,153 @@ fix log + the findings deliberately left open.
   in-memory rate-limit fallback (DB outage) is per-serverless-instance, so the
   effective limit loosens under concurrent cold-starts. Both are UX/robustness
   polish, not correctness bugs — deferred.
+
+---
+
+## 17. Session 13 — Topic-based Content Clusters rewrite + UX cleanups (2026-07-06)
+
+### 17A. The bug: template similarity ≠ topic (mega-cluster)
+
+The Content Clusters page grouped **different topics into one giant cluster**
+(Big Data + Sales + Marketing + DevOps categories in one 40-page cluster). Root
+cause: the old logic keyed on **body-embedding cosine** with lexical
+corroboration (title/H1/desc/URL Jaccard ≥ 0.3). On this corpus the shared page
+**template** dominates both signals — every page says "Corporate … Training
+Courses | Edstellar" — so body cosine is *anti-correlated* with topic here.
+
+Measured against the live DB:
+
+| Pair | Same topic? | Same template? | Body cosine |
+|------|-------------|----------------|-------------|
+| big-data cat ↔ sales cat | no | yes | **89–94%** (FALSE positive) |
+| big-data cat ↔ big-data blog | yes | no | **79%** (the TRUE pair, scored lowest) |
+
+The lexical gates passed the false pairs too, because template words dominate the
+token sets.
+
+### 17B. What the user wants
+
+A cluster = one **TOPIC**, across content types. "If big data → show every page
+using big data": `/category/big-data-training` + `/blog/big-data-training-companies`
++ every big-data course — together. Different topics (big data vs data analytics
+vs sales) must **never** co-cluster.
+
+### 17C. Measured basis for the new logic (probed live)
+
+- **Corpus document-frequency cleanly splits template vs topic vocabulary**:
+  training 82%, corporate 78%, course 63%, employees 29% (template noise) vs
+  big 0.6%, sales 1.2%, devops 0.5%, data 3.8% (topic). A **DF < 5% cap
+  auto-learns the template vocabulary** — no hardcoded stopword list to maintain.
+- **Distinctive-token Jaccard after that filter**: big-data↔sales = 0.00,
+  big-data-cat↔big-data-blog = 0.40, big-data↔data-analytics = 0.33. IDF-weighting
+  widens the gap (rare "big" outweighs common-ish "data"). Threshold ~0.35
+  (weighted) separates them with margin.
+- The true topic pair (79% body) IS in the category's top-5 ANN neighbours, so
+  the true edge is recoverable once the fetch bar drops to ~0.70.
+
+### 17D. Two full-corpus simulations chose the algorithm
+
+- **Sim 1 falsified pairwise-edges + connected components.** Even with perfect
+  edge thresholds (big-data↔sales direct overlap = 0.00), transitive chaining
+  (big-data → data-engineering → cloud-security → … → sales) produced a 375-page
+  hairball. **Connected components is out** — the union-find approach used since
+  Session 11 cannot express "one topic".
+- **Sim 2 validated center-based "leader" clustering** (the model keyword tools
+  use; also the pillar/spoke model): every member matches the cluster's **seed**
+  directly, so chaining is impossible by construction. Result: 336 coherent
+  clusters, max size 32 (a real family — "skills in demand in {country}" ×32),
+  zero mega-clusters.
+
+### 17E. The new algorithm (lib/cluster.ts, pure + unit-tested)
+
+1. **Topic keys** per live page: distinctive unigrams + **bigrams** from title +
+   H1 + the slug's **last path segment only** (section prefixes like `/category/`
+   polluted keys in sim 2), filtered by corpus DF < `CONFLICT_TOPIC_DF_CAP`
+   (0.05). 100% of live pages keep ≥1 distinctive token (measured).
+2. **Seeds in pillar-priority order**: category → subcategory →
+   excellence-program/services → course → blog. Deterministic (URL tiebreak).
+3. **Leader assignment**: each page joins the best-scoring qualifying seed by
+   IDF-weighted distinctive-token Jaccard ≥ `CONFLICT_TOPIC_OVERLAP` (0.35),
+   bigrams weighted above unigrams; else it becomes a new seed. Membership is
+   always page↔seed, never page↔page.
+4. **Body floor vs seed** (`CONFLICT_TOPIC_BODY_FLOOR`, 0.70) — members failing
+   it fall back to singletons.
+5. Clusters = seeds with ≥2 members. Singletons are unique-topic pages — an
+   answer, not a gap; the UI meta line reads "N of 2,458 clustered · M unique".
+
+**Acceptance tests (definition of done, encode the user's exact examples):**
+big-data cat ↔ sales cat → different; big-data cat ↔ data-analytics cat →
+different; big-data cat ↔ big-data blog → same; big-data cat ↔ big-data courses
+→ same.
+
+New env knobs in `lib/thresholds.ts` (replacing the six removed
+`groupSimilarity`/`groupSimCourse`/`groupSimCourseTitle`/`groupTitleJaccardCourse`/
+`groupSupportJaccard`/`groupBodySelfSufficient` + `groupTopK`): `CONFLICT_TOPIC_DF_CAP`
+(0.05), `CONFLICT_TOPIC_OVERLAP` (0.35), `CONFLICT_TOPIC_BODY_FLOOR` (0.70).
+`evaluatePair`/`shouldGroupPair`/`connectedComponents` and their tests removed.
+
+### 17F. Research: industry practice mapped to our data
+
+1. **Two-method consensus**: embedding clustering is for *discovery & scale*;
+   **SERP/query-overlap is the gold standard for merge/URL/cannibalization
+   decisions** (it reflects what Google serves). The industry cannibalization
+   signal is the GSC query-page pair (one query ranked by 2+ of your pages).
+2. **Checked against our DB**: that pipeline exists (`gsc_metrics` + gsc-snapshot
+   cron + `lib/gsc-insights.ts`) but the **table has 0 rows** — GSC isn't
+   snapshotted in this deployment. Query-overlap edges are the *upgrade path*,
+   not day-one logic. (Also: `/search-console` insights currently run on empty
+   data — ops note.)
+3. **Topic-token clustering (this plan's core)** is the "distinctive-terms"
+   flavor of semantic clustering; intent-blindness is mitigated by our per-page
+   intent labels, template-noise by corpus-DF filtering (validated above).
+4. **Hub-and-spoke (pillar/cluster) model** maps perfectly onto our cross-type
+   clusters — the category page is the natural pillar; courses/blogs are spokes.
+   Added as a `pillar` cluster action.
+
+Sources: ContentGecko (semantic vs SERP), SERPs.io, Semrush, ThatWare,
+AdvancedGSC, Search Engine Land, HubSpot, OnCrawl.
+
+### 17G. Scope shipped this session
+
+- **Clusters engine + `/api/groups`**: ANN top-k lateral join removed; candidate
+  generation is a token inverted index + one batched cosine query; route returns
+  topic label + shared tokens + `matchSim`, no `reason` field.
+- **Shared template-noise fix into the Conflict Checker** (17E's DF-distinctive
+  filter applied to `lib/signals.ts` title/slug signals — one shared DF index).
+- **`pillar` group action** (`groupAction` + `ACTION_STYLE`): category+courses+blog
+  families suggest "Pillar + spokes — link spokes to the pillar" rather than
+  merge/differentiate. Merge still fires for same-type near-duplicates.
+- **Conflict Checker UX**: Min score resets to 80 per run; AbortController on
+  double-submit; 429 `retryAfterSec` surfaced (closes §16D rate-limit UX);
+  needs-review rows muted vs LLM-verified; per-match intent tooltip; plain
+  parse-error copy.
+- **Sidebar**: Bulk Check → Additional Tools; Score History commented out (page
+  reachable by URL, dashboard links intact).
+- **Ingest/redirect durability (17H)**.
+
+### 17H. Ingest silently destroyed redirect marks (corpus-audit finding, fixed)
+
+`scripts/ingest.ts`'s `fetchAndExtract` follows redirects, so re-crawling a 301'd
+page stored the *target's* content under the stale URL, and the upsert's
+`canonical_url = EXCLUDED.canonical_url` overwrote detect-redirects' mark. One
+`npm run ingest` after a redirect scan → stale pages resurfaced in Clusters as
+byte-identical duplicates. Fix: compare the fetch's final URL to `entry.url`; if
+they differ, mark `is_stale/canonical_url/stale_reason='redirect (ingest)'` and
+skip storing target content under the old URL (`lib/extract.ts` now exposes the
+final URL). `detect-redirects` also gained a **healing branch** (a
+previously-stale page that probes 200 again clears its marks) and **404/410
+flagging** (dead pages were never marked stale before).
+
+### 17I. Deferred (tracked, not this pass)
+
+- **GSC query-overlap edges — the gold-standard upgrade** (17F #1–2): once
+  `gsc_metrics` is populated, add "ranks for the same queries" as a cluster edge
+  + checker evidence (stored data only — no live GSC fetch, respecting the
+  Session 11 removal). Blocked today: 0 rows.
+- Cluster export / redirect-map CSV, accept-dismiss-snooze state, outcome-loop
+  integration (§16D top gap — needs its own plan).
+- Verdict banner on high scores; bulk "Analyze all" for needs-review rows;
+  copy-all-301s. `LLM_KILL_SWITCH` graceful degrade for the checker (summarize is
+  a hard prerequisite today). Persisted cluster snapshots (trend-over-time +
+  faster loads vs today's live scan per visit). Cluster winner still ignores
+  traffic/inbound at corpus scale.
