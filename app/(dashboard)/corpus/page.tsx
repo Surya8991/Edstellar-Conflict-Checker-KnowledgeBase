@@ -93,7 +93,9 @@ export default function CorpusPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Import failed");
-      setImportMsg(`Imported ${data.upserted} of ${data.received} rows.`);
+      setImportMsg(
+        `Imported ${data.received} rows — ${data.upserted} added/updated, ${data.deleted ?? 0} removed.`,
+      );
       await load(1);
     } catch (e) {
       setImportMsg((e as Error).message);
@@ -105,10 +107,10 @@ export default function CorpusPage() {
   // Download a template CSV so uploads match the expected columns exactly.
   function downloadSampleCsv() {
     const header =
-      "url,title,h1,meta_description,content_type,course_type,category,subcategory,tags,lastmod";
-    const example = [
-      "https://www.edstellar.com/example-page",
-      "Example Page Title",
+      "url,title,h1,meta_description,content_type,course_type,category,subcategory,tags,lastmod,action";
+    const addRow = [
+      "https://www.edstellar.com/example-blog",
+      "Example Blog Title",
       "Example H1 Heading",
       '"A short meta description, may contain commas."',
       "blog",
@@ -117,8 +119,30 @@ export default function CorpusPage() {
       "",
       "leadership|management",
       "2026-01-15",
+      "", // blank = add/update
     ].join(",");
-    const blob = new Blob([`${header}\r\n${example}\r\n`], { type: "text/csv" });
+    const courseRow = [
+      "https://www.edstellar.com/example-course",
+      "Example Course Title",
+      "Example Course H1",
+      '"Course meta description."',
+      "course",
+      "Leadership",
+      "Leadership & Management",
+      "",
+      "leadership",
+      "2026-01-15",
+      "", // blank = add/update
+    ].join(",");
+    const deleteRow = [
+      "https://www.edstellar.com/page-to-remove",
+      "", "", "", "", "", "", "", "", "",
+      "delete", // action=delete removes this url
+    ].join(",");
+    const blob = new Blob(
+      [`${header}\r\n${addRow}\r\n${courseRow}\r\n${deleteRow}\r\n`],
+      { type: "text/csv" },
+    );
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -269,8 +293,9 @@ export default function CorpusPage() {
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
           <span>
             Upload matches on <code className="rounded bg-slate-100 px-1">url</code>; columns:{" "}
-            <code className="rounded bg-slate-100 px-1">url, title, h1, meta_description, content_type, course_type, category, subcategory, tags, lastmod</code>{" "}
-            (tags <code className="rounded bg-slate-100 px-1">|</code>-separated).
+            <code className="rounded bg-slate-100 px-1">url, title, h1, meta_description, content_type, course_type, category, subcategory, tags, lastmod, action</code>{" "}
+            (tags <code className="rounded bg-slate-100 px-1">|</code>-separated;{" "}
+            <code className="rounded bg-slate-100 px-1">action=delete</code> removes a row, blank adds/updates).
           </span>
           <button
             type="button"

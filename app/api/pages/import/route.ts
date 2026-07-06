@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sql } from "drizzle-orm";
+import { inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { pages } from "@/lib/db/schema";
 import { parseCsv } from "@/lib/csv";
@@ -10,13 +10,19 @@ export const dynamic = "force-dynamic";
 const MAX_ROWS = 10_000;
 const BATCH = 500;
 
+/** Optional `action` column values that mark a row for deletion. */
+const DELETE_ACTIONS = new Set(["delete", "remove", "del"]);
+
 /**
- * POST /api/pages/import — bulk upsert corpus metadata from a CSV.
+ * POST /api/pages/import — bulk add/update/remove corpus rows from a CSV.
  *
  * Body: raw CSV text (Content-Type text/csv) or multipart form-data with a
  * `file` field. Header row must include `url`; recognised columns are the
- * ones the export route emits. Rows are upserted by `url` — only the
- * metadata columns below are touched; embeddings/content are left intact.
+ * ones the export route emits, plus an optional `action` column:
+ *   - action = delete | remove | del  → the row's `url` is deleted.
+ *   - anything else / blank            → the row is upserted (add or update).
+ * Only the metadata columns below are touched on upsert; embeddings/content
+ * are left intact.
  *
  * Session-gated by the auth proxy (not in PUBLIC_PATHS), same as the page.
  */
@@ -49,8 +55,19 @@ export async function POST(request: NextRequest) {
       return s === "" ? null : s;
     };
 
-    const values = parsed
-      .filter((r) => (r.url ?? "").trim() !== "")
+    const withUrl = parsed.filter((r) => (r.url ?? "").trim() !== "");
+
+    // Rows flagged for deletion via the optional `action` column.
+    const deleteUrls = Array.from(
+      new Set(
+        withUrl
+          .filter((r) => DELETE_ACTIONS.has((r.action ?? "").trim().toLowerCase()))
+          .map((r) => r.url.trim()),
+      ),
+    );
+
+    const values = withUrl
+      .filter((r) => !DELETE_ACTIONS.has((r.action ?? "").trim().toLowerCase()))
       .map((r) => ({
         url: r.url.trim(),
         title: clean(r.title),
@@ -64,7 +81,7 @@ export async function POST(request: NextRequest) {
         lastmod: clean(r.lastmod),
       }));
 
-    if (values.length === 0) {
+    if (values.length === 0 && deleteUrls.length === 0) {
       return NextResponse.json({ error: "No rows with a url." }, { status: 400 });
     }
 
@@ -91,7 +108,14 @@ export async function POST(request: NextRequest) {
       upserted += chunk.length;
     }
 
-    return NextResponse.json({ ok: true, upserted, received: parsed.length });
+    let deleted = 0;
+    for (let i = 0; i < deleteUrls.length; i += BATCH) {
+      const chunk = deleteUrls.slice(i, i + BATCH);
+      const res = await db.delete(pages).where(inArray(pages.url, chunk)).returning({ id: pages.id });
+      deleted += res.length;
+    }
+
+    return NextResponse.json({ ok: true, upserted, deleted, received: parsed.length });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
