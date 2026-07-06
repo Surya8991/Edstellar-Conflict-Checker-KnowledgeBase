@@ -925,6 +925,8 @@ DATABASE_URL=postgresql://...                # Neon pooled
 AI_EMBED_PROVIDER=local                      # local | openai
 AI_CHAT_PROVIDER=groq                        # groq | claude | openai
 GROQ_API_KEY= GROQ_MODEL=llama-3.3-70b-versatile
+GROQ_API_KEYS=                               # optional comma-separated key pool — rotates on 429 (Session 11)
+GROQ_FALLBACK_MODEL=llama-3.1-8b-instant     # separate TPD bucket; tried when the primary 429s on every key. ""=off
 ANTHROPIC_API_KEY= ANTHROPIC_MODEL=
 OPENAI_API_KEY= OPENAI_CHAT_MODEL= OPENAI_EMBED_MODEL=
 
@@ -1782,6 +1784,21 @@ next to its % match. Filter pills verified live (action: All 200 / Merge 176 /
 Differentiate 24 · type: course 155 / blog 29 / …) + title/URL search box.
 Edge rule is the pure, unit-tested `evaluatePair` in `lib/cluster.ts`
 (`shouldGroupPair` kept as a boolean wrapper).
+
+### 15I. Groq resilience + UI trims (2026-07-06)
+
+- **Groq key rotation + model fallback** (`lib/ai/chat-groq.ts`, unit-tested):
+  the free tier caps tokens-per-day per key per model, so a single key dies
+  mid-day with a 429 (hit live during Session 11 verification). Now:
+  `GROQ_API_KEYS=key1,key2,…` rotates keys on 429; when the primary model 429s
+  on every key, `GROQ_FALLBACK_MODEL` (default `llama-3.1-8b-instant`, its own
+  TPD bucket) is tried across the pool. Dead key+model combos are remembered
+  with a retry-after cooldown so warm instances skip them. Non-429 errors
+  still throw immediately.
+- **Catalog Conflicts hidden** (user will revisit): sidebar link + the
+  dashboard stat tile + the "Top catalog conflicts" card are commented out in
+  place — the page, API, and scan script all still exist; uncomment to restore.
+- **Sidebar logo mark removed** — wordmark text only.
 
 **Known tuning notes for later:**
 - Grouping uses connected components, which are threshold-sensitive: too low and

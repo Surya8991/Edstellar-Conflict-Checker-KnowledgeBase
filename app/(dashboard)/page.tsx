@@ -241,6 +241,8 @@ export default async function DashboardHome() {
             accent={stats.highRiskChecks7d > 0 ? "danger" : "ok"}
             href="/history"
           />
+          {/* Catalog Conflicts hidden for now (Session 11 — will be revisited).
+              Uncomment to restore the stat tile.
           <Stat
             label="Catalog conflicts"
             value={stats.conflictPairs.toLocaleString()}
@@ -248,6 +250,7 @@ export default async function DashboardHome() {
             accent={stats.conflictPairs > 0 ? "warn" : "ok"}
             href="/catalog-conflicts"
           />
+          */}
           <Stat
             label="Competitor records"
             value={stats.competitors.toLocaleString()}
@@ -290,10 +293,10 @@ export default async function DashboardHome() {
         {/* SECTION 4 — Recent activity. Two parallel feeds: what the team
             has been screening + the worst standing duplicates in the
             catalogue. Empty case suppresses the whole section. */}
-        {stats.dbReady && (stats.recentChecks.length > 0 || stats.topConflicts.length > 0) && (
+        {stats.dbReady && stats.recentChecks.length > 0 && (
           <section>
-            <SectionHeader title="Recent activity" subtitle="Latest checks + worst catalogue conflicts." />
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <SectionHeader title="Recent activity" subtitle="Latest checks the team has run." />
+            <div className="grid grid-cols-1 gap-6">
             <Card className="p-0">
               <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
                 <h2 className="text-sm font-semibold text-slate-900">Recent checks</h2>
@@ -330,6 +333,9 @@ export default async function DashboardHome() {
               )}
             </Card>
 
+            {/* "Top catalog conflicts" card hidden for now (Session 11 — will
+                be revisited). Uncomment to restore; the /api/dashboard feed
+                (stats.topConflicts) still returns the data.
             <Card className="p-0">
               <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
                 <h2 className="text-sm font-semibold text-slate-900">Top catalog conflicts</h2>
@@ -371,6 +377,7 @@ export default async function DashboardHome() {
                 </ul>
               )}
             </Card>
+            */}
             </div>
           </section>
         )}

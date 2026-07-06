@@ -13,7 +13,6 @@ import {
   LineChart,
   Swords,
   Database,
-  GitCompareArrows,
   BarChart3,
   Compass,
   Boxes,
@@ -41,7 +40,10 @@ const NAV: { href: string; label: string; icon: any }[] = [
 
 const ADDITIONAL_NAV: { href: string; label: string; icon: any }[] = [
   { href: "/manager",            label: "Manager View",      icon: BarChart3 },
-  { href: "/catalog-conflicts",  label: "Catalog Conflicts", icon: GitCompareArrows },
+  // Catalog Conflicts hidden for now (Session 11 — user will revisit later).
+  // The /catalog-conflicts page + /api/catalog-conflicts + the scan script all
+  // still exist; uncomment to restore.
+  // { href: "/catalog-conflicts",  label: "Catalog Conflicts", icon: GitCompareArrows },
   { href: "/audit",              label: "Content Audit",     icon: ClipboardCheck },
   { href: "/internal-links",     label: "Internal Links",    icon: Link2 },
   { href: "/strategy",           label: "Funnel Strategy",   icon: Compass },
@@ -108,13 +110,6 @@ export default function Sidebar({ user, signOutSlot }: { user?: SidebarUser | nu
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-5">
           <Link href="/" className="flex min-w-0 items-center gap-2.5">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/brand/mark.svg"
-              alt=""
-              aria-hidden="true"
-              className="h-8 w-8 shrink-0"
-            />
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold tracking-tight text-slate-900">
                 Edstellar
