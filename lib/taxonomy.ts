@@ -21,6 +21,9 @@ export interface PageTags {
     | "location"
     | "excellence-program"
     | "pillar"
+    | "managed-training"
+    | "platform"
+    | "consulting"
     | "static";
   courseType: string | null;
   category: string | null;
@@ -108,6 +111,64 @@ const INDUSTRY_KEYWORDS = [
 
 const CITY_MATCH = /\/corporate-(?:[a-z-]+-)?training-in-([a-z-]+)$/;
 
+// Standalone service / solution pages, promoted out of the `static` fallback
+// into their own top-level content types so they surface as their own buckets
+// in the corpus UI. Keeping the mapping here (rather than as a one-off DB edit)
+// means a reingest re-derives the same classification. Slugs are single-segment
+// paths, matched exactly.
+type ServiceType = "managed-training" | "platform" | "consulting";
+const SERVICE_LABEL: Record<ServiceType, string> = {
+  "managed-training": "Managed Training",
+  platform: "Platform",
+  consulting: "Consulting",
+};
+const SERVICE_PAGE_TYPE: Record<string, ServiceType> = {
+  // Managed Training
+  "instructor-led-training-services": "managed-training",
+  "training-delivery": "managed-training",
+  "managed-training-services": "managed-training",
+  "training-administration-services": "managed-training",
+  "training-outsourcing": "managed-training",
+  "training-vendor-sourcing": "managed-training",
+  "learning-engagement-sustainment-consulting": "managed-training",
+  "training-operations-administration-consulting": "managed-training",
+  // Platform
+  "training-management-software": "platform",
+  "trainer-platform": "platform",
+  "hrms-integration": "platform",
+  "stellar-ai": "platform",
+  "skill-matrix": "platform",
+  "how-it-works": "platform",
+  faqs: "platform",
+  "corporate-training-catalog": "platform",
+  // Consulting
+  "corporate-training-courses": "consulting",
+  "coaching-solutions": "consulting",
+  "organizational-development-consulting": "consulting",
+  "learning-development-consulting-services": "consulting",
+  "training-needs-analysis-solutions": "consulting",
+  "skill-based-organization": "consulting",
+  "learning-technology-consulting": "consulting",
+  "learning-strategy-design-consulting": "consulting",
+  "learning-content-development-services": "consulting",
+  "talent-assessment-services": "consulting",
+  "organizational-strategy-consulting": "consulting",
+  "leadership-succession-planning-consulting": "consulting",
+  "transformation-risk-consulting": "consulting",
+  "skill-gap-competency-assessment": "consulting",
+  "organizational-alignment-consulting": "consulting",
+  "behavioral-psychological-profiling": "consulting",
+  "training-simulations-ar-vr": "consulting",
+  "employee-performance-support": "consulting",
+  "learning-governance-analytics-roi-consulting": "consulting",
+  "digital-learning-ecosystem-consulting": "consulting",
+  "assessment-development-centers-consulting": "consulting",
+  "dei-consulting": "consulting",
+  "employee-engagement-consulting-services": "consulting",
+  "cultural-transformation-consulting-services": "consulting",
+  "strategic-workforce-planning-solutions": "consulting",
+};
+
 export function tagUrl(url: string, title?: string | null): PageTags {
   loadIndex();
   const norm = normalize(url);
@@ -124,6 +185,23 @@ export function tagUrl(url: string, title?: string | null): PageTags {
   //    distinguishable in tag filters.
   if (path === "/" || path === "") {
     return base("static", ["home"]);
+  }
+
+  // 1b. Standalone service / solution pages — Managed Training / Platform /
+  //     Consulting. Matched before the catalog lookups since these are
+  //     single-segment marketing pages that would otherwise fall through to
+  //     the `static` fallback.
+  const svcSlug = path.replace(/^\//, "").replace(/\/$/, "");
+  const svcType = SERVICE_PAGE_TYPE[svcSlug];
+  if (svcType) {
+    const category = SERVICE_LABEL[svcType];
+    return {
+      contentType: svcType,
+      courseType: null,
+      category,
+      subcategory: null,
+      tags: uniq([category, svcType]),
+    };
   }
 
   // 2. Course detail page (exact catalog match)
