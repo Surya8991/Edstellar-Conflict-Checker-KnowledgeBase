@@ -66,9 +66,38 @@ test("mid body → consolidate", () => {
   assert.equal(r.action, "consolidate");
 });
 
-test("low body + same intent → differentiate", () => {
+test("low body (below no-conflict floor) → keep-both, not differentiate", () => {
   const r = decidePair(page({ url: "a" }), page({ url: "b" }), sig({ body: 0.4 }), "informational", "informational");
+  assert.equal(r.action, "keep-both");
+});
+
+test("mid body just above floor + same intent → differentiate", () => {
+  const r = decidePair(page({ url: "a" }), page({ url: "b" }), sig({ body: 0.52 }), "informational", "informational");
   assert.equal(r.action, "differentiate");
+});
+
+test("topic input (url='') never wins as canonical", () => {
+  const topic = page({ url: "", inbound: 0, tokenCount: 3 });
+  const weak = page({ url: "https://x.com/a/b/c/d", inbound: 0, tokenCount: 50 });
+  assert.equal(pickWinner(topic, weak).url, weak.url);
+  const r = decidePair(topic, weak, sig({ body: 0.85 }), "informational", "informational");
+  assert.equal(r.action, "merge");
+  assert.equal(r.winnerUrl, weak.url); // never ""
+});
+
+test("topic input: lexicalMeta=false ignores title near-dup gate", () => {
+  // High title Jaccard but low body — must NOT force a merge for a topic input.
+  const r = decidePair(
+    page({ url: "" }), page({ url: "https://x.com/scrum" }),
+    sig({ body: 0.3, title: 1.0 }),
+    "commercial", "commercial",
+    undefined, false,
+  );
+  assert.notEqual(r.action, "merge");
+});
+
+test("urlCleanliness('') is 0 (absent URL is not clean)", () => {
+  assert.equal(urlCleanliness(""), 0);
 });
 
 test("groupAction: same intent scales with max similarity", () => {

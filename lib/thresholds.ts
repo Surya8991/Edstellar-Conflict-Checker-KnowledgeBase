@@ -43,6 +43,13 @@ export interface Thresholds {
   h1JaccardDup: number;
   /** Slug token overlap ≥ this ⇒ near-duplicate URL. */
   slugOverlapDup: number;
+  /** Below this body cosine (and no near-dup metadata) a same-intent pair is
+   *  NOT a conflict — keep both. Guards decidePair when called with a low body. */
+  noConflictFloor: number;
+  /** Corpus-grouping: body cosine ≥ this makes an edge in the group graph. */
+  groupSimilarity: number;
+  /** Corpus-grouping: nearest-neighbours probed per page (ANN top-k). */
+  groupTopK: number;
   /** Weights used to pick the surviving (canonical) page. */
   winner: WinnerWeights;
 }
@@ -53,6 +60,9 @@ export const THRESHOLDS: Thresholds = {
   titleJaccardDup:       envNum("CONFLICT_TITLE_JACCARD_DUP", 0.8),
   h1JaccardDup:          envNum("CONFLICT_H1_JACCARD_DUP", 0.8),
   slugOverlapDup:        envNum("CONFLICT_SLUG_OVERLAP_DUP", 0.6),
+  noConflictFloor:       envNum("CONFLICT_NO_CONFLICT_FLOOR", 0.5),
+  groupSimilarity:       envNum("CONFLICT_GROUP_SIMILARITY", 0.9),
+  groupTopK:             envNum("CONFLICT_GROUP_TOPK", 5),
   winner: {
     inbound:  envNum("CONFLICT_WINNER_INBOUND", 0.45),
     depth:    envNum("CONFLICT_WINNER_DEPTH", 0.3),

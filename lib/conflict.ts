@@ -243,6 +243,8 @@ export async function runConflictCheck(
         signals,
         inputIntent,
         matchIntent,
+        undefined, // use default thresholds
+        inputType === "url", // topic inputs have no real title/h1/url → don't trust the lexical merge gate
       );
       return {
         url: m.url,

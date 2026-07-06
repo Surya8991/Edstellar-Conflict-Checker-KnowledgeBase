@@ -40,6 +40,9 @@ export interface AuthorityInput {
 
 /** URL cleanliness in [0,1]: shorter, shallower paths score higher. */
 export function urlCleanliness(url: string): number {
+  // An absent URL (topic input) is NOT a clean page — it's not a page at all.
+  // Return 0 so a topic input can never win a tie on cleanliness (see pickWinner).
+  if (!url) return 0;
   // Uses raw path depth (segment count), independent of stopword filtering,
   // so "shallower URL wins" holds for any segments. Home (0) → 1.0.
   return 1 / (1 + pathDepth(url) / 4);
@@ -71,16 +74,26 @@ export function pageAuthority(
   );
 }
 
-/** Pick the higher-authority page; ties broken by cleaner URL. */
+/** Pick the higher-authority page; ties broken by cleaner URL, then URL string.
+ *  A page with no URL (a topic input, not yet published) can never win over a
+ *  real page — it isn't a canonical target. */
 export function pickWinner(
   a: AuthorityInput,
   b: AuthorityInput,
   weights: WinnerWeights = THRESHOLDS.winner,
 ): AuthorityInput {
+  // An absent URL is never a valid canonical winner.
+  if (!a.url && b.url) return b;
+  if (!b.url && a.url) return a;
+
   const sa = pageAuthority(a, weights);
   const sb = pageAuthority(b, weights);
   if (sa !== sb) return sa > sb ? a : b;
-  return urlCleanliness(a.url) >= urlCleanliness(b.url) ? a : b;
+  const ca = urlCleanliness(a.url);
+  const cb = urlCleanliness(b.url);
+  if (ca !== cb) return ca > cb ? a : b;
+  // Deterministic final tie-break: lexicographically smaller URL, no input bias.
+  return a.url <= b.url ? a : b;
 }
 
 export interface PairResolution {
@@ -105,6 +118,10 @@ export function decidePair(
   inputIntent: Intent,
   matchIntent: Intent,
   t: Thresholds = THRESHOLDS,
+  /** Whether the input has real title/h1/url metadata. False for topic inputs,
+   *  where the title signal is a text-vs-title fallback that must NOT drive the
+   *  near-duplicate merge gate (H1 review finding). */
+  lexicalMeta = true,
 ): PairResolution {
   if (inputIntent !== matchIntent) {
     return {
@@ -116,9 +133,10 @@ export function decidePair(
   const winner = pickWinner(input, match, t.winner);
   const winnerUrl = winner.url;
   const nearDupMeta =
-    signals.title >= t.titleJaccardDup ||
-    signals.h1 >= t.h1JaccardDup ||
-    signals.slug >= t.slugOverlapDup;
+    lexicalMeta &&
+    (signals.title >= t.titleJaccardDup ||
+      signals.h1 >= t.h1JaccardDup ||
+      signals.slug >= t.slugOverlapDup);
 
   if (signals.body >= t.bodyCosineMerge || nearDupMeta) {
     const why = nearDupMeta
@@ -132,6 +150,14 @@ export function decidePair(
       action: "consolidate",
       winnerUrl,
       reason: `Same intent, body ${(signals.body * 100).toFixed(0)}% similar → keep winner, re-link the other.`,
+    };
+  }
+
+  // Below the no-conflict floor with no metadata match: not actually a conflict.
+  if (signals.body < t.noConflictFloor) {
+    return {
+      action: "keep-both",
+      reason: `Same intent but only ${(signals.body * 100).toFixed(0)}% body overlap — not a conflict.`,
     };
   }
 

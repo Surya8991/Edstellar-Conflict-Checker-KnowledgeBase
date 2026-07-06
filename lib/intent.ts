@@ -41,7 +41,7 @@ const CUE_RULES: CueRule[] = [
   {
     intent: "commercial",
     cues: [
-      "best", "top ", "vs", "versus", "review", "reviews", "comparison",
+      "best", "top", "vs", "versus", "review", "reviews", "comparison",
       "compare", "alternatives", "solutions", "services", "software",
       "consulting", "for organizations", "for enterprises", "platform",
     ],
@@ -49,7 +49,7 @@ const CUE_RULES: CueRule[] = [
   {
     intent: "informational",
     cues: [
-      "how to", "what is", "what are", "why ", "guide", "tutorial",
+      "how to", "what is", "what are", "why", "guide", "tutorial",
       "examples", "tips", "checklist", "template", "framework", "learn",
       "introduction", "meaning", "definition", "benefits",
     ],
@@ -70,6 +70,13 @@ const CONTENT_TYPE_INTENT: Record<string, Intent> = {
   blog: "informational",
   static: "navigational",
 };
+
+/** Whole-word/phrase cue match against an already-normalised (spaces-only)
+ *  haystack. Escapes regex metachars; `\b` boundaries stop substring hits. */
+function cueMatches(haystack: string, cue: string): boolean {
+  const escaped = cue.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`\\b${escaped}\\b`).test(haystack);
+}
 
 export interface IntentInput {
   title?: string | null;
@@ -100,7 +107,9 @@ export function classifyIntent(input: IntentInput): IntentResult {
     .replace(/\s+/g, " ");
 
   for (const rule of CUE_RULES) {
-    const hits = rule.cues.filter((c) => haystack.includes(c));
+    // Whole-word / whole-phrase match so short cues ("vs", "hire", "demo")
+    // don't fire inside longer words ("tvs", "hired", "democracy").
+    const hits = rule.cues.filter((c) => cueMatches(haystack, c));
     if (hits.length > 0) return { label: rule.intent, cues: hits };
   }
 

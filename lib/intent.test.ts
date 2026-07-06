@@ -41,3 +41,11 @@ test("reports which cues fired", () => {
   assert.equal(r.label, "transactional");
   assert.ok(r.cues.includes("buy") || r.cues.includes("pricing"));
 });
+
+test("short cues match whole words only (no substring false-positives)", () => {
+  // "vs" must not fire inside "TVS"; "hire" must not fire inside "hired".
+  assert.notEqual(classifyIntent({ title: "TVS Motors Leadership" }).label, "commercial");
+  assert.equal(classifyIntent({ title: "Java vs Python" }).label, "commercial"); // real "vs"
+  // "demo" must not fire inside "democracy".
+  assert.notEqual(classifyIntent({ title: "Democracy in the Workplace" }).label, "transactional");
+});

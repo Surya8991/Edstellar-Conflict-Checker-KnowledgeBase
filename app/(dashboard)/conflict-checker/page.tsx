@@ -57,8 +57,14 @@ interface GroupSummary {
   maxSimilarity: number;
   action: Resolution["action"];
   winnerUrl: string;
-  pairTypes: string[];
   members: GroupMember[];
+}
+interface GroupsMeta {
+  totalGroups: number;
+  totalPairs: number;
+  corpusSize: number;
+  groupedPages: number;
+  threshold: number;
 }
 
 export default function ConflictCheckerPage() {
@@ -69,7 +75,7 @@ export default function ConflictCheckerPage() {
 
   // Similar-page groups (corpus-wide connected components). Loaded on demand.
   const [groups, setGroups] = useState<GroupSummary[] | null>(null);
-  const [groupsMeta, setGroupsMeta] = useState<{ totalGroups: number; totalPairs: number } | null>(null);
+  const [groupsMeta, setGroupsMeta] = useState<GroupsMeta | null>(null);
   const [groupsLoading, setGroupsLoading] = useState(false);
   const [groupsError, setGroupsError] = useState<string | null>(null);
 
@@ -77,11 +83,17 @@ export default function ConflictCheckerPage() {
     setGroupsLoading(true);
     setGroupsError(null);
     try {
-      const res = await fetch("/api/groups?limit=100");
+      const res = await fetch("/api/groups?limit=200");
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to load groups");
       setGroups(data.groups ?? []);
-      setGroupsMeta({ totalGroups: data.totalGroups ?? 0, totalPairs: data.totalPairs ?? 0 });
+      setGroupsMeta({
+        totalGroups: data.totalGroups ?? 0,
+        totalPairs: data.totalPairs ?? 0,
+        corpusSize: data.corpusSize ?? 0,
+        groupedPages: data.groupedPages ?? 0,
+        threshold: data.threshold ?? 0,
+      });
     } catch (e) {
       setGroupsError((e as Error).message);
     } finally {
@@ -759,7 +771,7 @@ function GroupsSection({
   groups, meta, loading, error, onLoad,
 }: {
   groups: GroupSummary[] | null;
-  meta: { totalGroups: number; totalPairs: number } | null;
+  meta: GroupsMeta | null;
   loading: boolean;
   error: string | null;
   onLoad: () => void;
@@ -770,8 +782,8 @@ function GroupsSection({
         <div>
           <h2 className="text-sm font-semibold text-slate-900">Similar-page groups</h2>
           <p className="mt-0.5 text-xs text-slate-500">
-            Corpus pages clustered by overlap (connected components of the near-duplicate scan),
-            with a suggested action + winner per group.
+            Every embedded corpus page (all content types) clustered by overlap — connected
+            components of a live near-duplicate scan, with a suggested action + winner per group.
           </p>
         </div>
         <button
@@ -788,14 +800,15 @@ function GroupsSection({
 
       {meta && !loading && (
         <div className="mt-3 text-xs text-slate-500">
-          {meta.totalGroups.toLocaleString()} group{meta.totalGroups === 1 ? "" : "s"} from{" "}
-          {meta.totalPairs.toLocaleString()} conflicting pairs.
+          {meta.totalGroups.toLocaleString()} group{meta.totalGroups === 1 ? "" : "s"} ·{" "}
+          <strong className="text-slate-700">{meta.groupedPages.toLocaleString()} of {meta.corpusSize.toLocaleString()}</strong>{" "}
+          corpus pages grouped · {meta.totalPairs.toLocaleString()} pairs ≥ {(meta.threshold * 100).toFixed(0)}% similar.
         </div>
       )}
 
       {groups && groups.length > 0 && (
         <div className="mt-3 space-y-2.5">
-          {groups.map((g) => <GroupCard key={g.winnerUrl + g.size} g={g} />)}
+          {groups.map((g, i) => <GroupCard key={`${g.winnerUrl}#${i}`} g={g} />)}
         </div>
       )}
       {groups && groups.length === 0 && !loading && (
@@ -832,8 +845,8 @@ function GroupCard({ g }: { g: GroupSummary }) {
         {shown.map((m) => (
           <li key={m.url} className="flex items-center gap-2 py-1 text-xs">
             <span className={`w-3 shrink-0 text-center ${m.isWinner ? "text-amber-500" : "text-transparent"}`} title={m.isWinner ? "Suggested winner" : undefined}>★</span>
-            <span className={`inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[9px] font-medium capitalize ${INTENT_STYLE[m.intent]}`}>
-              {m.intent.slice(0, 4)}
+            <span className={`inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[9px] font-medium capitalize ${INTENT_STYLE[m.intent] ?? "bg-slate-100 text-slate-500 border-slate-200"}`}>
+              {(m.intent ?? "").slice(0, 4)}
             </span>
             <a href={m.url} target="_blank" rel="noreferrer" className={`truncate hover:underline ${m.isWinner ? "font-semibold text-slate-900" : "text-slate-600"}`} title={m.title || m.url}>
               {pathOf(m.url)}

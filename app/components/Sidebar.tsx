@@ -29,7 +29,6 @@ interface SidebarUser {
 
 const NAV: { href: string; label: string; icon: any }[] = [
   { href: "/",                   label: "Dashboard",         icon: LayoutDashboard },
-  { href: "/manager",            label: "Manager View",      icon: BarChart3 },
   { href: "/conflict-checker",   label: "Conflict Checker",  icon: ScanSearch },
   { href: "/bulk-check",         label: "Bulk Check",        icon: Layers },
   { href: "/history",            label: "Score History",     icon: History },
@@ -40,6 +39,7 @@ const NAV: { href: string; label: string; icon: any }[] = [
 ];
 
 const ADDITIONAL_NAV: { href: string; label: string; icon: any }[] = [
+  { href: "/manager",            label: "Manager View",      icon: BarChart3 },
   { href: "/audit",              label: "Content Audit",     icon: ClipboardCheck },
   { href: "/internal-links",     label: "Internal Links",    icon: Link2 },
   { href: "/strategy",           label: "Funnel Strategy",   icon: Compass },
