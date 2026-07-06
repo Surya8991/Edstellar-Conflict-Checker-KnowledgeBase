@@ -9,7 +9,6 @@ import {
   Layers,
   Link2,
   ClipboardCheck,
-  History,
   LineChart,
   Swords,
   Database,
@@ -31,8 +30,10 @@ const NAV: { href: string; label: string; icon: any }[] = [
   { href: "/",                   label: "Dashboard",         icon: LayoutDashboard },
   { href: "/conflict-checker",   label: "Conflict Checker",  icon: ScanSearch },
   { href: "/clusters",           label: "Content Clusters",  icon: Boxes },
-  { href: "/bulk-check",         label: "Bulk Check",        icon: Layers },
-  { href: "/history",            label: "Score History",     icon: History },
+  // Score History hidden for now (Session 13 — same pattern as Catalog
+  // Conflicts). The /history page + /api routes still exist and dashboard
+  // links to /history keep working; uncomment to restore the nav link.
+  // { href: "/history",            label: "Score History",     icon: History },
   { href: "/search-console",     label: "Search Console",    icon: LineChart },
   { href: "/competitors",        label: "Competitors",       icon: Swords },
   { href: "/corpus",             label: "Corpus",            icon: Database },
@@ -40,6 +41,7 @@ const NAV: { href: string; label: string; icon: any }[] = [
 
 const ADDITIONAL_NAV: { href: string; label: string; icon: any }[] = [
   { href: "/manager",            label: "Manager View",      icon: BarChart3 },
+  { href: "/bulk-check",         label: "Bulk Check",        icon: Layers },
   // Catalog Conflicts hidden for now (Session 11 — user will revisit later).
   // The /catalog-conflicts page + /api/catalog-conflicts + the scan script all
   // still exist; uncomment to restore.

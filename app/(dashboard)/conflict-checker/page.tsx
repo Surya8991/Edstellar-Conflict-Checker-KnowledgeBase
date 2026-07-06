@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PageHeader, Card, ConflictBadge, ScoreBar, TypeChip, TYPE_COLORS, INTENT_STYLE, ACTION_STYLE, type Intent } from "@/app/components/ui";
 import { Pagination } from "@/app/components/Pagination";
 import { toast } from "@/app/components/Toast";
@@ -103,11 +103,23 @@ export default function ConflictCheckerPage() {
   const [draftLoading, setDraftLoading] = useState(false);
   const [draftError, setDraftError] = useState<string | null>(null);
 
+  // Aborts an in-flight check when a newer one starts, so a slow first request
+  // can never clobber a newer result (double-submit race).
+  const checkAbortRef = useRef<AbortController | null>(null);
+
   async function run(e: React.FormEvent) {
     e.preventDefault();
     if (!input.trim()) return;
+    // Supersede any in-flight check.
+    checkAbortRef.current?.abort();
+    const controller = new AbortController();
+    checkAbortRef.current = controller;
+
     setLoading(true); setError(null); setResult(null); setSuggestions(null);
     setExplained({}); setPage(1);
+    // Reset the Min-score filter to its default each run so a slider dragged on
+    // the previous search doesn't silently hide this search's matches.
+    setScoreMin(80);
     setDraft(null); setDraftError(null);
     try {
       const res = await fetch("/api/check", {
@@ -117,14 +129,26 @@ export default function ConflictCheckerPage() {
         // Session 6 H11) — sending 0 here used to defeat that floor entirely
         // since `0 ?? default` short-circuits to 0, not the default.
         body: JSON.stringify({ input, vectorLimit }),
+        signal: controller.signal,
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Check failed");
+      if (!res.ok) {
+        // Surface the server's rate-limit countdown when present.
+        if (res.status === 429 && data.retryAfterSec)
+          throw new Error(`Rate-limited — try again in ${data.retryAfterSec}s.`);
+        throw new Error(data.error || "Check failed");
+      }
       setResult(data);
     } catch (err) {
+      // A superseded request aborts — the newer request owns the UI now.
+      if ((err as Error).name === "AbortError") return;
       setError((err as Error).message);
     } finally {
-      setLoading(false);
+      // Only the current request may clear the loading state.
+      if (checkAbortRef.current === controller) {
+        setLoading(false);
+        checkAbortRef.current = null;
+      }
     }
   }
 
@@ -491,7 +515,7 @@ export default function ConflictCheckerPage() {
                 </div>
               )}
               {suggestions && !suggestions?.suggestions?.angles?.length && !suggestions?.error && (
-                <p className="mt-3 text-xs text-slate-500">No angles returned — the LLM response wasn't parseable. Try Re-run.</p>
+                <p className="mt-3 text-xs text-slate-500">Couldn&apos;t generate suggestions — try Re-run.</p>
               )}
               {/* PAA — questions Google considers related. Free signal from
                   the SERP, surfaced here so writers can answer them in-page
@@ -651,7 +675,10 @@ function ResolutionPanel({ m, inputUrl }: { m: Match; inputUrl?: string }) {
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-1.5">
           {m.intent && (
-            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium capitalize ${INTENT_STYLE[m.intent]}`}>
+            <span
+              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium capitalize ${INTENT_STYLE[m.intent]}`}
+              title="Rule-based search intent of this page"
+            >
               {m.intent}
             </span>
           )}
@@ -703,8 +730,10 @@ function MatchCard({
   const hasRationale = !!m.rationale;
 
   // Audit 10C tokenization: lib/score-bands.ts is the single source of truth.
-  const scoreBarColor = bandBarColor(m.conflictScore);
-  const scoreTextColor = bandTextColor(m.conflictScore);
+  // needs-review rows are a similarity-only estimate (no LLM verdict yet) — mute
+  // them so a skimmer can tell them apart from full-weight, AI-verified scores.
+  const scoreBarColor = needsReview ? "bg-slate-300" : bandBarColor(m.conflictScore);
+  const scoreTextColor = needsReview ? "text-slate-400" : bandTextColor(m.conflictScore);
   const stage = intentStage(m.contentType);
 
   return (
@@ -786,7 +815,10 @@ function MatchCard({
 
         {/* Score column — large numeric for the eye, slim bar for context,
             badge for the editorial verdict. */}
-        <div className="flex shrink-0 flex-col items-end gap-1.5">
+        <div
+          className="flex shrink-0 flex-col items-end gap-1.5"
+          title={needsReview ? "Similarity-only estimate — not yet AI-verified. Analyze to get a weighted score." : undefined}
+        >
           <div className="flex items-center gap-2.5">
             <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-100">
               <div className={`h-full ${scoreBarColor}`} style={{ width: `${m.conflictScore}%` }} />
