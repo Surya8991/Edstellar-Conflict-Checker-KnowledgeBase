@@ -24,6 +24,7 @@ export interface PageTags {
     | "managed-training"
     | "platform"
     | "consulting"
+    | "templates"
     | "static";
   courseType: string | null;
   category: string | null;
@@ -203,6 +204,20 @@ export function tagUrl(url: string, title?: string | null): PageTags {
       category: null,
       subcategory: null,
       tags: uniq([SERVICE_LABEL[svcType], svcType]),
+    };
+  }
+
+  // 1c. Template pages — the /templates/<slug> library plus the L&D templates
+  //     hub. Promoted out of `static` into their own `templates` type.
+  if (path.startsWith("/templates/") || path === "/learning-development-templates") {
+    const seg = path.split("/").filter(Boolean).pop() || "templates";
+    const label = titleCase(cleanSlug(seg));
+    return {
+      contentType: "templates",
+      courseType: null,
+      category: null,
+      subcategory: null,
+      tags: uniq([label, "templates"]),
     };
   }
 

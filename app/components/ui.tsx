@@ -88,6 +88,7 @@ export const TYPE_COLORS: Record<string, string> = {
   "managed-training":   "bg-sky-100 text-sky-700",
   platform:             "bg-teal-100 text-teal-700",
   consulting:           "bg-rose-100 text-rose-700",
+  templates:            "bg-cyan-100 text-cyan-700",
   pillar:               "bg-purple-100 text-purple-700",
   home:                 "bg-slate-200 text-slate-700",
   static:               "bg-slate-100 text-slate-600",
