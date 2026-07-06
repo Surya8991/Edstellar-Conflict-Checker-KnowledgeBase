@@ -1,0 +1,62 @@
+/**
+ * Single source of truth for every numeric cutoff and weight in the
+ * content-conflict automation (plans/01-conflict-automation.md).
+ *
+ * The whole point of the tool is "each human judgment call becomes a
+ * deterministic check with a signal and a threshold." Keeping them here —
+ * env-overridable — means a site can be tuned without touching code.
+ *
+ * Env overrides: any key can be set via `CONFLICT_<UPPER_SNAKE>`, e.g.
+ * `CONFLICT_BODY_COSINE_MERGE=0.82`. Winner weights via
+ * `CONFLICT_WINNER_INBOUND`, `CONFLICT_WINNER_DEPTH`, etc.
+ */
+
+function envNum(key: string, fallback: number): number {
+  const raw = process.env[key];
+  if (raw == null || raw.trim() === "") return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+export interface WinnerWeights {
+  /** Internal inbound-link authority (hardest signal to rebuild → highest). */
+  inbound: number;
+  /** Content depth proxy (token/word count). */
+  depth: number;
+  /** URL cleanliness (shorter, shallower slug wins ties). */
+  urlClean: number;
+  /**
+   * Organic traffic (pages.gsc_clicks_28d). OFF by default (0): GSC surfacing
+   * was intentionally removed from the Conflict Checker. Set > 0 to weight it.
+   */
+  traffic: number;
+}
+
+export interface Thresholds {
+  /** Body cosine ≥ this ⇒ same-intent pair is a merge candidate. */
+  bodyCosineMerge: number;
+  /** Body cosine ≥ this (but < merge) ⇒ consolidate candidate. */
+  bodyCosineConsolidate: number;
+  /** Title token Jaccard ≥ this ⇒ treat as near-duplicate title. */
+  titleJaccardDup: number;
+  /** H1 token Jaccard ≥ this ⇒ near-duplicate heading. */
+  h1JaccardDup: number;
+  /** Slug token overlap ≥ this ⇒ near-duplicate URL. */
+  slugOverlapDup: number;
+  /** Weights used to pick the surviving (canonical) page. */
+  winner: WinnerWeights;
+}
+
+export const THRESHOLDS: Thresholds = {
+  bodyCosineMerge:       envNum("CONFLICT_BODY_COSINE_MERGE", 0.8),
+  bodyCosineConsolidate: envNum("CONFLICT_BODY_COSINE_CONSOLIDATE", 0.55),
+  titleJaccardDup:       envNum("CONFLICT_TITLE_JACCARD_DUP", 0.8),
+  h1JaccardDup:          envNum("CONFLICT_H1_JACCARD_DUP", 0.8),
+  slugOverlapDup:        envNum("CONFLICT_SLUG_OVERLAP_DUP", 0.6),
+  winner: {
+    inbound:  envNum("CONFLICT_WINNER_INBOUND", 0.45),
+    depth:    envNum("CONFLICT_WINNER_DEPTH", 0.3),
+    urlClean: envNum("CONFLICT_WINNER_URLCLEAN", 0.25),
+    traffic:  envNum("CONFLICT_WINNER_TRAFFIC", 0),
+  },
+};

@@ -6,6 +6,13 @@ import { Pagination } from "@/app/components/Pagination";
 import { toast } from "@/app/components/Toast";
 import { scoreBarColor as bandBarColor, scoreTextColor as bandTextColor, intentStage } from "@/lib/score-bands";
 
+interface SignalScores { title: number; h1: number; slug: number; body: number }
+type Intent = "informational" | "commercial" | "transactional" | "navigational";
+interface Resolution {
+  action: "merge" | "consolidate" | "differentiate" | "keep-both";
+  winnerUrl?: string;
+  reason: string;
+}
 interface Match {
   url: string;
   title: string | null;
@@ -19,6 +26,10 @@ interface Match {
   ownerUrl?: string | null;
   gscClicks28d?: number | null;
   gscImpressions28d?: number | null;
+  // Phase 1 automation
+  signals?: SignalScores;
+  intent?: Intent;
+  resolution?: Resolution;
 }
 interface CheckResult {
   inputType: string;
@@ -29,6 +40,7 @@ interface CheckResult {
   topScore: number;
   matches: Match[];
   checkId?: number;
+  inputIntent?: Intent;
 }
 
 export default function ConflictCheckerPage() {
@@ -396,6 +408,11 @@ export default function ConflictCheckerPage() {
                 <span className="text-xs font-normal text-slate-500">
                   · of {result.matches.length} total · {explainedCount} analyzed · {reviewCount} not yet analyzed
                 </span>
+                {result.inputIntent && (
+                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium capitalize ${INTENT_STYLE[result.inputIntent]}`} title="Rule-based search intent of your input">
+                    intent: {result.inputIntent}
+                  </span>
+                )}
               </h2>
               {filtered.length === 0 ? (
                 <Card className="text-sm text-slate-500">
@@ -408,6 +425,7 @@ export default function ConflictCheckerPage() {
                       <MatchCard
                         key={m.url}
                         m={m}
+                        inputUrl={result.inputType === "url" ? result.inputValue : undefined}
                         explainState={explained[m.url]}
                         onExplain={() => explain(m.url, m.title, m.similarity)}
                       />
@@ -593,10 +611,102 @@ export default function ConflictCheckerPage() {
 }
 
 
+const ACTION_STYLE: Record<Resolution["action"], { label: string; cls: string; hint: string }> = {
+  merge:         { label: "Merge → 301", cls: "bg-rose-100 text-rose-700 border-rose-200", hint: "Near-duplicate, same intent — redirect the loser into the winner." },
+  consolidate:   { label: "Consolidate", cls: "bg-amber-100 text-amber-800 border-amber-200", hint: "Strong overlap, same intent — keep the winner, re-link the other as support." },
+  differentiate: { label: "Differentiate", cls: "bg-blue-100 text-blue-700 border-blue-200", hint: "Same intent, partial overlap — rewrite to separate the angles." },
+  "keep-both":   { label: "Keep both", cls: "bg-emerald-100 text-emerald-700 border-emerald-200", hint: "Different intent — no conflict." },
+};
+
+const INTENT_STYLE: Record<Intent, string> = {
+  informational: "bg-sky-50 text-sky-700 border-sky-200",
+  commercial:    "bg-violet-50 text-violet-700 border-violet-200",
+  transactional: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  navigational:  "bg-slate-100 text-slate-600 border-slate-200",
+};
+
+function SignalBar({ label, value }: { label: string; value: number }) {
+  const pct = Math.round(Math.max(0, Math.min(1, value)) * 100);
+  const color = pct >= 80 ? "bg-rose-500" : pct >= 55 ? "bg-amber-500" : "bg-slate-300";
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-10 shrink-0 text-[10px] uppercase tracking-wider text-slate-400">{label}</span>
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+        <div className={`h-full ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="w-9 shrink-0 text-right text-[11px] tabular-nums text-slate-600">{pct}%</span>
+    </div>
+  );
+}
+
+function ResolutionPanel({ m, inputUrl }: { m: Match; inputUrl?: string }) {
+  const s = m.signals!;
+  const r = m.resolution!;
+  const style = ACTION_STYLE[r.action];
+  // The 301 line only makes sense between two real URLs.
+  const loserUrl =
+    r.winnerUrl && inputUrl ? (r.winnerUrl === m.url ? inputUrl : m.url) : undefined;
+  const redirect = r.winnerUrl && loserUrl ? `301  ${loserUrl}  ->  ${r.winnerUrl}` : undefined;
+
+  return (
+    <div className="mt-4 grid grid-cols-1 gap-x-8 gap-y-3 border-t border-slate-100 pt-4 lg:grid-cols-2">
+      {/* Left: the four separate signals */}
+      <div className="space-y-1.5">
+        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Why — signals</div>
+        <SignalBar label="Title" value={s.title} />
+        <SignalBar label="H1" value={s.h1} />
+        <SignalBar label="URL" value={s.slug} />
+        <SignalBar label="Body" value={s.body} />
+      </div>
+
+      {/* Right: intent + action + winner */}
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {m.intent && (
+            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium capitalize ${INTENT_STYLE[m.intent]}`}>
+              {m.intent}
+            </span>
+          )}
+          <span
+            className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${style.cls}`}
+            title={style.hint}
+          >
+            {style.label}
+          </span>
+        </div>
+        <p className="text-xs leading-relaxed text-slate-600">{r.reason}</p>
+        {r.winnerUrl && (
+          <div className="text-[11px] text-slate-500">
+            Winner:{" "}
+            <a href={r.winnerUrl} target="_blank" rel="noreferrer" className="font-medium text-slate-700 hover:underline">
+              {(() => { try { return new URL(r.winnerUrl).pathname; } catch { return r.winnerUrl; } })()}
+            </a>
+          </div>
+        )}
+        {redirect && (
+          <button
+            type="button"
+            onClick={() => navigator.clipboard.writeText(redirect).then(
+              () => toast.success("301 redirect copied."),
+              () => toast.error("Couldn't copy."),
+            )}
+            className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 font-mono text-[11px] text-slate-600 hover:bg-slate-100"
+            title="Copy the 301 redirect line"
+          >
+            {redirect}
+            <span className="text-slate-400">⧉</span>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function MatchCard({
-  m, explainState, onExplain,
+  m, inputUrl, explainState, onExplain,
 }: {
   m: Match;
+  inputUrl?: string;
   explainState?: { loading?: boolean; error?: string; rationale?: string };
   onExplain?: () => void;
 }) {
@@ -700,6 +810,10 @@ function MatchCard({
           <ConflictBadge type={m.conflictType} />
         </div>
       </div>
+
+      {/* ── RESOLUTION (Phase 1 automation) ────────────────────────
+          Four separate signals + intent + deterministic action/winner. */}
+      {m.signals && m.resolution && <ResolutionPanel m={m} inputUrl={inputUrl} />}
 
       {/* ── DETAILS ──────────────────────────────────────────────── */}
       {hasRationale ? (

@@ -24,8 +24,8 @@
  * (they need links more); pages already heavily linked get penalised
  * slightly (don't reinforce existing equity stacks).
  */
-import { sql } from "drizzle-orm";
-import { db, neonRows } from "@/lib/db";
+import { neon } from "@neondatabase/serverless";
+import { neonRows } from "@/lib/db";
 
 interface InboundRow {
   url: string;
@@ -51,15 +51,21 @@ export async function fetchInboundCounts(
   const patterns = candidateUrls.map((u) => u.replace(/\/$/, ""));
   const exclude = excludeUrl ?? "";
 
-  const rows = await db.execute(sql`
-    SELECT t.url, count(p.id)::int AS inbound
-    FROM unnest(${patterns}::text[]) AS t(url)
-    LEFT JOIN pages p
-      ON p.content_text ILIKE '%' || t.url || '%'
-      AND p.url <> t.url
-      AND p.url <> ${exclude}
-    GROUP BY t.url
-  `);
+  // Raw neon client with a single `$1::text[]` param. Drizzle's sql`` template
+  // expands an interpolated JS array into `unnest($1, $2, …)` (a record, not a
+  // text[]), which Postgres rejects — so bind the array positionally instead,
+  // the same way scripts/ingest.ts passes `tags`.
+  const client = neon(process.env.DATABASE_URL || "postgresql://user:password@localhost/db");
+  const rows = await client.query(
+    `SELECT t.url, count(p.id)::int AS inbound
+     FROM unnest($1::text[]) AS t(url)
+     LEFT JOIN pages p
+       ON p.content_text ILIKE '%' || t.url || '%'
+       AND p.url <> t.url
+       AND p.url <> $2
+     GROUP BY t.url`,
+    [patterns, exclude],
+  );
 
   const map: Record<string, number> = {};
   for (const r of neonRows<InboundRow>(rows)) {
