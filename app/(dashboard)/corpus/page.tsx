@@ -102,6 +102,31 @@ export default function CorpusPage() {
     }
   }
 
+  // Download a template CSV so uploads match the expected columns exactly.
+  function downloadSampleCsv() {
+    const header =
+      "url,title,h1,meta_description,content_type,course_type,category,subcategory,tags,lastmod";
+    const example = [
+      "https://www.edstellar.com/example-page",
+      "Example Page Title",
+      "Example H1 Heading",
+      '"A short meta description, may contain commas."',
+      "blog",
+      "",
+      "Leadership & Management",
+      "",
+      "leadership|management",
+      "2026-01-15",
+    ].join(",");
+    const blob = new Blob([`${header}\r\n${example}\r\n`], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "corpus-sample.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   // Reset to page 1 whenever filters change
   useEffect(() => {
     setPage(1);
@@ -241,9 +266,21 @@ export default function CorpusPage() {
             />
           </label>
         </form>
-        {importMsg && (
-          <div className="text-xs text-slate-500">{importMsg}</div>
-        )}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+          <span>
+            Upload matches on <code className="rounded bg-slate-100 px-1">url</code>; columns:{" "}
+            <code className="rounded bg-slate-100 px-1">url, title, h1, meta_description, content_type, course_type, category, subcategory, tags, lastmod</code>{" "}
+            (tags <code className="rounded bg-slate-100 px-1">|</code>-separated).
+          </span>
+          <button
+            type="button"
+            onClick={downloadSampleCsv}
+            className="font-medium text-slate-700 underline hover:text-slate-900"
+          >
+            Download sample CSV
+          </button>
+          {importMsg && <span className="text-slate-500">· {importMsg}</span>}
+        </div>
 
         <Card className="p-0">
           <table className="w-full text-sm">
@@ -279,7 +316,7 @@ export default function CorpusPage() {
                     </div>
                   </td>
                   <td className="px-4 py-2.5 text-slate-600">
-                    <div className="max-w-sm truncate" title={r.meta_description ?? undefined}>
+                    <div className="max-w-sm whitespace-normal break-words">
                       {r.meta_description || <span className="text-slate-300">—</span>}
                     </div>
                   </td>
