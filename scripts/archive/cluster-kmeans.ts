@@ -1,4 +1,24 @@
 /**
+ * ARCHIVED (Session 11 audit) — superseded by lib/cluster.ts (connected
+ * components) + Content Clusters (/clusters, app/api/groups/route.ts).
+ *
+ * Nothing reads `pages.cluster_id` or the `clusters` table this script
+ * writes — repo-wide grep found zero consumers. Kept only for reference; do
+ * NOT wire this back into package.json without fixing the bug below, and
+ * prefer porting its ideas (seeded k-means) into the connected-components
+ * approach rather than reviving it as-is, since the two now use the same
+ * word "cluster" for different algorithms and it's easy to grep the wrong one.
+ *
+ * KNOWN BUG (found in audit, never fixed while this was live): the "single
+ * transaction" claimed below is not real. `sql.query("BEGIN")` /
+ * `TRUNCATE` / per-cluster `INSERT` / `COMMIT` are separate calls on neon's
+ * stateless HTTP driver — each auto-commits independently (same class of bug
+ * documented in scripts/catalog-conflicts.ts's header). A crash mid-loop
+ * leaves `clusters` truncated with a partial rebuild, the exact failure mode
+ * the comment below claims is prevented.
+ *
+ * Original docstring (Session 9), preserved for context:
+ * ---
  * K-means clustering over page embeddings. Writes pages.cluster_id and a
  * row per cluster into the `clusters` table (with an auto-derived label).
  * Run: npm run cluster -- --k=24 [--seed=1234]

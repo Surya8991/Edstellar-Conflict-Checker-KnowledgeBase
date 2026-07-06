@@ -59,7 +59,10 @@ export default function ClustersPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/groups?limit=200");
+      // 500 is the API's own hard cap (app/api/groups/route.ts) — request it
+      // directly rather than an arbitrary lower number so "N clusters" in the
+      // meta line always matches what's actually rendered below it.
+      const res = await fetch("/api/groups?limit=500");
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to load clusters");
       setGroups(data.groups ?? []);
@@ -131,6 +134,11 @@ export default function ClustersPage() {
             <strong className="text-slate-700">{meta.totalGroups.toLocaleString()}</strong> clusters ·{" "}
             <strong className="text-slate-700">{meta.groupedPages.toLocaleString()} of {meta.corpusSize.toLocaleString()}</strong>{" "}
             live corpus pages grouped · {meta.totalPairs.toLocaleString()} evidence-backed pairs.
+            {groups && meta.totalGroups > groups.length && (
+              <span className="ml-1 font-medium text-amber-700">
+                {" "}Showing the largest {groups.length.toLocaleString()} — {(meta.totalGroups - groups.length).toLocaleString()} smaller clusters aren't listed.
+              </span>
+            )}
           </div>
         )}
 

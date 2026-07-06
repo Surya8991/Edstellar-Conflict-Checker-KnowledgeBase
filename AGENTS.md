@@ -25,7 +25,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## Auth — three separate gates
 | Gate | Header/mechanism | Routes |
 |------|-----------------|--------|
-| `WEBHOOK_API_KEY` | `X-Api-Key` | `/api/check/outcome`, `/api/pages/owner`, `/api/competitors`, `/api/check/bulk` |
+| `WEBHOOK_API_KEY` | `X-Api-Key` | `/api/check`, `/api/check/bulk`, `/api/check/outcome`, `/api/pages/owner`, `/api/summarize`, `/api/rewrite-suggestion`, `/api/internal-links/paragraph` |
 | `CRON_SECRET` | `Authorization: Bearer` | All `/api/cron/*` routes |
 | `WORKER_API_KEY` | `X-Worker-Key` | `/api/drafts?status=queued` (GET) + `/api/drafts/:id` (PATCH). Used by `scripts/draft-worker.ts`. |
 | NextAuth session cookie | `AUTH_ENABLED=true` | All dashboard pages via `proxy.ts` |
@@ -38,7 +38,7 @@ New `/api/*` routes that should be cron-callable must be added to `proxy.ts PUBL
 - `minSimilarity` in `lib/conflict.ts` defaults to **0.50** (raised from 0.30 in Session 6). The JSDoc previously said 0.30 — trust the code, not the comment.
 - `AI_CHAT_PROVIDER` defaults to `groq` if neither `GROQ_API_KEY` nor `ANTHROPIC_API_KEY` is set, the app silently returns empty summaries.
 - Groq 429s (free-tier tokens-per-day, per key per model): set `GROQ_API_KEYS=key1,key2,…` to rotate keys automatically; `GROQ_FALLBACK_MODEL` (default `llama-3.1-8b-instant`) is tried across the pool when the primary model is exhausted everywhere. Logic + tests in `lib/ai/chat-groq.ts`.
-- First request after a cold deploy downloads `bge-small-en-v1.5` (~30 MB) inline — expect 8–25 s latency. Set `EMBEDDING_PROVIDER=openai` to skip this.
+- First request after a cold deploy downloads `bge-small-en-v1.5` (~30 MB) inline — expect 8–25 s latency. Set `AI_EMBED_PROVIDER=openai` to skip this (note: switching embed providers also means widening `vector(384)` → `vector(1536)` in all 4 places listed above — it's not a one-line env change).
 
 ## Conflict automation (Session 11)
 - The manual "find duplicates → decide → pick winner" flow is now deterministic + config-driven. Plan: `plans/01-conflict-automation.md`.

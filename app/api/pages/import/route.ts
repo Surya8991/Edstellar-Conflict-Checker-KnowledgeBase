@@ -24,6 +24,12 @@ const DELETE_ACTIONS = new Set(["delete", "remove", "del"]);
  * Only the metadata columns below are touched on upsert; embeddings/content
  * are left intact.
  *
+ * Partial-column CSVs are safe: on an existing row, a blank/missing cell
+ * PRESERVES the current DB value (COALESCE(excluded, pages.col)) instead of
+ * nulling it — so uploading just `url,title` to fix titles doesn't wipe every
+ * other field. This means a blank cell can no longer be used to clear a field
+ * to NULL; that's an intentional trade-off for this bulk-edit tool.
+ *
  * Session-gated by the auth proxy (not in PUBLIC_PATHS), same as the page.
  */
 export async function POST(request: NextRequest) {
@@ -66,20 +72,48 @@ export async function POST(request: NextRequest) {
       ),
     );
 
-    const values = withUrl
-      .filter((r) => !DELETE_ACTIONS.has((r.action ?? "").trim().toLowerCase()))
-      .map((r) => ({
-        url: r.url.trim(),
+    const upsertRows = withUrl.filter((r) => !DELETE_ACTIONS.has((r.action ?? "").trim().toLowerCase()));
+
+    // Which of these urls already exist? Needed so content_type gets a real
+    // fallback ('static') ONLY on genuinely new rows — an existing row's
+    // content_type must never be overwritten by a blank/missing CSV cell.
+    // (A brand-new row has no existing content_type for COALESCE to fall
+    // back to, so the default has to be applied in JS, per-row, before insert.)
+    const candidateUrls = upsertRows.map((r) => r.url.trim());
+    const existingUrls = candidateUrls.length
+      ? new Set(
+          (await db.select({ url: pages.url }).from(pages).where(inArray(pages.url, candidateUrls)))
+            .map((r) => r.url),
+        )
+      : new Set<string>();
+
+    const rawValues = upsertRows.map((r) => {
+      const url = r.url.trim();
+      const contentType = clean(r.content_type) ?? (existingUrls.has(url) ? null : "static");
+      return {
+        url,
         title: clean(r.title),
         metaDescription: clean(r.meta_description),
         h1: clean(r.h1),
-        contentType: clean(r.content_type) ?? "page",
+        contentType,
         courseType: clean(r.course_type),
         category: clean(r.category),
         subcategory: clean(r.subcategory),
         tags: r.tags ? r.tags.split("|").map((t) => t.trim()).filter(Boolean) : null,
         lastmod: clean(r.lastmod),
-      }));
+      };
+    });
+
+    // De-dupe by url (last row wins) — Postgres rejects an upsert batch that
+    // targets the same conflict key twice ("ON CONFLICT DO UPDATE command
+    // cannot affect row a second time"), which previously 500'd the whole
+    // request after earlier batches had already committed. Also drop any url
+    // that's ALSO flagged for deletion elsewhere in the file — delete wins,
+    // so upserting it first would just be silently-discarded work.
+    const deleteSet = new Set(deleteUrls);
+    const byUrl = new Map<string, (typeof rawValues)[number]>();
+    for (const v of rawValues) if (!deleteSet.has(v.url)) byUrl.set(v.url, v);
+    const values = [...byUrl.values()];
 
     if (values.length === 0 && deleteUrls.length === 0) {
       return NextResponse.json({ error: "No rows with a url." }, { status: 400 });
@@ -93,16 +127,18 @@ export async function POST(request: NextRequest) {
         .values(chunk)
         .onConflictDoUpdate({
           target: pages.url,
+          // COALESCE(excluded.col, pages.col): a blank/missing CSV cell keeps
+          // the existing DB value instead of nulling it (see docstring).
           set: {
-            title: sql`excluded.title`,
-            metaDescription: sql`excluded.meta_description`,
-            h1: sql`excluded.h1`,
-            contentType: sql`excluded.content_type`,
-            courseType: sql`excluded.course_type`,
-            category: sql`excluded.category`,
-            subcategory: sql`excluded.subcategory`,
-            tags: sql`excluded.tags`,
-            lastmod: sql`excluded.lastmod`,
+            title: sql`COALESCE(excluded.title, pages.title)`,
+            metaDescription: sql`COALESCE(excluded.meta_description, pages.meta_description)`,
+            h1: sql`COALESCE(excluded.h1, pages.h1)`,
+            contentType: sql`COALESCE(excluded.content_type, pages.content_type)`,
+            courseType: sql`COALESCE(excluded.course_type, pages.course_type)`,
+            category: sql`COALESCE(excluded.category, pages.category)`,
+            subcategory: sql`COALESCE(excluded.subcategory, pages.subcategory)`,
+            tags: sql`COALESCE(excluded.tags, pages.tags)`,
+            lastmod: sql`COALESCE(excluded.lastmod, pages.lastmod)`,
           },
         });
       upserted += chunk.length;

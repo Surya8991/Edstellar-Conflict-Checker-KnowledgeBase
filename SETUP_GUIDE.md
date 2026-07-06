@@ -31,8 +31,14 @@ The app needs at least one chat key to summarize and classify. Cheapest path is 
 
 Without this, nothing gets saved and the Conflict Checker can't compare against existing pages.
 
+> ⚠️ **Use YOUR OWN account, not `marketing@edstellar.com`.** That account owns the
+> one shared Neon project, which **is production** (see AGENTS.md). Signing into
+> it puts the shared project one misclick away in the same console — sign up
+> with your own Google account instead and create a fresh personal project below.
+> Never point `DATABASE_URL` at the shared project for day-one exploration.
+
 1. Open https://console.neon.tech/signup
-2. Sign up with Google (use **marketing@edstellar.com**) — free tier is fine.
+2. Sign up with your own Google account — free tier is fine.
 3. After login, click **"Create a project"**.
    - Project name: `conflict-checker`
    - Postgres version: keep default (17)
@@ -152,7 +158,7 @@ Required before exposing the app publicly:
 
 1. `CRON_SECRET` — set a long random string. **Required.** Since the Session 6 audit (S1), every cron route fails **closed** if the bearer header doesn't match — missing secret = 401 = silent cron breakage. Generate with `openssl rand -hex 32`.
 2. `AUTH_SECRET` — long random string. Even with `AUTH_ENABLED=false`, this is now used to sign the GSC OAuth state nonce (Session 6 audit S2). Falls back to `GOOGLE_CLIENT_SECRET` in prod if missing, but a dedicated value is safer. `openssl rand -hex 32`.
-3. `WEBHOOK_API_KEY` (optional) — gate `POST /api/check`, `POST /api/summarize`, and `POST /api/rewrite-suggestion` for external callers. When set, callers must send `X-API-Key: <value>`. Session 6 audit (S3) closed the previously-open `/api/summarize` and `/api/rewrite-suggestion` routes; if you leave this blank they fall through to per-IP rate-limiting.
+3. `WEBHOOK_API_KEY` (optional) — gates 7 endpoints for external callers: `/api/check`, `/api/check/bulk`, `/api/check/outcome`, `/api/pages/owner`, `/api/summarize`, `/api/rewrite-suggestion`, `/api/internal-links/paragraph`. When set, callers must send `X-API-Key: <value>`. Session 6 audit (S3) closed the previously-open `/api/summarize` and `/api/rewrite-suggestion` routes; if you leave this blank they fall through to per-IP rate-limiting.
 4. `APP_BASE_URL` — set to your `https://edstellar-conflict-checker-knowledg.vercel.app` (or custom domain). Used to build absolute URLs in cron jobs and OAuth flows.
 5. `GOOGLE_REDIRECT_URI` — switch to the prod URL `https://edstellar-conflict-checker-knowledg.vercel.app/api/gsc/callback` (and add it to the Google OAuth client's allowed redirect URIs).
 6. `BRAND_TERMS` — comma-separated brand/keyword terms the checker treats as house terms (default `edstellar,edstellar.com`).

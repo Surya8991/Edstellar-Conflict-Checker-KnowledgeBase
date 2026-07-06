@@ -24,17 +24,16 @@ export const HELP: Record<string, HelpEntry> = {
   "/": {
     title: "Dashboard",
     what:
-      "Single-screen view of everything the team should care about today: high-risk drafts, broken links, thin pages, recent checks, and the worst catalog conflicts.",
+      "Single-screen view of everything the team should care about today: high-risk drafts, broken links, thin pages, and recent checks.",
     howToUse: [
       "Sections from top to bottom: Needs attention → Today's signals → Editorial outcomes → Recent activity → Quick actions. Each section is gated, so empty ones disappear instead of filling the page with zeros.",
       "Scan 'Needs attention' first — red and amber items are things to act on today.",
       "Click any stat tile in 'Today's signals' to drop into the relevant tab (Pages ingested → Corpus, Checks run → History, etc.).",
       "'Editorial outcomes' appears once your team marks outcomes on the History page — leadership reporting comes from here.",
-      "'Recent activity' shows the last 8 checks + the 5 worst catalogue conflicts. Click any check to re-run it.",
+      "'Recent activity' shows the last 8 checks. Click any check to re-run it.",
     ],
     readingIt: [
       "Red 'High-risk last 7d' tile means somebody ran a check that scored ≥ 80 — that's a 'don't publish' verdict.",
-      "Amber 'Catalog conflicts' tile shows how many duplicate/cannibalization pairs the precomputed scan found.",
       "'Caught / Published / Stale' tiles only appear once the team starts marking outcomes on the History page.",
       "'Last ingest' hint shows how fresh the corpus is. If it says 'never' or > 7d ago, the cron didn't run.",
     ],
@@ -71,24 +70,49 @@ export const HELP: Record<string, HelpEntry> = {
       "Pre-publish duplication detector. Paste a URL or a topic, and we score how much it overlaps with what's already on edstellar.com.",
     howToUse: [
       "Paste a draft URL (https://…) or a topic phrase (e.g. 'leadership skills for first-time managers') into the input box.",
-      "Adjust 'Scan' if you want more or fewer candidates surfaced (default 100 is fine for most cases).",
+      "Adjust 'Search depth' (Quick 25 / Standard 100 / Thorough 500) if you want more or fewer candidates surfaced — Standard is fine for most cases.",
       "Hit Check. First check after a deploy takes 8–15 s while the embedder warms up; subsequent checks are 2–4 s.",
       "Read the top score: ≥80 means don't publish, 60–79 means reconsider angle, 35–59 means publish but link to overlapping pages, <35 means safe.",
-      "Scroll the match list. Cards with 'Owner' badges are the editorial winners — non-owner matches should redirect to them.",
+      "Scroll the match list. Each card's Resolution panel names an action (Merge / Consolidate / Differentiate / Keep both) and a winner page — cards with 'Owner' badges are the editorial winners, so non-owner matches should redirect to them.",
       "Click 'Re-run' on Net-new content suggestions when stuck for an angle. Click 'Copy brief' once happy to drop a Markdown writer brief on your clipboard.",
+      "Click 'AI Draft' for a starting draft — instant if a similar page was pre-generated, otherwise a few seconds via a live model call.",
     ],
     readingIt: [
       "Score colour: red ≥80 (block), orange ≥60 (review), amber ≥35 (partial overlap), green <35 (safe).",
-      "Match cards are sorted by impact-weighted score, not raw similarity — so a 70% conflict with a high-traffic page outranks a 90% conflict with a dead page.",
+      "Use the 'Sort by' control to switch the match list between conflict score and raw topic similarity — pick whichever ordering you actually want; there's no hidden traffic-weighting behind either option.",
+      "Each match's Resolution panel breaks the score into four separate signals (Title / H1 / URL / Body) so you can see WHY it conflicts, plus a search-intent label and the suggested action.",
       "Amber 'N clicks · 28 days' chip on a match means that page actually pulls traffic — cannibalizing it is expensive.",
       "Indigo 'Owner' pill = that match IS the team's chosen winning page for this topic. Gray 'Non-owner' = the match should redirect to an owner URL set elsewhere.",
-      "Click 'Show summary' on any match to expand the LLM rationale; click 'Explain this match' to lazily classify rows that landed past the initial top-15 cutoff.",
+      "Click 'Show why this conflicts' on any match to expand the LLM rationale; click 'Analyze with AI' to lazily classify rows that landed past the initial top-15 cutoff.",
     ],
     troubleshoot: [
       { problem: "Got 'Failed to load external module @xenova/transformers'", fix: "Next.config.ts `serverExternalPackages` is misconfigured. Should be fixed in main; ping engineering if it returns." },
       { problem: "Top match's body is mostly nav/footer junk", fix: "The page might have unusual class names the extractor's noise selectors miss. Add the selector to lib/extract.ts NOISE_SELECTORS and re-ingest." },
       { problem: "Rate-limited (429) even though I'm a real user", fix: "The default limit is 60 checks/minute per IP. If your team shares an office IP this can trip; ask an admin to set WEBHOOK_API_KEY and use that path instead." },
       { problem: "Net-new content suggestions returns 'No angles' or weird text", fix: "Hit Re-run — the LLM occasionally returns invalid JSON. If it persists, GROQ_API_KEY may have rate-limited; check status.groq.com." },
+    ],
+  },
+
+  "/clusters": {
+    title: "Content Clusters",
+    what:
+      "Groups near-duplicate pages across the WHOLE live corpus (every content type, redirected/canonicalized pages excluded) into clusters, with a suggested action and winner page per cluster — a corpus-wide view, versus the Conflict Checker's one-page-at-a-time view.",
+    howToUse: [
+      "The page auto-scans on load; click 'Rescan' any time to refresh (it re-runs the full comparison live, nothing is cached).",
+      "Filter with the pills — action (Merge / Consolidate / Differentiate) and content type — or type into the search box to jump to a specific page or title.",
+      "Click a cluster row to expand all its members; each row shows the page, its search intent, and its % match to the closest other page in the cluster (the 'why grouped' evidence).",
+      "The ★ marks the suggested winner — the page most worth keeping if you merge/redirect the others into it.",
+    ],
+    readingIt: [
+      "A cluster only forms when pages share BOTH enough body-content overlap AND at least one matching signal (title, H1, description, or URL) — a coincidental one-signal match never groups pages on its own.",
+      "'Merge → 301' = near-duplicates, redirect the others into the winner. 'Consolidate' = strong overlap, keep the winner and re-link the rest as supporting pages. 'Differentiate' = enough overlap to flag, but the pages should stay separate and be rewritten to not compete.",
+      "The evidence tags under each page's % match (Title / H1 / Description / URL / Body) show exactly which signals corroborated the grouping.",
+      "If the cluster count shown doesn't match what's rendered, a note explains how many smaller clusters were cut off — nothing is silently hidden.",
+    ],
+    troubleshoot: [
+      { problem: "Page says 'No clusters found'", fix: "No pages cleared the similarity + evidence bar. This is a live scan (not a precomputed table), so an empty result is a real answer, not a stale-cache problem." },
+      { problem: "Two pages I know are duplicates aren't grouped", fix: "They need a shared content_type AND either near-verbatim body (≥93%) or a corroborating title/H1/description/URL match — a course pair that's only similar because of shared template boilerplate is deliberately excluded." },
+      { problem: "A page I expected to see is missing entirely", fix: "It may be marked as a redirect/canonicalized-away by the redirect-detection scan (`is_stale`) — those never appear in clusters, by design." },
     ],
   },
 
@@ -184,22 +208,42 @@ export const HELP: Record<string, HelpEntry> = {
     ],
   },
 
+  "/manager": {
+    title: "Manager View",
+    what:
+      "Leadership-facing summary of program activity: week-over-week volume, high-risk catches, and per-user adoption. Lives under Additional Tools in the sidebar, not the top-level nav.",
+    howToUse: [
+      "Check the four top tiles first — 'Checks · last 7d', 'High-risk caught · 7d', 'Shipped · 7d', and 'Open high-risk' — each shows a week-over-week delta so you can tell if the trend is improving or not.",
+      "'Open high-risk' is the one tile that's an action queue, not just a metric — those are checks that scored ≥80 and haven't been resolved yet.",
+      "Scroll to the per-user activity table to see whether the team is actually using the tool, not just whether the corpus looks healthy.",
+    ],
+    readingIt: [
+      "'Shipped · 7d' counts published outcomes among checks CREATED in the last 7 days — a check created last week and published today won't count in this week's tile. That's a different clock than the Dashboard's 90-day tiles (which key off when the outcome was resolved, not when the check was created); don't directly compare the two numbers.",
+      "This page is a snapshot, not a trend line — there's no week-by-week series here, only a single this-week-vs-last-week delta per tile.",
+    ],
+    troubleshoot: [
+      { problem: "All tiles show 0", fix: "Either no checks have run in the last 7 days, or DATABASE_URL isn't set. Check the Dashboard for the same 'Database not connected' banner." },
+      { problem: "'Open high-risk' count doesn't match what I see on History", fix: "This tile only counts checks with NO outcome set yet. Once someone marks an outcome on History (published/merged/redirected/discarded), it drops off this count." },
+    ],
+  },
+
   "/catalog-conflicts": {
     title: "Catalog Conflicts",
     what:
-      "Precomputed snapshot of near-duplicate pairs across the existing catalogue. Use it to plan merges/redirects, not to gate publishing.",
+      "Precomputed snapshot of near-duplicate pairs across the existing catalogue. Use it to plan merges/redirects, not to gate publishing. Currently unlinked from the sidebar (Session 11) but still reachable directly at this URL — ask an admin why before assuming it's the tool you want; Content Clusters (/clusters) is the actively-maintained equivalent for grouping.",
     howToUse: [
       "Pick a pair_type chip to focus: duplicate / cannibalization / category-bleed / subcategory-bleed / overlap.",
       "Use the Min similarity slider to drop low-confidence pairs.",
       "Click either side of a pair to inspect the page. Decide: merge, redirect, or leave alone.",
     ],
     readingIt: [
-      "'cannibalization' (≥85% similar, same content_type) is the dangerous one for SEO — both pages compete for the same SERP slot.",
-      "'duplicate' is ≥95% similar — usually a CMS templating accident or a redirect that should exist.",
+      "'cannibalization' (≥85% similar, same search intent) is the dangerous one for SEO — both pages compete for the same SERP slot. Same content_type is no longer required, since a course and a blog can share intent too.",
+      "'duplicate' is ≥95% similar AND same content_type — usually a CMS templating accident or a redirect that should exist.",
       "'category-bleed' / 'subcategory-bleed' = a category/subcategory page is too narrow (or a course/blog too generic).",
+      "Redirected/canonicalized-away pages never appear here — a page marked stale by the redirect scan is excluded on both sides of every pair.",
     ],
     troubleshoot: [
-      { problem: "Page is empty after ingesting the corpus", fix: "The precompute hasn't run yet. An admin needs to run `npm run catalog-conflicts` once, or wait for the weekly cron." },
+      { problem: "Page is empty after ingesting the corpus", fix: "The precompute hasn't run yet — this is a MANUAL refresh, there is no cron for it. An admin needs to run `npm run catalog-conflicts`." },
       { problem: "Pairs include obvious junk like /enquiry-form ↔ /book-a-demo", fix: "That class was filtered out in Session 4. If it's back, an admin reverted the static-page exclusion." },
     ],
   },

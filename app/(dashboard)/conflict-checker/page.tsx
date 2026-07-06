@@ -113,7 +113,10 @@ export default function ConflictCheckerPage() {
       const res = await fetch("/api/check", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ input, vectorLimit, minSimilarity: 0 }),
+        // Omit minSimilarity so the server applies its own floor (0.50,
+        // Session 6 H11) — sending 0 here used to defeat that floor entirely
+        // since `0 ?? default` short-circuits to 0, not the default.
+        body: JSON.stringify({ input, vectorLimit }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Check failed");

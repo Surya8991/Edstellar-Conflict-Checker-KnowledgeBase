@@ -4,7 +4,7 @@
 > and how the system fits together. Update this file with every meaningful
 > change.
 
-**Last updated:** 2026-07-06 (Session 11 — conflict-automation Phase 1 + similar-page grouping; GSC/SERP removed from Conflict Checker; corpus service/templates types)
+**Last updated:** 2026-07-06 (Session 12 — full project audit: 4 section reviews + 5 persona audits, real bugs fixed in the conflict engine/CSV import/catalog scan, dead code removed, docs/help fully re-synced)
 **Owner:** marketing@edstellar.com
 **Repo:** https://github.com/Layruss98266/Edstellar-Conflict-Checker-KnowledgeBase
 **Prod:** https://edstellar-conflict-checker-knowledg.vercel.app/
@@ -946,9 +946,10 @@ SERPER_API_KEY=
 APP_BASE_URL=                                # https://<vercel-url> — used for absolute OG URLs,
                                              #   cron auth, OAuth redirect base
 BRAND_TERMS=edstellar,edstellar.com          # comma-separated; used by GSC branded/non-branded split
-CRON_SECRET=                                 # REQUIRED in prod — cron routes fail OPEN if unset.
+CRON_SECRET=                                 # REQUIRED in prod — cron routes fail CLOSED (401) if
+                                             #   unset, since the Session 6 fix (§10, item 1A below).
                                              #   Vercel cron sends Authorization: Bearer <secret>
-WEBHOOK_API_KEY=                             # optional X-API-Key gate on /api/check for CMS hooks
+WEBHOOK_API_KEY=                             # optional X-API-Key gate — 7 routes, see AGENTS.md auth table
 
 # Conflict automation thresholds (Session 11 — all OPTIONAL, have sane defaults
 #   in lib/thresholds.ts; override per-site without a code change)
@@ -970,25 +971,32 @@ CONFLICT_WINNER_TRAFFIC=0                    # winner weight: GSC clicks (OFF by
 
 ## 7. Operational commands
 
-```bash
-npm run dev                  # localhost:3000
+Every script below runs against whatever `DATABASE_URL` is currently set to in
+your `.env` — **there is no separate dev/prod flag**, so the WRITE column is the
+thing to check before running anything against the shared Neon project (AGENTS.md
+§Database). READ-only scripts are always safe to run against prod for exploration.
 
-# Database
-npm run db:setup             # apply drizzle/*.sql in order (idempotent)
+| Command | DB effect | What it does |
+|---|---|---|
+| `npm run dev` | — | localhost:3000 |
+| `npm test` | — | runs all `lib/**/*.test.ts` via Node's built-in test runner (no jest/vitest — see `plans/01-conflict-automation.md`) |
+| `npm run typecheck` | — | `tsc --noEmit` |
+| `npm run build` | — | production build |
+| `npm run db:setup` | **WRITE** (schema) | apply `drizzle/*.sql` in order (idempotent) |
+| `npm run ingest` | **WRITE** (bulk) | crawl + embed every sitemap URL — `-- --limit=50` for a sample, `-- --force` to re-embed unchanged rows |
+| `npm run backfill:tags` | **WRITE** | retag only — no re-fetch, no re-embed |
+| `npm run catalog-conflicts` | **WRITE** (bulk replace) | one lateral-join query + one bulk insert → `catalog_conflicts` table (page itself is hidden from nav; script still works) |
+| `npm run detect-redirects` | **WRITE** | probes every corpus URL for 3xx and marks redirected pages `is_stale` + `canonical_url` — `-- --only-null` to skip already-marked rows |
+| `npm run audit:links` | **WRITE** | HEAD-checks every URL; updates `pages.http_status` |
+| `npm run pregen-drafts` | **WRITE** (bulk) | local, $0 pre-generation of the AI Draft cache (`pregenerated_drafts` table) via a local CLI model — no server-side LLM cost |
+| `npm run draft-worker` | **WRITE** | legacy local draft worker (Batch 11-14) — polls `/api/drafts` and writes results back |
+| `tsx scripts/cleanup-junk-pages.ts` | **WRITE** (delete) | not npm-aliased — removes junk rows (tag archives etc.) from `pages` |
+| `tsx scripts/reclassify-home.ts` | **WRITE** | not npm-aliased — one-off: home page → static content_type |
+| `tsx scripts/verify-corpus.ts` | READ-only | post-ingest sanity report (counts + spot-check) |
 
-# Corpus
-npm run ingest               # crawl + embed every sitemap URL
-npm run ingest -- --limit=50 # sample
-npm run ingest -- --force    # re-embed even if lastmod unchanged
-npm run backfill:tags        # retag only — no re-fetch, no re-embed
-
-# Catalog-wide analysis
-npm run catalog-conflicts    # all-pairs precompute → catalog_conflicts table
-
-# AI utilities (Session 2)
-npm run cluster              # k-means topic cluster
-npm run audit:links          # HEAD-check every URL; updates pages.http_status
-```
+`runConflictCheck` (the function behind `/api/check` and the Conflict Checker
+page) also **persists to DB by default** (`opts.persist !== false`) — running it
+from a REPL/script against prod silently writes `checks`/`check_matches` rows.
 
 ---
 
@@ -1812,3 +1820,165 @@ Edge rule is the pure, unit-tested `evaluatePair` in `lib/cluster.ts`
 - External backlinks/referring domains are not in the data model; winner authority
   uses internal inbound links only. Wiring Ahrefs/GSC-links is a config slot in
   `lib/thresholds.ts` (`CONFLICT_WINNER_*`) away.
+
+---
+
+## 16. Session 12 — Full project audit: 4 section reviews + 5 persona audits (2026-07-06)
+
+Ran 9 independent read-only audits in parallel (4 section reviews covering the
+conflict engine, clusters, corpus pipeline, and everything-else/help-docs; 5
+persona walkthroughs — SEO manager, content editor, new-hire developer,
+marketing lead, skeptical QA), then fixed every finding worth fixing in one pass.
+Full findings are in the audit transcripts (not persisted); this section is the
+fix log + the findings deliberately left open.
+
+### 16A. Correctness bugs fixed
+
+- **The dashboard silently defeated the 0.50 similarity noise floor.** Two
+  audits independently found this: `conflict-checker/page.tsx` sent
+  `minSimilarity: 0` on every check, and `lib/conflict.ts`'s `?? 0.50` fallback
+  only fires on `null`/`undefined` — `0` is a valid finite number, so it passed
+  straight through. Every dashboard-initiated check ran with **no floor at all**
+  since the Session 6 H11 fix, wasting LLM-classification slots on near-zero
+  matches. Fixed by omitting the field so the server's own default applies.
+- **CSV import (`/api/pages/import`) could silently wipe metadata + insert an
+  invalid content_type.** Three real bugs, all verified against the live DB
+  with a net-zero sentinel round-trip: (1) partial-column CSVs (e.g. just
+  `url,title`) nulled every other field on update — now `COALESCE(excluded.col,
+  pages.col)` preserves existing values when the CSV cell is blank/missing;
+  (2) new rows with no `content_type` column defaulted to `"page"`, a value
+  that isn't in `lib/taxonomy.ts`'s enum — now defaults to `"static"`, and only
+  for genuinely NEW rows (an existing-urls lookup runs before the upsert so
+  updates never get the default injected over a real value); (3) a duplicate
+  URL within one upload crashed Postgres ("cannot affect row a second time")
+  after earlier batches had already committed — now de-duped (last row wins)
+  before batching, and a url flagged both upsert and `action=delete` in the
+  same file now correctly drops to delete-wins instead of silently discarding
+  the upsert.
+- **`lib/csv.ts` didn't strip a UTF-8 BOM** — Excel's "CSV UTF-8" export writes
+  one, so the first header cell became `"﻿url"` and the `"url" in row`
+  check failed on a file that visibly has a `url` column. Fixed at the parser
+  level (benefits every caller, not just import).
+- **`scripts/catalog-conflicts.ts` didn't exclude redirected/canonicalized-away
+  pages** — violating the contract `scripts/detect-redirects.ts` established
+  for every other consumer (`/api/groups`, `lib/search.ts`). Added the same
+  `LIVE` predicate on both sides of the lateral join; re-ran the scan
+  (4033→4027 pairs, consistent with the 5 marked redirects). Also combined the
+  DELETE+INSERT into one atomic `WITH del AS (DELETE ...) INSERT ...`
+  statement — the previous two-statement version could leave the table
+  emptied if the INSERT failed (neon's HTTP driver has no real cross-call
+  transactions, a gotcha documented elsewhere in this repo but that had
+  reappeared here).
+
+### 16B. Dead code removed
+
+- **`scripts/cluster.ts` (k-means)** — repo-wide grep found zero consumers of
+  `pages.cluster_id` or the `clusters` table it writes; Content Clusters
+  (`/clusters`) uses the unrelated connected-components approach in
+  `lib/cluster.ts`. Archived to `scripts/archive/cluster-kmeans.ts` with a
+  header explaining why (including a real bug found in passing: its "single
+  transaction" was the same multi-statement-on-stateless-HTTP-driver issue as
+  16A's catalog-conflicts fix, just never triggered because nothing used it).
+  Removed the `npm run cluster` alias.
+- **Dashboard's dead "blocked" outcome metric.** `manager/page.tsx` computed
+  `blockedThisWeek` from `outcome = 'blocked'` and color-coded 'blocked'/
+  'modified' in the outcome bar chart — but `OutcomeSelect` (History page) only
+  ever writes `published/merged/redirected/discarded`, so those two values can
+  never occur. Removed the dead computation and field; replaced the color map
+  with the actual 4 outcomes + the synthetic 'open' bucket. Also fixed the
+  page's subtitle ("ship-vs-block outcomes" → "editorial outcomes") and a
+  cross-page metric-window mismatch note (Manager's "Shipped · 7d" keys off
+  `created_at`, the Dashboard's 90-day tiles key off `resolved_at` — different
+  clocks, now documented in the new `/manager` help entry rather than silently
+  left for someone to notice).
+
+### 16C. Docs — stale references + gaps closed
+
+- **`lib/help-content.ts`**: removed 3 references to dashboard sections
+  deleted when Catalog Conflicts was hidden; fixed "Adjust 'Scan'" → "Adjust
+  'Search depth'" (the control was renamed, help wasn't); fixed a claim that
+  matches are sorted by "impact-weighted score" — verified the client actually
+  sorts by raw `conflictScore`/`similarity` per the visible Sort-by toggle,
+  no hidden traffic weighting; removed "weekly cron" claims for
+  catalog-conflicts (it's a manual `npm run` refresh, always was); added
+  entries for `/clusters` and `/manager` (previously the Help button rendered
+  nothing on either page); added a line about the AI Draft panel to the
+  Conflict Checker entry.
+- **`AGENTS.md`**: fixed `EMBEDDING_PROVIDER` → `AI_EMBED_PROVIDER` (the code
+  only ever read the latter — the wrong name in a "how to work in this repo
+  safely" doc would cost a new dev a debugging session); corrected the
+  `WEBHOOK_API_KEY` route list (was missing `/api/check`, `/api/summarize`,
+  `/api/rewrite-suggestion`, `/api/internal-links/paragraph`; wrongly included
+  `/api/competitors`, which isn't gated — that's still an open backlog item,
+  §14C #7).
+- **`PROJECTLOG.md` §6**: fixed a stale "cron routes fail OPEN if unset" line
+  that contradicted README/SETUP_GUIDE (both correctly say fail-closed since
+  Session 6) — historical audit-log entries elsewhere that describe the
+  *pre-fix* state were left alone, only the present-tense operational doc was
+  wrong.
+- **`README.md`**: "Features by page" table now lists all 13 routes (was 5,
+  missing `/clusters` entirely, still presenting hidden `/catalog-conflicts` as
+  headline); repo-layout script list now matches `scripts/` (added
+  `detect-redirects.ts`, `pregen-drafts.ts`, `draft-worker.ts`, the
+  `archive/` folder; removed `cluster.ts`); added a note that the "~2,461
+  URLs" figure is the shipped sitemap snapshot, not a live DB count, since
+  three docs cited three different numbers (2,461 / 2,463 / 2,458) for
+  legitimately different reasons (static file vs. point-in-time session
+  snapshots) — rather than chase a number that drifts every session, the docs
+  now say so explicitly.
+- **`SETUP_GUIDE.md`**: Step 1 told a new dev to sign into
+  `marketing@edstellar.com` (the account that owns the shared PRODUCTION Neon
+  project) to create their "personal" dev project — one misclick away from
+  the shared project in the same console. Now tells them to use their own
+  account, with an explicit warning box.
+- **`.env.example`**: added 8 env vars the app reads but the file never
+  documented — `WORKER_API_KEY`, `DRAFT_PROVIDER`, `LLM_KILL_SWITCH`,
+  `CLAUDE_MODEL`, `AGY_MODEL`, and all 13 `CONFLICT_GROUP_*`/`CONFLICT_*`
+  automation knobs from `lib/thresholds.ts` (verified each against actual
+  `process.env.X` reads in code before adding).
+- **PROJECTLOG §7 "Operational commands"**: was a bare command list with no
+  indication of which scripts WRITE to whatever `DATABASE_URL` currently
+  points at — the #1 onboarding-risk finding from the new-hire audit, since
+  the one shared Neon project IS production. Rebuilt as a table with an
+  explicit WRITE/READ-only column for every script, plus a note that
+  `runConflictCheck` itself persists by default.
+- **Added `npm test`** (`tsx --test "lib/**/*.test.ts"`) — the 6 `lib/*.test.ts`
+  suites (Node's built-in `node:test`, no jest/vitest) previously ran only via
+  a command documented in agent-facing files (AGENTS.md, plans/), never in
+  `package.json` or a human-facing doc; a new dev would reasonably conclude
+  the repo has no tests. Confirmed the glob discovers nested files too
+  (`lib/ai/chat-groq.test.ts`) — 63/63 pass.
+
+### 16D. Findings deliberately left open (tracked, not fixed this session)
+
+- **Content Clusters has no "act on this" loop** (SEO-manager audit, highest-
+  ranked finding): no CSV/redirect-map export from `/clusters`, no way to mark
+  a cluster resolved/dismissed, and a merge executed from Clusters never
+  connects to the History/Dashboard outcome tracking that Conflict-Checker
+  merges do. Real product gap, not a bug — sizing it is a new plan, not a
+  patch.
+- **`groupAction`'s "consolidate" branch is unreachable from `/api/groups`**
+  (clusters audit): every edge that survives the type-aware gates already has
+  sim ≥ the merge threshold for same-intent clusters, so cluster actions are
+  effectively binary (merge / differentiate) even though the UI presents three
+  states. Would need either a lower minimum group-formation bar or a
+  restructured action function to actually reach consolidate.
+- **`scripts/catalog-conflicts.ts`'s `pairType()` predates the Session 11
+  multi-signal evidence rule** (`lib/cluster.ts` `evaluatePair`) — it still
+  uses raw content_type/intent thresholds, not the type-aware body floors or
+  lexical corroboration. Noted in the script's own header as a follow-up if
+  the (currently hidden) page is ever restored, rather than porting it now for
+  a page nobody's using.
+- **No export/CSV/redirect-map from Content Clusters**, no per-cluster
+  accept/dismiss/snooze state, no traffic (GSC clicks) surfaced per cluster
+  member for sanity-checking the suggested winner (inbound authority is
+  skipped at corpus scale per the note above, so today's cluster winners are
+  content-depth + URL-cleanliness only) — same root gap as the first bullet.
+- **`/api/competitors` is not gated by `WEBHOOK_API_KEY`** despite historical
+  PROJECTLOG entries (§14C #7) already flagging it as a backlog item — left
+  as-is since it's tracked, not silently discovered and left untracked.
+- **Rate-limit UX**: `/api/check` computes `retryAfterSec` on a 429 but the
+  dashboard's generic error-card rendering doesn't surface a countdown; the
+  in-memory rate-limit fallback (DB outage) is per-serverless-instance, so the
+  effective limit loosens under concurrent cold-starts. Both are UX/robustness
+  polish, not correctness bugs — deferred.

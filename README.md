@@ -34,7 +34,7 @@ npm run db:setup      # creates the pgvector extension + all tables
 
 ### 3. Ingest the corpus
 
-Crawls the bundled sitemap ([`data/sitemap-urls.csv`](data/sitemap-urls.csv), 2,479 URLs — ~2,461 after junk filtering in [`lib/sitemap.ts`](lib/sitemap.ts) drops tag-archives, `/sitemap`, file downloads etc.), extracts content, and embeds each page.
+Crawls the bundled sitemap ([`data/sitemap-urls.csv`](data/sitemap-urls.csv), 2,479 URLs — ~2,461 after junk filtering in [`lib/sitemap.ts`](lib/sitemap.ts) drops tag-archives, `/sitemap`, file downloads etc.), extracts content, and embeds each page. This is the shipped sitemap snapshot, not a live count — the actual `pages` row count drifts as manual additions/removals happen (Corpus page → header shows the current figure); PROJECTLOG's session notes cite whatever the live count was at the time, so don't expect every doc to agree on one number.
 
 ```bash
 npm run ingest -- --limit=50      # quick sample first
@@ -50,13 +50,23 @@ npm run dev        # http://localhost:3000
 
 ## Features by page
 
+Top-level nav: Dashboard, Conflict Checker, Content Clusters, Bulk Check, Score History, Search Console, Competitors, Corpus. Manager View, Content Audit, Internal Links, Funnel Strategy, and Catalog Conflicts live under the collapsible **Additional Tools** section of the sidebar.
+
 | Route | What it does |
 |---|---|
-| `/conflict-checker` | The headline tool — URL/topic → summary → scored matches. |
-| `/catalog-conflicts` | Precomputed near-duplicate pairs across the catalogue. Build with `npm run catalog-conflicts`. |
+| `/` | Dashboard — today's signals, needs-attention queue, recent activity. |
+| `/conflict-checker` | The headline tool — URL/topic → summary → scored matches, per-signal breakdown, and a suggested resolution + winner per match. |
+| `/clusters` | Content Clusters — live, corpus-wide grouping of near-duplicate pages (all content types) with a suggested action + winner per cluster. |
+| `/bulk-check` | Run the Conflict Checker on up to 100 URLs/topics at once; export as CSV. |
+| `/history` | Score History — timeline of every check run, with editorial outcome tracking. |
 | `/search-console` | GSC clicks/impressions/CTR/position, 24h–12m, with a trend chart. Click **Connect Google** to authorize. |
 | `/competitors` | SERP-based competitor research per topic (needs `SERPER_API_KEY`). |
-| `/corpus` | Browse/search the ingested pages. |
+| `/corpus` | Browse/search the ingested pages; CSV export/import. |
+| `/manager` | Manager View — leadership-facing weekly KPIs and per-user activity. |
+| `/audit` | Content Audit — per-page health scan (meta, links, duplicates, images, staleness). |
+| `/internal-links` | Suggests existing pages a draft should link to. |
+| `/strategy` | Funnel Strategy. |
+| `/catalog-conflicts` | Precomputed near-duplicate pairs across the catalogue. Build with `npm run catalog-conflicts`. Hidden from the sidebar as of Session 11 (still reachable directly); Content Clusters is the actively-maintained equivalent. |
 
 ## AI providers
 
@@ -96,7 +106,7 @@ This repo is a single Next.js app at the root — Vercel will auto-detect it.
    npm run ingest
    ```
 5. **Crons** — [`vercel.json`](vercel.json) registers three schedules (`/api/cron/reingest`, `/api/cron/audit-links`, `/api/cron/gsc-snapshot`). **`CRON_SECRET` is required** — since the Session 6 audit, every cron route fails **closed** (returns 401) when the bearer header doesn't match. Vercel Cron sends `Authorization: Bearer <CRON_SECRET>` automatically once you set the env var.
-6. **External webhook (optional)** — `WEBHOOK_API_KEY` gates three LLM-burning endpoints from external callers: `POST /api/check`, `POST /api/summarize`, `POST /api/rewrite-suggestion`. When set, callers must send `X-API-Key: <value>`; when unset, per-IP rate-limiting is the only gate.
+6. **External webhook (optional)** — `WEBHOOK_API_KEY` gates 7 endpoints from external callers: `POST /api/check`, `/api/check/bulk`, `/api/check/outcome`, `/api/pages/owner`, `/api/summarize`, `/api/rewrite-suggestion`, `/api/internal-links/paragraph`. When set, callers must send `X-API-Key: <value>`; when unset, per-IP rate-limiting is the only gate (see AGENTS.md's auth table for the full mechanism per route).
 7. **Run the schema migration** (one-time, after first deploy): `npm run db:setup` against the prod Neon DB. Idempotent — applies any unapplied `drizzle/*.sql` files; safe to re-run.
 
 ### Vercel pre-deploy checklist
@@ -117,15 +127,19 @@ The audit below surfaced four things that need attention **before** the first pr
 ├── scripts/                   ← One-off / cron-target scripts (tsx)
 │   ├── ingest.ts              ← crawl + embed sitemap
 │   ├── db-setup.ts            ← apply drizzle/*.sql migrations
-│   ├── catalog-conflicts.ts   ← precompute near-duplicate pairs across corpus
+│   ├── catalog-conflicts.ts   ← precompute near-duplicate pairs across corpus (manual refresh, no cron)
+│   ├── detect-redirects.ts    ← probe every corpus URL, mark 3xx pages canonical_url + is_stale
 │   ├── audit-links.ts         ← HEAD-check every URL → pages.http_status
 │   ├── backfill-tags.ts       ← retag corpus from taxonomy JSON (no re-embed)
-│   ├── cluster.ts             ← k-means topic clustering over embeddings
 │   ├── cleanup-junk-pages.ts  ← remove junk rows (tag archives etc.) from `pages`
 │   ├── reclassify-home.ts     ← one-off: home page → static content_type
 │   ├── verify-corpus.ts       ← post-ingest sanity report (counts + spot-check)
+│   ├── pregen-drafts.ts       ← local, $0 draft pre-generation for the AI Draft cache
+│   ├── draft-worker.ts        ← legacy local-CLI draft worker (Batch 11-14)
 │   ├── extract-taxonomy.py    ← rebuild data/taxonomy/*.json from Hub HTML
-│   └── test-embed.ts          ← embed smoke test
+│   ├── test-embed.ts          ← embed smoke test
+│   └── archive/               ← superseded scripts kept for reference only, not wired to package.json
+│       └── cluster-kmeans.ts  ← old k-means clustering; superseded by lib/cluster.ts (connected components)
 ├── data/                      ← Sitemap + taxonomy JSON shipped with the repo
 ├── drizzle/                   ← SQL migrations
 ├── public/                    ← Static assets

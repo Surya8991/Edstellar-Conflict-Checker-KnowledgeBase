@@ -19,7 +19,6 @@ interface ManagerStats {
   highRiskThisWeek: number;
   highRiskLastWeek: number;
   shippedThisWeek: number;
-  blockedThisWeek: number;
   unresolvedHighRisk: number;
   outcomes: { outcome: string; n: number }[];
   topInputs: { input_value: string; n: number; top_score: number; created_at: string }[];
@@ -45,7 +44,7 @@ function pct(now: number, prev: number): { sign: "+" | "-" | "·"; value: string
 async function getStats(): Promise<ManagerStats> {
   const empty: ManagerStats = {
     thisWeek: 0, lastWeek: 0, highRiskThisWeek: 0, highRiskLastWeek: 0,
-    shippedThisWeek: 0, blockedThisWeek: 0, unresolvedHighRisk: 0,
+    shippedThisWeek: 0, unresolvedHighRisk: 0,
     outcomes: [], topInputs: [], perUser: [], dbReady: false,
   };
   try {
@@ -56,7 +55,6 @@ async function getStats(): Promise<ManagerStats> {
         COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days'  AND top_score >= 80)         AS hr_this_week,
         COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '14 days' AND created_at < NOW() - INTERVAL '7 days' AND top_score >= 80) AS hr_last_week,
         COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days'  AND outcome = 'published')   AS shipped,
-        COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days'  AND outcome = 'blocked')     AS blocked,
         COUNT(*) FILTER (WHERE top_score >= 80 AND outcome IS NULL AND resolved_at IS NULL)          AS unresolved
       FROM checks
     `);
@@ -69,7 +67,6 @@ async function getStats(): Promise<ManagerStats> {
       highRiskThisWeek: Number(r?.hr_this_week ?? 0),
       highRiskLastWeek: Number(r?.hr_last_week ?? 0),
       shippedThisWeek: Number(r?.shipped ?? 0),
-      blockedThisWeek: Number(r?.blocked ?? 0),
       unresolvedHighRisk: Number(r?.unresolved ?? 0),
     };
 
@@ -149,7 +146,7 @@ export default async function ManagerPage() {
     <div>
       <PageHeader
         title="Manager view"
-        subtitle="Weekly volume, high-risk catches, ship-vs-block outcomes, and per-user activity. Rolling 7 / 14 / 30-day windows."
+        subtitle="Weekly volume, high-risk catches, editorial outcomes, and per-user activity. Rolling 7 / 14 / 30-day windows."
       />
       <div className="space-y-6 p-8">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -188,11 +185,18 @@ export default async function ManagerPage() {
                 const total = s.outcomes.reduce((a, o) => a + o.n, 0);
                 return s.outcomes.map((o) => {
                   const w = total > 0 ? Math.round((o.n / total) * 100) : 0;
+                  // Real, settable outcomes (OutcomeSelect on /history):
+                  // published / merged / redirected / discarded, plus the
+                  // synthetic 'open' bucket for unresolved checks. No writer
+                  // path ever sets 'blocked' or 'modified' — don't color-code
+                  // values that can't occur.
                   const cls =
-                    o.outcome === "published" ? "bg-emerald-500" :
-                    o.outcome === "blocked"   ? "bg-rose-500"    :
-                    o.outcome === "modified"  ? "bg-amber-500"   :
-                                                 "bg-slate-300";
+                    o.outcome === "published"  ? "bg-emerald-500" :
+                    o.outcome === "merged"     ? "bg-blue-500"    :
+                    o.outcome === "redirected" ? "bg-sky-500"     :
+                    o.outcome === "discarded"  ? "bg-slate-400"   :
+                    o.outcome === "open"       ? "bg-amber-400"   :
+                                                  "bg-slate-300";
                   return (
                     <div key={o.outcome} className="flex items-center gap-3 text-sm">
                       <span className="w-24 shrink-0 capitalize text-slate-700">{o.outcome}</span>

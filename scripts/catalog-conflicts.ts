@@ -20,6 +20,14 @@ import { classifyIntent } from "@/lib/intent";
  * Noise filters kept from the original:
  *   1. `static` pages excluded on BOTH sides ("Enquire Now" ↔ "Get a Free Demo").
  *   2. Template-noise: sim ≥ 0.97 where either page has < min-body chars.
+ *   3. Redirected/canonicalized-away pages excluded on BOTH sides — a page
+ *      scripts/detect-redirects.ts marked `is_stale` must never appear as its
+ *      own row (matches the `LIVE` predicate in app/api/groups/route.ts).
+ *
+ * Known follow-up: pairType() below predates the Session 11 multi-signal
+ * evidence rule in lib/cluster.ts (evaluatePair) — it uses raw content_type +
+ * intent only, not the type-aware body floors or lexical corroboration. If
+ * this page is un-hidden, port it to evaluatePair so the two dashboards agree.
  *
  * Pair-type taxonomy:
  *   - 'duplicate'         sim ≥ 0.95, same content_type
@@ -77,6 +85,13 @@ async function main() {
   // One query: for every page, probe its top-k nearest neighbours via the HNSW
   // index and keep those that clear the threshold. Both sides' metadata + body
   // length come back in the same row.
+  // Live pages only on both sides — a redirected/canonicalized-away page
+  // (scripts/detect-redirects.ts) must never form a conflict pair.
+  const LIVE = (alias: string) =>
+    `COALESCE(${alias}.is_stale, false) = false
+     AND (${alias}.canonical_url IS NULL
+          OR rtrim(${alias}.canonical_url, '/') = rtrim(${alias}.url, '/'))`;
+
   const rows = (await sql.query(
     `SELECT p1.id a_id, p1.url a_url, p1.title a_title, p1.content_type a_type,
             length(coalesce(p1.content_text,'')) a_body,
@@ -85,13 +100,14 @@ async function main() {
             1 - (p1.embedding <=> p2.embedding) sim
      FROM pages p1
      CROSS JOIN LATERAL (
-       SELECT id, url, title, content_type, content_text, embedding
+       SELECT id, url, title, content_type, content_text, embedding, is_stale, canonical_url
        FROM pages p2
-       WHERE p2.embedding IS NOT NULL AND p2.id <> p1.id
+       WHERE p2.embedding IS NOT NULL AND p2.id <> p1.id AND ${LIVE("p2")}
        ORDER BY p1.embedding <=> p2.embedding
        LIMIT $2
      ) p2
      WHERE p1.embedding IS NOT NULL
+       AND ${LIVE("p1")}
        AND 1 - (p1.embedding <=> p2.embedding) >= $1`,
     [threshold, topk],
   )) as PairRow[];
@@ -120,11 +136,11 @@ async function main() {
     inserts.push(r);
   }
 
-  // Bulk replace: DELETE + a single UNNEST INSERT. neon's HTTP driver is
-  // stateless (each query is its own request), so a BEGIN/COMMIT spread across
-  // calls is NOT a real transaction and a per-row loop is thousands of
-  // round-trips — this is one insert regardless of pair count.
-  await sql.query("DELETE FROM catalog_conflicts");
+  // Bulk replace as ONE statement — a `WITH del AS (DELETE ...)` CTE runs the
+  // delete and the insert in the same query, so it's atomic even though
+  // neon's HTTP driver is stateless (each separate sql.query() call is its
+  // own auto-committed request — a DELETE followed by a failing INSERT would
+  // otherwise leave catalog_conflicts empty).
   if (inserts.length) {
     const pts = inserts.map((r) =>
       pairType(
@@ -134,7 +150,8 @@ async function main() {
       ),
     );
     await sql.query(
-      `INSERT INTO catalog_conflicts
+      `WITH del AS (DELETE FROM catalog_conflicts)
+       INSERT INTO catalog_conflicts
          (a_id, a_url, a_title, a_type, b_id, b_url, b_title, b_type, similarity, pair_type)
        SELECT * FROM unnest(
          $1::int[], $2::text[], $3::text[], $4::text[], $5::int[],
@@ -147,6 +164,10 @@ async function main() {
       ],
     );
     found = inserts.length;
+  } else {
+    // No qualifying pairs — still clear the table so a shrinking corpus
+    // doesn't leave last run's rows behind.
+    await sql.query("DELETE FROM catalog_conflicts");
   }
 
   console.log(`\n✓ Stored ${found} conflicting pairs.`);
