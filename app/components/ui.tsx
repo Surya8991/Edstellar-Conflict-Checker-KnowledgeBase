@@ -100,7 +100,7 @@ export type Intent =
   | "commercial"
   | "transactional"
   | "navigational";
-export type ClusterAction = "merge" | "consolidate" | "differentiate" | "keep-both";
+export type ClusterAction = "merge" | "consolidate" | "differentiate" | "keep-both" | "pillar";
 
 export const INTENT_STYLE: Record<Intent, string> = {
   informational: "bg-sky-50 text-sky-700 border-sky-200",
@@ -114,6 +114,7 @@ export const ACTION_STYLE: Record<ClusterAction, { label: string; cls: string; h
   consolidate:   { label: "Consolidate", cls: "bg-amber-100 text-amber-800 border-amber-200", hint: "Strong overlap, same intent — keep the winner, re-link the other as support." },
   differentiate: { label: "Differentiate", cls: "bg-blue-100 text-blue-700 border-blue-200", hint: "Same intent, partial overlap — rewrite to separate the angles." },
   "keep-both":   { label: "Keep both", cls: "bg-emerald-100 text-emerald-700 border-emerald-200", hint: "Different intent — no conflict." },
+  pillar:        { label: "Pillar + spokes", cls: "bg-purple-100 text-purple-700 border-purple-200", hint: "Hub page + cross-type spokes on one topic — link the spokes to the pillar, don't merge." },
 };
 
 /** `/path` from a full URL, falling back to the raw string. */

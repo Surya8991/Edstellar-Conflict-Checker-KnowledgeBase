@@ -7,42 +7,37 @@ import {
   type Intent, type ClusterAction,
 } from "@/app/components/ui";
 
-type EvidenceSignal = "title" | "h1" | "description" | "url" | "body";
-
 interface GroupMember {
   url: string;
   title: string | null;
   type: string | null;
   intent: Intent;
-  /** Cosine similarity to this page's strongest match inside the cluster. */
+  /** IDF-weighted distinctive-topic-token overlap with the cluster seed. */
   matchSim: number;
-  /** Signals corroborating that strongest edge — the "why grouped" tags. */
-  evidence: EvidenceSignal[];
+  /** Body cosine vs the seed (null for the seed itself). */
+  bodySim: number | null;
+  /** Distinctive topic tokens shared with the seed — the "why grouped" tags. */
+  sharedTerms: string[];
   isWinner: boolean;
+  isSeed: boolean;
 }
 interface GroupSummary {
   size: number;
-  maxSimilarity: number;
+  /** Topic label — the seed's distinctive tokens, e.g. "big data". */
+  label: string;
+  seedUrl: string;
   action: ClusterAction;
   winnerUrl: string;
-  reason: string;
+  maxBodySim: number;
   members: GroupMember[];
 }
 interface ClustersMeta {
   totalGroups: number;
-  totalPairs: number;
   corpusSize: number;
   groupedPages: number;
-  threshold: number;
+  singletonCount: number;
+  overlap: number;
 }
-
-const EVIDENCE_LABEL: Record<EvidenceSignal, string> = {
-  body: "Body",
-  title: "Title",
-  h1: "H1",
-  description: "Description",
-  url: "URL",
-};
 
 export default function ClustersPage() {
   const [groups, setGroups] = useState<GroupSummary[] | null>(null);
@@ -68,10 +63,10 @@ export default function ClustersPage() {
       setGroups(data.groups ?? []);
       setMeta({
         totalGroups: data.totalGroups ?? 0,
-        totalPairs: data.totalPairs ?? 0,
         corpusSize: data.corpusSize ?? 0,
         groupedPages: data.groupedPages ?? 0,
-        threshold: data.threshold ?? 0,
+        singletonCount: data.singletonCount ?? 0,
+        overlap: data.overlap ?? 0,
       });
     } catch (e) {
       setError((e as Error).message);
@@ -110,7 +105,7 @@ export default function ClustersPage() {
     <div>
       <PageHeader
         title="Content Clusters"
-        subtitle="Same-type corpus pages grouped only on multi-signal evidence — body overlap corroborated by title / H1 / description / URL — with a suggested action + winner per cluster."
+        subtitle="Corpus pages grouped by TOPIC across content types — a category page, its blog, and its courses land in one cluster. Distinctive topic tokens (template words auto-learned & dropped) decide membership; each cluster gets a suggested action + winner."
         right={
           <button
             type="button"
@@ -131,9 +126,9 @@ export default function ClustersPage() {
 
         {meta && (
           <div className="text-xs text-slate-500">
-            <strong className="text-slate-700">{meta.totalGroups.toLocaleString()}</strong> clusters ·{" "}
+            <strong className="text-slate-700">{meta.totalGroups.toLocaleString()}</strong> topic clusters ·{" "}
             <strong className="text-slate-700">{meta.groupedPages.toLocaleString()} of {meta.corpusSize.toLocaleString()}</strong>{" "}
-            live corpus pages grouped · {meta.totalPairs.toLocaleString()} evidence-backed pairs.
+            live corpus pages clustered · {meta.singletonCount.toLocaleString()} unique-topic pages.
             {groups && meta.totalGroups > groups.length && (
               <span className="ml-1 font-medium text-amber-700">
                 {" "}Showing the largest {groups.length.toLocaleString()} — {(meta.totalGroups - groups.length).toLocaleString()} smaller clusters aren't listed.
@@ -225,8 +220,11 @@ function ClusterCard({ g }: { g: GroupSummary }) {
         <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${style.cls}`} title={style.hint}>
           {style.label}
         </span>
-        <span className="min-w-0 flex-1 truncate text-xs text-slate-500" title={g.reason}>
-          {g.reason}
+        <span
+          className="min-w-0 flex-1 truncate text-xs font-medium text-slate-600"
+          title={`Topic: ${g.label} — pillar: ${pathOf(g.seedUrl)}`}
+        >
+          topic: <span className="text-slate-800">{g.label}</span>
         </span>
         <span className="ml-auto shrink-0 truncate text-xs text-slate-400" title={`Winner: ${g.winnerUrl}`}>
           winner: <span className="text-slate-600">{pathOf(g.winnerUrl)}</span>
@@ -264,15 +262,20 @@ function ClusterCard({ g }: { g: GroupSummary }) {
             <div className="flex shrink-0 flex-col items-end gap-1">
               <span
                 className="tabular-nums text-xs font-medium text-slate-500"
-                title="Content similarity to this page's closest match in the cluster"
+                title="IDF-weighted distinctive-topic-token overlap with the cluster pillar (seed)"
               >
-                {(m.matchSim * 100).toFixed(0)}% match
+                {m.isSeed ? "pillar" : `${(m.matchSim * 100).toFixed(0)}% topic`}
               </span>
-              {m.evidence.length > 0 && (
-                <span className="flex flex-wrap justify-end gap-1" title="Signals corroborating the grouping">
-                  {m.evidence.map((e) => (
-                    <span key={e} className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-500">
-                      {EVIDENCE_LABEL[e] ?? e}
+              {!m.isSeed && m.bodySim != null && (
+                <span className="tabular-nums text-[10px] text-slate-400" title="Body cosine vs the pillar">
+                  {(m.bodySim * 100).toFixed(0)}% body
+                </span>
+              )}
+              {m.sharedTerms.length > 0 && (
+                <span className="flex flex-wrap justify-end gap-1" title="Distinctive topic tokens shared with the pillar">
+                  {m.sharedTerms.slice(0, 4).map((term) => (
+                    <span key={term} className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-500">
+                      {term}
                     </span>
                   ))}
                 </span>
