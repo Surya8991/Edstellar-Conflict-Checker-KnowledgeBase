@@ -60,6 +60,13 @@ export interface Thresholds {
   /** Title-token Jaccard needed for the course fallback rule above. Calibrated
    *  so "Express.js Training" vs "Node.js Training" (0.5) does NOT group. */
   groupTitleJaccardCourse: number;
+  /** Corpus-grouping: an edge needs ≥1 lexical signal (title/H1/description/
+   *  slug) at this plural-normalized Jaccard — body similarity alone is never
+   *  enough below the self-sufficient bar. */
+  groupSupportJaccard: number;
+  /** Corpus-grouping: body cosine at/above this is a near-verbatim duplicate
+   *  and needs no lexical corroboration. */
+  groupBodySelfSufficient: number;
   /** Corpus-grouping: nearest-neighbours probed per page (ANN top-k). */
   groupTopK: number;
   /** Weights used to pick the surviving (canonical) page. */
@@ -77,6 +84,8 @@ export const THRESHOLDS: Thresholds = {
   groupSimCourse:         envNum("CONFLICT_GROUP_SIM_COURSE", 0.93),
   groupSimCourseTitle:    envNum("CONFLICT_GROUP_SIM_COURSE_TITLE", 0.88),
   groupTitleJaccardCourse: envNum("CONFLICT_GROUP_TITLE_JACCARD_COURSE", 0.6),
+  groupSupportJaccard:     envNum("CONFLICT_GROUP_SUPPORT_JACCARD", 0.3),
+  groupBodySelfSufficient: envNum("CONFLICT_GROUP_BODY_SELF_SUFFICIENT", 0.93),
   groupTopK:              envNum("CONFLICT_GROUP_TOPK", 5),
   winner: {
     inbound:  envNum("CONFLICT_WINNER_INBOUND", 0.45),

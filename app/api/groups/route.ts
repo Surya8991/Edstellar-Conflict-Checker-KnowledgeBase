@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { neon } from "@neondatabase/serverless";
 import { neonRows } from "@/lib/db";
-import { connectedComponents, shouldGroupPair, type Edge } from "@/lib/cluster";
+import { connectedComponents, evaluatePair, type Edge, type EvidenceSignal } from "@/lib/cluster";
 import { classifyIntent, type Intent } from "@/lib/intent";
 import { pageAuthority, pickWinner, groupAction, type AuthorityInput } from "@/lib/resolution";
 import { THRESHOLDS } from "@/lib/thresholds";
@@ -31,7 +31,9 @@ export const maxDuration = 60;
  */
 interface PairRow {
   a_url: string; a_title: string | null; a_type: string | null; a_tok: number | null;
+  a_h1: string | null; a_desc: string | null;
   b_url: string; b_title: string | null; b_type: string | null; b_tok: number | null;
+  b_h1: string | null; b_desc: string | null;
   sim: number;
 }
 
@@ -57,11 +59,13 @@ export async function GET(request: NextRequest) {
     const client = neon(process.env.DATABASE_URL || "postgresql://user:password@localhost/db");
     const rawPairs = neonRows<PairRow>(await client.query(
       `SELECT p1.url a_url, p1.title a_title, p1.content_type a_type, p1.token_count a_tok,
+              p1.h1 a_h1, p1.meta_description a_desc,
               p2.url b_url, p2.title b_title, p2.content_type b_type, p2.token_count b_tok,
+              p2.h1 b_h1, p2.meta_description b_desc,
               1 - (p1.embedding <=> p2.embedding) sim
        FROM pages p1
        CROSS JOIN LATERAL (
-         SELECT id, url, title, content_type, token_count, embedding
+         SELECT id, url, title, content_type, token_count, h1, meta_description, embedding
          FROM pages p2
          WHERE p2.embedding IS NOT NULL AND p2.id <> p1.id
            AND ${LIVE("p2")}
@@ -80,18 +84,28 @@ export async function GET(request: NextRequest) {
       ),
     )[0]?.n ?? 0;
 
-    // Dedupe undirected pairs, then apply the type-aware precision gates.
+    // Dedupe undirected pairs, then apply the multi-signal evidence gates.
     const seen = new Set<string>();
     const pairs: PairRow[] = [];
+    const pairSupport: EvidenceSignal[][] = [];
     for (const r of rawPairs) {
       const key = r.a_url < r.b_url ? `${r.a_url} ${r.b_url}` : `${r.b_url} ${r.a_url}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      if (!shouldGroupPair(
-        { aType: r.a_type, bType: r.b_type, aTitle: r.a_title, bTitle: r.b_title, sim: Number(r.sim) },
+      const ev = evaluatePair(
+        {
+          aType: r.a_type, bType: r.b_type,
+          aTitle: r.a_title, bTitle: r.b_title,
+          aH1: r.a_h1, bH1: r.b_h1,
+          aDescription: r.a_desc, bDescription: r.b_desc,
+          aUrl: r.a_url, bUrl: r.b_url,
+          sim: Number(r.sim),
+        },
         t,
-      )) continue;
+      );
+      if (!ev.group) continue;
       pairs.push(r);
+      pairSupport.push(ev.support);
     }
 
     if (pairs.length === 0) {
@@ -101,16 +115,18 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Metadata + per-member strongest match (the "why grouped" number).
+    // Metadata + per-member strongest match (the "why grouped" number) and the
+    // evidence signals of that strongest edge (the "why grouped" tags).
     const meta = new Map<string, { title: string | null; type: string | null; tokens: number | null }>();
     const nearestSim = new Map<string, number>();
-    for (const r of pairs) {
+    const evidence = new Map<string, EvidenceSignal[]>();
+    pairs.forEach((r, i) => {
       if (!meta.has(r.a_url)) meta.set(r.a_url, { title: r.a_title, type: r.a_type, tokens: r.a_tok });
       if (!meta.has(r.b_url)) meta.set(r.b_url, { title: r.b_title, type: r.b_type, tokens: r.b_tok });
       const s = Number(r.sim);
-      if (s > (nearestSim.get(r.a_url) ?? 0)) nearestSim.set(r.a_url, s);
-      if (s > (nearestSim.get(r.b_url) ?? 0)) nearestSim.set(r.b_url, s);
-    }
+      if (s > (nearestSim.get(r.a_url) ?? 0)) { nearestSim.set(r.a_url, s); evidence.set(r.a_url, pairSupport[i]); }
+      if (s > (nearestSim.get(r.b_url) ?? 0)) { nearestSim.set(r.b_url, s); evidence.set(r.b_url, pairSupport[i]); }
+    });
 
     // Connected components over the gated pair graph.
     const edges: Edge[] = pairs.map((r) => [r.a_url, r.b_url] as Edge);
@@ -156,6 +172,7 @@ export async function GET(request: NextRequest) {
           type: meta.get(url)?.type ?? null,
           intent: intents[i],
           matchSim: Number((nearestSim.get(url) ?? 0).toFixed(4)),
+          evidence: evidence.get(url) ?? [],
           authority: Number(pageAuthority(authorities[i]).toFixed(4)),
           isWinner: url === winner.url,
         }))

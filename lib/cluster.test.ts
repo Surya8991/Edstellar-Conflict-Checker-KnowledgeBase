@@ -1,7 +1,7 @@
 /** npx tsx --test lib/cluster.test.ts */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { connectedComponents, shouldGroupPair } from "./cluster";
+import { connectedComponents, shouldGroupPair, evaluatePair } from "./cluster";
 
 test("transitive edges form one component", () => {
   // A-B, B-C ⇒ {A,B,C} even though A-C was never a direct edge.
@@ -76,7 +76,69 @@ test("re-listed course (same title) groups at the softer bar", () => {
   }), true);
 });
 
-test("blogs group at the editorial threshold", () => {
-  assert.equal(shouldGroupPair({ aType: "blog", bType: "blog", aTitle: "a", bTitle: "b", sim: 0.86 }), true);
-  assert.equal(shouldGroupPair({ aType: "blog", bType: "blog", aTitle: "a", bTitle: "b", sim: 0.84 }), false);
+test("blogs group at the editorial threshold WITH lexical corroboration", () => {
+  const base = {
+    aType: "blog", bType: "blog",
+    aTitle: "Top Big Data Training Companies", bTitle: "Top Corporate Training Companies",
+  };
+  assert.equal(shouldGroupPair({ ...base, sim: 0.86 }), true);
+  assert.equal(shouldGroupPair({ ...base, sim: 0.84 }), false); // below body floor
+});
+
+// ── evaluatePair (multi-signal evidence, 15H) ─────────────────────────────
+
+test("body similarity alone never groups below the self-sufficient bar", () => {
+  // /enquiry-form vs /contact-us: 88% template body, zero lexical overlap.
+  const r = evaluatePair({
+    aType: "static", bType: "static",
+    aTitle: "Enquire Now", bTitle: "Contact Us",
+    aH1: "Enquiry", bH1: "Reach Our Team",
+    aDescription: "Send an enquiry", bDescription: "Get in touch with the team",
+    aUrl: "https://x.com/enquiry-form", bUrl: "https://x.com/contact-us",
+    sim: 0.88,
+  });
+  assert.equal(r.group, false);
+  assert.deepEqual(r.support, []);
+});
+
+test("near-verbatim body (≥ self-sufficient) groups without lexical support", () => {
+  const r = evaluatePair({
+    aType: "blog", bType: "blog",
+    aTitle: "Alpha", bTitle: "Omega",
+    sim: 0.94,
+  });
+  assert.equal(r.group, true);
+  assert.ok(r.support.includes("body"));
+});
+
+test("same title alone never groups — body floor always applies", () => {
+  const r = evaluatePair({
+    aType: "blog", bType: "blog",
+    aTitle: "Leadership Guide", bTitle: "Leadership Guide",
+    sim: 0.6, // well below the editorial floor
+  });
+  assert.equal(r.group, false);
+});
+
+test("plural normalization corroborates 'skill gaps' vs 'skills gap'", () => {
+  const r = evaluatePair({
+    aType: "blog", bType: "blog",
+    aTitle: "How to Identify Skill Gaps", bTitle: "Common Skills Gap Examples",
+    sim: 0.85,
+  });
+  assert.equal(r.group, true);
+  assert.ok(r.support.includes("title"));
+});
+
+test("evidence lists every corroborating signal", () => {
+  const r = evaluatePair({
+    aType: "blog", bType: "blog",
+    aTitle: "Skill Matrix Guide", bTitle: "Skill Matrix Handbook",
+    aH1: "Skill Matrix", bH1: "The Skill Matrix",
+    aDescription: "Build a skill matrix", bDescription: "How to build a skill matrix",
+    aUrl: "https://x.com/blog/skill-matrix-guide", bUrl: "https://x.com/blog/skill-matrix-handbook",
+    sim: 0.9,
+  });
+  assert.equal(r.group, true);
+  for (const s of ["body", "title", "h1", "description", "url"]) assert.ok(r.support.includes(s as any), s);
 });

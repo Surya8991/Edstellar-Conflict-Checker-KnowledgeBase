@@ -1746,6 +1746,43 @@ live rows (`canonical_url` NULL corpus-wide — nothing captured HTTP redirects)
   50% title → keep-both. True duplicates (≥0.93, or ≥0.88 + near-identical
   title) still merge. Input content type derived via `tagUrl` (topics: no gate).
 
+### 15H. Content Clusters — multi-signal evidence rule (researched + defined 2026-07-06)
+
+**Goal.** A cluster edge must never rest on ONE signal. Not body cosine alone
+(course/static template boilerplate inflates it — `/enquiry-form` ↔
+`/contact-us` measured 88% body with zero lexical overlap), and not same
+title/URL alone (metadata can match while content differs). Every edge needs
+**semantic + lexical corroboration** across Title, H1, Meta description, URL
+slug, and Body.
+
+**Measured basis (live corpus):** all 2,458 live pages have title+H1+description
+(100% coverage). Of 867 current edges, 864 already carry ≥1 lexical support at
+Jaccard ≥ 0.3 — the 3 that don't are template noise (killed) plus one true pair
+lost only to plural mismatch ("skill gaps" vs "skills gap") → support matching
+uses light plural normalization.
+
+**Edge rule (all env-tunable):**
+1. Both pages live, same content_type (unchanged).
+2. Body cosine ≥ type-aware floor (course bars unchanged; editorial 0.85).
+3. **Corroboration:** ≥1 of {title, H1, description, slug} with
+   plural-normalized Jaccard ≥ `CONFLICT_GROUP_SUPPORT_JACCARD` (0.3) — unless
+   body ≥ `CONFLICT_GROUP_BODY_SELF_SUFFICIENT` (0.93, near-verbatim duplicate).
+   Symmetrically, lexical match alone can never group — the body floor always
+   applies.
+4. The supporting signals are returned per edge and shown as evidence tags in
+   the UI ("why grouped": body 91% + title + description).
+
+Plus: filter bar on /clusters (action, content type, text search).
+
+**Executed + measured (same day):** 866 evidence-backed pairs (the
+`/enquiry-form` ↔ `/contact-us` 88%-body template pair is gone; the plural
+"skill gaps"/"skills gap" pair survives), 205 clusters, 781 of 2,458 live pages.
+Every member row now shows its evidence tags (e.g. `Body · Title · H1 · URL`)
+next to its % match. Filter pills verified live (action: All 200 / Merge 176 /
+Differentiate 24 · type: course 155 / blog 29 / …) + title/URL search box.
+Edge rule is the pure, unit-tested `evaluatePair` in `lib/cluster.ts`
+(`shouldGroupPair` kept as a boolean wrapper).
+
 **Known tuning notes for later:**
 - Grouping uses connected components, which are threshold-sensitive: too low and
   everything chains into one giant component. Default `0.90` is a good balance;

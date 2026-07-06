@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   PageHeader, Card, TypeChip,
   INTENT_STYLE, ACTION_STYLE, pathOf,
   type Intent, type ClusterAction,
 } from "@/app/components/ui";
+
+type EvidenceSignal = "title" | "h1" | "description" | "url" | "body";
 
 interface GroupMember {
   url: string;
@@ -14,6 +16,8 @@ interface GroupMember {
   intent: Intent;
   /** Cosine similarity to this page's strongest match inside the cluster. */
   matchSim: number;
+  /** Signals corroborating that strongest edge — the "why grouped" tags. */
+  evidence: EvidenceSignal[];
   isWinner: boolean;
 }
 interface GroupSummary {
@@ -32,11 +36,24 @@ interface ClustersMeta {
   threshold: number;
 }
 
+const EVIDENCE_LABEL: Record<EvidenceSignal, string> = {
+  body: "Body",
+  title: "Title",
+  h1: "H1",
+  description: "Description",
+  url: "URL",
+};
+
 export default function ClustersPage() {
   const [groups, setGroups] = useState<GroupSummary[] | null>(null);
   const [meta, setMeta] = useState<ClustersMeta | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Filters.
+  const [actionFilter, setActionFilter] = useState<string>("");
+  const [typeFilter, setTypeFilter] = useState<string>("");
+  const [q, setQ] = useState("");
 
   async function load() {
     setLoading(true);
@@ -63,11 +80,34 @@ export default function ClustersPage() {
   // Prefill: run the scan automatically on first visit so the page isn't empty.
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
+  const actionTypes = useMemo(
+    () => Array.from(new Set((groups ?? []).map((g) => g.action))).sort(),
+    [groups],
+  );
+  const contentTypes = useMemo(
+    () => Array.from(new Set((groups ?? []).map((g) => g.members[0]?.type).filter(Boolean) as string[])).sort(),
+    [groups],
+  );
+
+  const filtered = useMemo(() => {
+    if (!groups) return null;
+    const needle = q.trim().toLowerCase();
+    return groups
+      .filter((g) => !actionFilter || g.action === actionFilter)
+      .filter((g) => !typeFilter || g.members[0]?.type === typeFilter)
+      .filter((g) =>
+        !needle ||
+        g.members.some((m) =>
+          m.url.toLowerCase().includes(needle) || (m.title ?? "").toLowerCase().includes(needle),
+        ),
+      );
+  }, [groups, actionFilter, typeFilter, q]);
+
   return (
     <div>
       <PageHeader
         title="Content Clusters"
-        subtitle="Same-type corpus pages grouped by real content overlap — redirected pages excluded, course template noise filtered — with a suggested action + winner per cluster."
+        subtitle="Same-type corpus pages grouped only on multi-signal evidence — body overlap corroborated by title / H1 / description / URL — with a suggested action + winner per cluster."
         right={
           <button
             type="button"
@@ -90,22 +130,74 @@ export default function ClustersPage() {
           <div className="text-xs text-slate-500">
             <strong className="text-slate-700">{meta.totalGroups.toLocaleString()}</strong> clusters ·{" "}
             <strong className="text-slate-700">{meta.groupedPages.toLocaleString()} of {meta.corpusSize.toLocaleString()}</strong>{" "}
-            live corpus pages grouped · {meta.totalPairs.toLocaleString()} qualifying pairs.
+            live corpus pages grouped · {meta.totalPairs.toLocaleString()} evidence-backed pairs.
           </div>
         )}
 
+        {/* Filter bar — action pills, content-type pills, text search. */}
         {groups && groups.length > 0 && (
-          <div className="space-y-2.5">
-            {groups.map((g, i) => <ClusterCard key={`${g.winnerUrl}#${i}`} g={g} />)}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap gap-1.5">
+              <FilterPill label={`All ${groups.length}`} active={!actionFilter} onClick={() => setActionFilter("")} />
+              {actionTypes.map((a) => (
+                <FilterPill
+                  key={a}
+                  label={`${ACTION_STYLE[a]?.label ?? a} ${groups.filter((g) => g.action === a).length}`}
+                  active={actionFilter === a}
+                  onClick={() => setActionFilter(actionFilter === a ? "" : a)}
+                />
+              ))}
+            </div>
+            <span className="h-4 w-px bg-slate-200" />
+            <div className="flex flex-wrap gap-1.5">
+              {contentTypes.map((ct) => (
+                <FilterPill
+                  key={ct}
+                  label={`${ct.replace("-", " ")} ${groups.filter((g) => g.members[0]?.type === ct).length}`}
+                  active={typeFilter === ct}
+                  onClick={() => setTypeFilter(typeFilter === ct ? "" : ct)}
+                />
+              ))}
+            </div>
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Filter by title or URL…"
+              className="ml-auto w-56 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs outline-none focus:border-slate-900"
+            />
           </div>
         )}
-        {groups && groups.length === 0 && !loading && (
+
+        {filtered && filtered.length > 0 && (
+          <div className="space-y-2.5">
+            {filtered.map((g, i) => <ClusterCard key={`${g.winnerUrl}#${i}`} g={g} />)}
+          </div>
+        )}
+        {filtered && filtered.length === 0 && !loading && (
           <Card className="text-sm text-slate-400">
-            No clusters found — no pages are near-duplicates at the current thresholds.
+            {groups && groups.length > 0
+              ? "No clusters match the active filters."
+              : "No clusters found — no pages are near-duplicates at the current thresholds."}
           </Card>
         )}
       </div>
     </div>
+  );
+}
+
+function FilterPill({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full border px-2.5 py-1 text-xs capitalize transition ${
+        active
+          ? "border-slate-900 bg-slate-900 text-white"
+          : "border-slate-300 bg-white text-slate-600 hover:border-slate-400"
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 
@@ -156,17 +248,28 @@ function ClusterCard({ g }: { g: GroupSummary }) {
                   {m.intent ?? "unknown"}
                 </span>
               </div>
-              <div className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-400">
+              <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
                 {m.type && <TypeChip type={m.type} size="xs" />}
                 <span className="truncate">{m.url}</span>
               </div>
             </div>
-            <span
-              className="mt-0.5 shrink-0 tabular-nums text-xs font-medium text-slate-500"
-              title="Content similarity to this page's closest match in the cluster — why it's grouped"
-            >
-              {(m.matchSim * 100).toFixed(0)}% match
-            </span>
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              <span
+                className="tabular-nums text-xs font-medium text-slate-500"
+                title="Content similarity to this page's closest match in the cluster"
+              >
+                {(m.matchSim * 100).toFixed(0)}% match
+              </span>
+              {m.evidence.length > 0 && (
+                <span className="flex flex-wrap justify-end gap-1" title="Signals corroborating the grouping">
+                  {m.evidence.map((e) => (
+                    <span key={e} className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-500">
+                      {EVIDENCE_LABEL[e] ?? e}
+                    </span>
+                  ))}
+                </span>
+              )}
+            </div>
           </li>
         ))}
         {!open && g.members.length > 4 && (
