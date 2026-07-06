@@ -96,23 +96,24 @@ export const HELP: Record<string, HelpEntry> = {
   "/clusters": {
     title: "Content Clusters",
     what:
-      "Groups near-duplicate pages across the WHOLE live corpus (every content type, redirected/canonicalized pages excluded) into clusters, with a suggested action and winner page per cluster — a corpus-wide view, versus the Conflict Checker's one-page-at-a-time view.",
+      "Groups the WHOLE live corpus by TOPIC across content types — a category page, its blog, and its courses land in ONE cluster. Each cluster gets a topic label, a suggested action, and a winner (pillar) page. This is the corpus-wide view, versus the Conflict Checker's one-page-at-a-time view.",
     howToUse: [
-      "The page auto-scans on load; click 'Rescan' any time to refresh (it re-runs the full comparison live, nothing is cached).",
-      "Filter with the pills — action (Merge / Consolidate / Differentiate) and content type — or type into the search box to jump to a specific page or title.",
-      "Click a cluster row to expand all its members; each row shows the page, its search intent, and its % match to the closest other page in the cluster (the 'why grouped' evidence).",
-      "The ★ marks the suggested winner — the page most worth keeping if you merge/redirect the others into it.",
+      "The page auto-scans on load; click 'Rescan' any time to refresh (it re-runs the full grouping live, nothing is cached).",
+      "Filter with the pills — action (Pillar / Merge / Differentiate) and content type — or type into the search box to jump to a specific page or title.",
+      "Click a cluster row to expand all its members; each shows the page, its intent, the topic tokens it shares with the pillar, and its topic-match %.",
+      "The ★ marks the suggested winner — usually the pillar (category) page; a spoke only wins if it has more authority.",
     ],
     readingIt: [
-      "A cluster only forms when pages share BOTH enough body-content overlap AND at least one matching signal (title, H1, description, or URL) — a coincidental one-signal match never groups pages on its own.",
-      "'Merge → 301' = near-duplicates, redirect the others into the winner. 'Consolidate' = strong overlap, keep the winner and re-link the rest as supporting pages. 'Differentiate' = enough overlap to flag, but the pages should stay separate and be rewritten to not compete.",
-      "The evidence tags under each page's % match (Title / H1 / Description / URL / Body) show exactly which signals corroborated the grouping.",
-      "If the cluster count shown doesn't match what's rendered, a note explains how many smaller clusters were cut off — nothing is silently hidden.",
+      "Membership is by DISTINCTIVE topic tokens, not raw similarity: template words every page shares ('corporate', 'training', 'courses') are auto-learned from the corpus and dropped, so 'big data' groups with big-data pages, never with 'sales' pages that merely share the same template.",
+      "Every member matches the cluster's SEED (pillar) directly — pages are never chained together, so a cluster stays on one topic instead of ballooning into a mixed-topic mega-cluster.",
+      "'Pillar + spokes' = a hub page (category/subcategory) with cross-type spokes on one topic — link the spokes to the pillar, don't merge them. 'Merge → 301' / 'Differentiate' apply to same-type near-duplicates within a topic.",
+      "The tags under each page (e.g. 'big data') are the exact distinctive tokens it shares with the pillar; the topic% is the IDF-weighted overlap, and the body% is the content-embedding check that keeps an off-topic page out.",
+      "The meta line reads 'N clustered · M unique-topic pages' — a unique-topic page is a real answer (nothing else covers that topic), not a coverage gap.",
     ],
     troubleshoot: [
-      { problem: "Page says 'No clusters found'", fix: "No pages cleared the similarity + evidence bar. This is a live scan (not a precomputed table), so an empty result is a real answer, not a stale-cache problem." },
-      { problem: "Two pages I know are duplicates aren't grouped", fix: "They need a shared content_type AND either near-verbatim body (≥93%) or a corroborating title/H1/description/URL match — a course pair that's only similar because of shared template boilerplate is deliberately excluded." },
-      { problem: "A page I expected to see is missing entirely", fix: "It may be marked as a redirect/canonicalized-away by the redirect-detection scan (`is_stale`) — those never appear in clusters, by design." },
+      { problem: "Page says 'No clusters found'", fix: "No topic had two or more pages clear the overlap + body-floor bar. This is a live scan (not a precomputed table), so an empty result is a real answer, not a stale-cache problem." },
+      { problem: "Two pages I know are on the same topic aren't grouped", fix: "Their distinctive-token overlap is below the bar, or one fails the body-content floor vs the pillar. Two pages that only share template words ('corporate training') are deliberately NOT grouped — that was the old mega-cluster bug." },
+      { problem: "A page I expected to see is missing entirely", fix: "It may be marked as a redirect/canonicalized-away/dead by the redirect-detection scan (`is_stale`) — those never appear in clusters, by design." },
     ],
   },
 

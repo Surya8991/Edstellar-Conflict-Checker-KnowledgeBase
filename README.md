@@ -50,15 +50,15 @@ npm run dev        # http://localhost:3000
 
 ## Features by page
 
-Top-level nav: Dashboard, Conflict Checker, Content Clusters, Bulk Check, Score History, Search Console, Competitors, Corpus. Manager View, Content Audit, Internal Links, Funnel Strategy, and Catalog Conflicts live under the collapsible **Additional Tools** section of the sidebar.
+Top-level nav: Dashboard, Conflict Checker, Content Clusters, Search Console, Competitors, Corpus. Manager View, Bulk Check, Content Audit, Internal Links, Funnel Strategy, and Catalog Conflicts live under the collapsible **Additional Tools** section of the sidebar. Score History is hidden from the sidebar as of Session 13 (the `/history` page and all dashboard links to it still work).
 
 | Route | What it does |
 |---|---|
 | `/` | Dashboard — today's signals, needs-attention queue, recent activity. |
 | `/conflict-checker` | The headline tool — URL/topic → summary → scored matches, per-signal breakdown, and a suggested resolution + winner per match. |
-| `/clusters` | Content Clusters — live, corpus-wide grouping of near-duplicate pages (all content types) with a suggested action + winner per cluster. |
-| `/bulk-check` | Run the Conflict Checker on up to 100 URLs/topics at once; export as CSV. |
-| `/history` | Score History — timeline of every check run, with editorial outcome tracking. |
+| `/clusters` | Content Clusters — live, corpus-wide grouping by TOPIC across content types (distinctive-token clustering; template words auto-learned & dropped) with a suggested action + winner per cluster. |
+| `/bulk-check` | Run the Conflict Checker on up to 100 URLs/topics at once; export as CSV. Under Additional Tools. |
+| `/history` | Score History — timeline of every check run, with editorial outcome tracking. Hidden from the sidebar as of Session 13 (reachable directly + via dashboard links). |
 | `/search-console` | GSC clicks/impressions/CTR/position, 24h–12m, with a trend chart. Click **Connect Google** to authorize. |
 | `/competitors` | SERP-based competitor research per topic (needs `SERPER_API_KEY`). |
 | `/corpus` | Browse/search the ingested pages; CSV export/import. |

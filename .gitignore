@@ -29,6 +29,10 @@ next-env.d.ts
 .claude/
 .agentmaster/
 
+# Local-only scripts and reports (per-machine analysis, never push)
+scripts/local-*.ts
+reports/
+
 # OS / editor
 .DS_Store
 Thumbs.db

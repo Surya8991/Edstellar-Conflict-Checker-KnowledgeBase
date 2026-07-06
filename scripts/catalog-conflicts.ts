@@ -24,10 +24,10 @@ import { classifyIntent } from "@/lib/intent";
  *      scripts/detect-redirects.ts marked `is_stale` must never appear as its
  *      own row (matches the `LIVE` predicate in app/api/groups/route.ts).
  *
- * Known follow-up: pairType() below predates the Session 11 multi-signal
- * evidence rule in lib/cluster.ts (evaluatePair) — it uses raw content_type +
- * intent only, not the type-aware body floors or lexical corroboration. If
- * this page is un-hidden, port it to evaluatePair so the two dashboards agree.
+ * Known follow-up: pairType() below is body-similarity + content_type/intent
+ * based. The Content Clusters engine has since moved to topic-token leader
+ * clustering (lib/cluster.ts `clusterByTopic`, PROJECTLOG §17). If this page is
+ * un-hidden, reconcile it with that engine so the two dashboards agree.
  *
  * Pair-type taxonomy:
  *   - 'duplicate'         sim ≥ 0.95, same content_type
