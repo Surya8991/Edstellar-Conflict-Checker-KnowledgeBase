@@ -16,6 +16,7 @@ import {
   GitCompareArrows,
   BarChart3,
   Compass,
+  Boxes,
   Menu,
   X,
   ChevronDown,
@@ -30,9 +31,9 @@ interface SidebarUser {
 const NAV: { href: string; label: string; icon: any }[] = [
   { href: "/",                   label: "Dashboard",         icon: LayoutDashboard },
   { href: "/conflict-checker",   label: "Conflict Checker",  icon: ScanSearch },
+  { href: "/clusters",           label: "Content Clusters",  icon: Boxes },
   { href: "/bulk-check",         label: "Bulk Check",        icon: Layers },
   { href: "/history",            label: "Score History",     icon: History },
-  { href: "/catalog-conflicts",  label: "Catalog Conflicts", icon: GitCompareArrows },
   { href: "/search-console",     label: "Search Console",    icon: LineChart },
   { href: "/competitors",        label: "Competitors",       icon: Swords },
   { href: "/corpus",             label: "Corpus",            icon: Database },
@@ -40,6 +41,7 @@ const NAV: { href: string; label: string; icon: any }[] = [
 
 const ADDITIONAL_NAV: { href: string; label: string; icon: any }[] = [
   { href: "/manager",            label: "Manager View",      icon: BarChart3 },
+  { href: "/catalog-conflicts",  label: "Catalog Conflicts", icon: GitCompareArrows },
   { href: "/audit",              label: "Content Audit",     icon: ClipboardCheck },
   { href: "/internal-links",     label: "Internal Links",    icon: Link2 },
   { href: "/strategy",           label: "Funnel Strategy",   icon: Compass },

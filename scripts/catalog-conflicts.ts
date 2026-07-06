@@ -1,62 +1,59 @@
 import "dotenv/config";
 import { neon } from "@neondatabase/serverless";
+import { classifyIntent } from "@/lib/intent";
 
 /**
- * Precompute near-duplicate page pairs across the whole corpus. For each page,
- * find its top-k neighbors by cosine similarity (pgvector) and store pairs
- * above a threshold. De-duplicates A↔B / B↔A by keeping a_id < b_id.
+ * Precompute near-duplicate page pairs across the whole corpus and store them
+ * in `catalog_conflicts` for the Catalog Conflicts dashboard.
  *
- * Filters applied (each one motivated by a class of false-positive seen in
- * the v1 output the user flagged):
+ * Session 11 rewrite — solidified:
+ *   - **One query, not N.** A single pgvector top-k lateral join replaces the
+ *     old per-page loop (2,400+ round-trips). Same result, ~1-2 s, and it can't
+ *     half-finish and leave a torn table.
+ *   - **Intent-aware pair typing.** Two pages that share *search intent* (not
+ *     just `content_type`) and rank-compete are the real cannibalization risk,
+ *     so the taxonomy now keys off `classifyIntent` as well as content_type.
+ *   - **All current content types included** (managed-training / platform /
+ *     consulting / templates were added after the previous run). Only `static`
+ *     is excluded, per the original false-positive policy (CTA-copy pairs).
  *
- *   1. Static pages (forms, contact, about, terms) are excluded on BOTH sides.
- *      The old run flagged 'Enquire Now' ↔ 'Get a Free Demo' as 94% overlap,
- *      which is technically true (similar CTA copy) but isn't a content
- *      cannibalization the team can act on.
+ * Noise filters kept from the original:
+ *   1. `static` pages excluded on BOTH sides ("Enquire Now" ↔ "Get a Free Demo").
+ *   2. Template-noise: sim ≥ 0.97 where either page has < min-body chars.
  *
- *   2. "Template-noise duplicates" — pairs with similarity ≥ 0.97 where one
- *      or both pages have less than 1.5KB of body text. These usually share
- *      a chrome-heavy template (nav + footer + a short CTA) and don't
- *      represent real overlap.
+ * Pair-type taxonomy:
+ *   - 'duplicate'         sim ≥ 0.95, same content_type
+ *   - 'cannibalization'   sim ≥ 0.85, same *intent* (the dangerous one)
+ *   - 'category-bleed'    category ↔ course/blog
+ *   - 'subcategory-bleed' subcategory ↔ course/blog
+ *   - 'overlap'           everything else above threshold
  *
- *   3. Pair-type taxonomy tightened:
- *      - 'duplicate'         sim ≥ 0.95, same content_type
- *      - 'cannibalization'   sim ≥ 0.85, same content_type (the dangerous one)
- *      - 'category-bleed'    category↔course/blog — category page too narrow
- *      - 'subcategory-bleed' subcategory↔course/blog
- *      - 'overlap'           everything else above threshold
- *
- *   4. Per-page neighbor cap raised from 3 → 5, but stricter threshold means
- *      most pages still emit 0-2 pairs.
- *
- * Flags: --threshold=0.85  --limit=N (cap pages scanned)  --min-body=1500
+ * Flags: --threshold=0.85  --min-body=1500  --topk=5
  */
 
 const EXCLUDED_CONTENT_TYPES = new Set(["static"]);
 const MIN_BODY_FOR_HIGH_SIM = 1500; // chars
 
-interface Row {
-  id: number;
-  url: string;
-  title: string | null;
-  content_type: string | null;
-  body_len: number;
-}
-
-interface Neighbor extends Row {
-  similarity: number;
+interface PairRow {
+  a_id: number; a_url: string; a_title: string | null; a_type: string | null; a_body: number;
+  b_id: number; b_url: string; b_title: string | null; b_type: string | null; b_body: number;
+  sim: number;
 }
 
 function pairType(
   sim: number,
-  aType: string | null,
-  bType: string | null,
+  a: { type: string | null; url: string; title: string | null },
+  b: { type: string | null; url: string; title: string | null },
 ): string {
-  const same = aType && aType === bType;
-  if (same && sim >= 0.95) return "duplicate";
-  if (same && sim >= 0.85) return "cannibalization";
-  if (aType === "category" || bType === "category") return "category-bleed";
-  if (aType === "subcategory" || bType === "subcategory") return "subcategory-bleed";
+  const sameType = a.type && a.type === b.type;
+  const sameIntent =
+    classifyIntent({ title: a.title, slug: a.url, contentType: a.type }).label ===
+    classifyIntent({ title: b.title, slug: b.url, contentType: b.type }).label;
+
+  if (sameType && sim >= 0.95) return "duplicate";
+  if (sameIntent && sim >= 0.85) return "cannibalization";
+  if (a.type === "category" || b.type === "category") return "category-bleed";
+  if (a.type === "subcategory" || b.type === "subcategory") return "subcategory-bleed";
   return "overlap";
 }
 
@@ -66,84 +63,90 @@ async function main() {
   const sql = neon(url);
 
   let threshold = 0.85;
-  let limit: number | null = null;
   let minBody = MIN_BODY_FOR_HIGH_SIM;
+  let topk = 5;
   for (const arg of process.argv.slice(2)) {
     const [k, v] = arg.replace(/^--/, "").split("=");
     if (k === "threshold") threshold = Number(v);
-    if (k === "limit") limit = Number(v);
     if (k === "min-body") minBody = Number(v);
+    if (k === "topk") topk = Number(v);
   }
 
-  await sql.query("DELETE FROM catalog_conflicts");
+  console.log(`Scanning corpus · threshold=${threshold} · topk=${topk} · min-body=${minBody}`);
 
-  // Pull every embedded page once into memory along with the metadata we need
-  // for filtering. Cheaper than re-querying for each neighbor.
-  const pages = (await sql.query(
-    `SELECT id, url, title, content_type, length(coalesce(content_text,'')) AS body_len
-       FROM pages
-      WHERE embedding IS NOT NULL
-      ORDER BY id
-      ${limit ? `LIMIT ${limit}` : ""}`,
-  )) as Row[];
-  const byId = new Map<number, Row>();
-  for (const p of pages) byId.set(p.id, p);
-  console.log(
-    `Scanning ${pages.length} pages · threshold=${threshold} · min-body=${minBody}`,
-  );
+  // One query: for every page, probe its top-k nearest neighbours via the HNSW
+  // index and keep those that clear the threshold. Both sides' metadata + body
+  // length come back in the same row.
+  const rows = (await sql.query(
+    `SELECT p1.id a_id, p1.url a_url, p1.title a_title, p1.content_type a_type,
+            length(coalesce(p1.content_text,'')) a_body,
+            p2.id b_id, p2.url b_url, p2.title b_title, p2.content_type b_type,
+            length(coalesce(p2.content_text,'')) b_body,
+            1 - (p1.embedding <=> p2.embedding) sim
+     FROM pages p1
+     CROSS JOIN LATERAL (
+       SELECT id, url, title, content_type, content_text, embedding
+       FROM pages p2
+       WHERE p2.embedding IS NOT NULL AND p2.id <> p1.id
+       ORDER BY p1.embedding <=> p2.embedding
+       LIMIT $2
+     ) p2
+     WHERE p1.embedding IS NOT NULL
+       AND 1 - (p1.embedding <=> p2.embedding) >= $1`,
+    [threshold, topk],
+  )) as PairRow[];
 
-  let found = 0;
-  let skippedStatic = 0;
-  let skippedTemplateNoise = 0;
+  let found = 0, skippedStatic = 0, skippedTemplateNoise = 0;
   const seen = new Set<string>();
+  const inserts: PairRow[] = [];
 
-  for (const a of pages) {
-    if (EXCLUDED_CONTENT_TYPES.has(a.content_type ?? "")) {
+  for (const r of rows) {
+    // Filter 1: static on either side.
+    if (EXCLUDED_CONTENT_TYPES.has(r.a_type ?? "") || EXCLUDED_CONTENT_TYPES.has(r.b_type ?? "")) {
       skippedStatic++;
       continue;
     }
-    const neighbors = (await sql.query(
-      `SELECT p2.id, 1 - (p1.embedding <=> p2.embedding) AS similarity
-         FROM pages p1
-         JOIN pages p2 ON p2.id <> p1.id AND p2.embedding IS NOT NULL
-        WHERE p1.id = $1
-        ORDER BY p1.embedding <=> p2.embedding
-        LIMIT 5`,
-      [a.id],
-    )) as Neighbor[];
-
-    for (const nRow of neighbors) {
-      const sim = Number(nRow.similarity);
-      if (sim < threshold) continue;
-      const b = byId.get(nRow.id);
-      if (!b) continue;
-
-      // Filter 1: exclude static pages on either side.
-      if (EXCLUDED_CONTENT_TYPES.has(b.content_type ?? "")) continue;
-
-      // De-dup A↔B / B↔A.
-      const lo = Math.min(a.id, b.id);
-      const hi = Math.max(a.id, b.id);
-      const key = `${lo}-${hi}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      // Filter 2: template-noise high-similarity pairs.
-      if (sim >= 0.97 && (a.body_len < minBody || b.body_len < minBody)) {
-        skippedTemplateNoise++;
-        continue;
-      }
-
-      const pt = pairType(sim, a.content_type, b.content_type);
-
-      await sql.query(
-        `INSERT INTO catalog_conflicts
-           (a_id, a_url, a_title, a_type, b_id, b_url, b_title, b_type, similarity, pair_type)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-        [a.id, a.url, a.title, a.content_type, b.id, b.url, b.title, b.content_type, sim, pt],
-      );
-      found++;
+    // Dedupe A↔B / B↔A.
+    const lo = Math.min(r.a_id, r.b_id);
+    const hi = Math.max(r.a_id, r.b_id);
+    const key = `${lo}-${hi}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    // Filter 2: template-noise high-similarity pairs.
+    if (r.sim >= 0.97 && (r.a_body < minBody || r.b_body < minBody)) {
+      skippedTemplateNoise++;
+      continue;
     }
+    inserts.push(r);
+  }
+
+  // Bulk replace: DELETE + a single UNNEST INSERT. neon's HTTP driver is
+  // stateless (each query is its own request), so a BEGIN/COMMIT spread across
+  // calls is NOT a real transaction and a per-row loop is thousands of
+  // round-trips — this is one insert regardless of pair count.
+  await sql.query("DELETE FROM catalog_conflicts");
+  if (inserts.length) {
+    const pts = inserts.map((r) =>
+      pairType(
+        r.sim,
+        { type: r.a_type, url: r.a_url, title: r.a_title },
+        { type: r.b_type, url: r.b_url, title: r.b_title },
+      ),
+    );
+    await sql.query(
+      `INSERT INTO catalog_conflicts
+         (a_id, a_url, a_title, a_type, b_id, b_url, b_title, b_type, similarity, pair_type)
+       SELECT * FROM unnest(
+         $1::int[], $2::text[], $3::text[], $4::text[], $5::int[],
+         $6::text[], $7::text[], $8::text[], $9::real[], $10::text[]
+       )`,
+      [
+        inserts.map((r) => r.a_id), inserts.map((r) => r.a_url), inserts.map((r) => r.a_title),
+        inserts.map((r) => r.a_type), inserts.map((r) => r.b_id), inserts.map((r) => r.b_url),
+        inserts.map((r) => r.b_title), inserts.map((r) => r.b_type), inserts.map((r) => r.sim), pts,
+      ],
+    );
+    found = inserts.length;
   }
 
   console.log(`\n✓ Stored ${found} conflicting pairs.`);
