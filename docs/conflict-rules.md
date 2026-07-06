@@ -19,7 +19,7 @@ input (URL or topic)
 ┌────────────────────────────────────────┐
 │ 2. Embed `searchSynopsis + keywords`   │  embedder.embed()
 │    Vector search corpus (top N)        │  vectorSearchPages()
-│    Filter sim < 0.30 (noise)           │
+│    Filter sim < 0.50 (noise)           │
 └────────────────────────────────────────┘
    │
    ▼
@@ -34,7 +34,7 @@ input (URL or topic)
 ┌────────────────────────────────────────┐
 │ 4. Blend scores                        │  blendScore()
 │    base = stretch(sim, [0.55, 0.95])   │  similarityToBaseScore()
-│    final = 0.4·base + 0.6·llm          │
+│    final = 0.6·base + 0.4·llm          │
 │    Un-judged → conflictType =          │
 │       "needs-review"                   │
 └────────────────────────────────────────┘
@@ -51,7 +51,7 @@ input (URL or topic)
 |--------|---------|-----|
 | `vectorLimit` | 100 | Cheap (single pgvector query). Wide enough to surface long-tail matches. |
 | `classifyLimit` | 15 | Caps the expensive LLM call. Matches 16..100 get `needs-review`. |
-| `minSimilarity` | 0.30 | Anything lower is unrelated for this corpus; keeps UI signal-to-noise sane. |
+| `minSimilarity` | 0.50 | Raised from 0.30 in Session 6 (H11). Anything lower is unrelated for this corpus; keeps UI signal-to-noise sane. Override via `CONFLICT_MIN_SIMILARITY`. |
 | `persist` | `true` | Stored in `checks` + `check_matches` for the history view. Best-effort — failures don't break the response. |
 
 ## Scoring functions
@@ -59,7 +59,7 @@ input (URL or topic)
 From [`lib/score.ts`](../lib/score.ts):
 
 - `similarityToBaseScore(sim)` — clamp `sim` to `[0.55, 0.95]`, linearly map to `[0, 100]`, round.
-- `blendScore(base, llm)` — `round(0.4·base + 0.6·llm)`. If `llm` is missing → return `base` unchanged.
+- `blendScore(base, llm)` — `round(0.6·base + 0.4·llm)` (rebalanced in Session 8 to weight the measured embedding signal over the LLM). If `llm` is missing → return `base` unchanged.
 - `conflictTypeFromScore(score)` — thresholds: ≥80 duplicate · ≥60 cannibalization · ≥35 partial-overlap · else none.
 - `scoreColor(score)` — UI colour ramp (red / orange / amber / green).
 

@@ -6,7 +6,7 @@ Terms used by the Conflict Checker and this knowledge base.
 |------|------------|
 | **Page** | Any ingested URL from Edstellar — blog post, course page, category, or static page. Stored in `pages` with title, extracted text, content type, and embedding. |
 | **Corpus** | The full set of ingested pages. Source list: `data/sitemap-urls.csv` (2,479 URLs raw; ~2,461 after the junk-URL filter in [`lib/sitemap.ts`](../lib/sitemap.ts) drops tag-archives, `/sitemap`, file downloads etc.). |
-| **Content type** | Classification per page: `blog`, `course`, `category`, `static`, `industry`. Used as a filter and to colour-code matches in the UI. |
+| **Content type** | Classification per page (from `lib/taxonomy.ts`): `course`, `blog`, `category`, `subcategory`, `location`, `excellence-program`, and the Session-11 standalone service/solution types `managed-training`, `platform`, `consulting`, `templates`; everything else falls back to `static`. Used as a filter and to colour-code matches in the UI. |
 | **Candidate** | The new URL or topic being checked. Not yet in the corpus. |
 | **Summary** | LLM-generated 2–3 sentence digest of the candidate's content. Drives both the embedding and the LLM judge. |
 | **Search synopsis** | A keyword-dense paraphrase of the candidate, used as the actual embed text (cleaner vector signal than raw body). |

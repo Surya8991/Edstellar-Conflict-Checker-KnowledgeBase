@@ -39,6 +39,15 @@ New `/api/*` routes that should be cron-callable must be added to `proxy.ts PUBL
 - `AI_CHAT_PROVIDER` defaults to `groq` if neither `GROQ_API_KEY` nor `ANTHROPIC_API_KEY` is set, the app silently returns empty summaries.
 - First request after a cold deploy downloads `bge-small-en-v1.5` (~30 MB) inline — expect 8–25 s latency. Set `EMBEDDING_PROVIDER=openai` to skip this.
 
+## Conflict automation (Session 11)
+- The manual "find duplicates → decide → pick winner" flow is now deterministic + config-driven. Plan: `plans/01-conflict-automation.md`.
+- **Every cutoff/weight lives in `lib/thresholds.ts`**, env-overridable via `CONFLICT_*` (e.g. `CONFLICT_BODY_COSINE_MERGE`). Do NOT hard-code thresholds elsewhere — add them there.
+- Pure, unit-tested modules (`npx tsx --test lib/<x>.test.ts`; there's no jest/vitest — uses Node's `node:test`): `signals.ts` (keep title/H1/slug/body **separate**, never blend), `intent.ts` (rule-based only — no LLM in the decision path), `resolution.ts` (`decidePair` / `pickWinner` / `groupAction`), `cluster.ts` (connected components).
+- `runConflictCheck` attaches `{signals, intent, resolution}` per match + `inputIntent`. Similar-page groups come from `GET /api/groups` (connected components of `catalog_conflicts`).
+- **GSC + Competitor SERP were removed from the Conflict Checker** (routes `/api/check/enrich` + `/api/check/cannibalization` deleted). Don't reintroduce a GSC/SERP fetch there. GSC still powers `/search-console`; `serpOverlap` still powers `/api/competitors/*` + `/api/suggestions/new-content`.
+- `lib/inbound-links.ts` uses the **raw neon client with `$1::text[]`** — drizzle's `sql\`\`` expands a JS array into `unnest($1,$2,…)` (a record) and Postgres rejects it. Same gotcha for any `ANY(${arr})` / `unnest(${arr})`: use the raw client positional param, or drizzle `inArray()`.
+- New corpus content types (`managed-training`, `platform`, `consulting`, `templates`) are mapped by slug in `lib/taxonomy.ts` so a reingest re-derives them; type-badge colors in `app/components/ui.tsx` `TYPE_COLORS`.
+
 ## Draft pipeline (Batch 15–18 — current)
 - **Architecture: cache-first.** `pregenerated_drafts` is a vector library populated offline by `npm run pregen-drafts` (uses local Antigravity/Claude, $0). At runtime `/api/drafts` does cosine top-1 in that table; ≥0.85 returns instantly; lower = Groq (`llama-3.3-70b-versatile`) adapts or generates fresh, and the result is upserted back to the cache.
 - **Required env on Vercel:** `GROQ_API_KEY` (for runtime fallback). `LLM_KILL_SWITCH=1` disables Groq calls but cache hits still serve.

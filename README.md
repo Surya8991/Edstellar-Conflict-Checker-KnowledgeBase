@@ -1,6 +1,6 @@
 # Edstellar Conflict Checker
 
-Detect content conflicts (duplication / SEO cannibalization) **before** publishing a blog, course, or page — with a 0–100% conflict score, Google Search Console performance data (24h → 12 months), and competitor research.
+Detect content conflicts (duplication / SEO cannibalization) **before** publishing a blog, course, or page — with a 0–100% conflict score, a per-signal breakdown (title / H1 / URL / body), a rule-based search-intent label, and a deterministic suggested resolution + winner per match. Similar corpus pages are also grouped (connected components of the near-duplicate scan). Google Search Console analytics and competitor research live on their own pages (`/search-console`, `/competitors`).
 
 Built with **Next.js 16** (App Router) + **Neon Postgres / pgvector**.
 

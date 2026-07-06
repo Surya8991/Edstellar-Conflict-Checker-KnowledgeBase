@@ -8,7 +8,7 @@ Each example shows the input, what the pipeline returns, and how to read the ver
 
 **Top match:** existing blog "Building trust on remote teams" — similarity `0.41`, base score `0` (below 0.55 floor), no LLM verdict (filtered before classify).
 
-**Verdict:** No matches above the 0.30 floor → `topScore = 0`. Safe to publish.
+**Verdict:** No matches above the 0.50 floor → `topScore = 0`. Safe to publish.
 
 ## 2. Duplicate
 
@@ -40,7 +40,7 @@ Each example shows the input, what the pipeline returns, and how to read the ver
 
 **Input (topic):** `"how to run an effective retrospective"`
 
-**Vector search** returns 47 matches above 0.30. Top 15 are LLM-judged; matches 16–47 ship with `conflict_type = "needs-review"` and similarity-derived scores.
+**Vector search** returns 47 matches above 0.50. Top 15 are LLM-judged; matches 16–47 ship with `conflict_type = "needs-review"` and similarity-derived scores.
 
 **Verdict:** Headline call returns immediately. UI lets the editor click any `needs-review` row → `POST /api/check/classify-one` → row updates in place with a full verdict.
 

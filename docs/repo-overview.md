@@ -7,7 +7,9 @@ This repo is a **single Next.js 16 app deployed to Vercel** plus a domain knowle
 | Path | What it is |
 |------|------------|
 | [`app/`](../app/) | App Router routes: dashboard pages + `/api/*` endpoints. |
-| [`lib/`](../lib/) | AI providers, conflict pipeline (`conflict.ts`), scoring (`score.ts`), DB schema, GSC, competitors, etc. |
+| [`lib/`](../lib/) | AI providers, conflict pipeline (`conflict.ts`), scoring (`score.ts`), DB schema, GSC, competitors, etc. Conflict-automation modules (Session 11): `thresholds.ts` (config), `signals.ts` (per-signal title/H1/slug/body), `intent.ts` (rule-based search intent), `resolution.ts` (pairwise + cluster decide + winner), `cluster.ts` (connected components), `csv.ts` (corpus import/export). |
+| [`app/api/groups/`](../app/api/groups/) | Similar-page grouping — connected components of `catalog_conflicts` + per-group winner/action (Session 11). |
+| [`app/api/pages/export`, `import`](../app/api/pages/) | Corpus CSV download / upsert-by-url import (Session 11). |
 | [`scripts/`](../scripts/) | One-off / cron-target scripts run via `tsx` (`db:setup`, `ingest`, `catalog-conflicts`, ...). |
 | [`data/`](../data/) | Bundled sitemap CSV + taxonomy JSON shipped with the repo. |
 | [`drizzle/`](../drizzle/) | SQL migrations (run by `npm run db:setup`). |

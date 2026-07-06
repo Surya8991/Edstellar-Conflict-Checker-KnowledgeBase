@@ -4,7 +4,7 @@
 > and how the system fits together. Update this file with every meaningful
 > change.
 
-**Last updated:** 2026-06-25 (Session 10 — 9-persona audit + Project log surfaced top-right)
+**Last updated:** 2026-07-06 (Session 11 — conflict-automation Phase 1 + similar-page grouping; GSC/SERP removed from Conflict Checker; corpus service/templates types)
 **Owner:** marketing@edstellar.com
 **Repo:** https://github.com/Layruss98266/Edstellar-Conflict-Checker-KnowledgeBase
 **Prod:** https://edstellar-conflict-checker-knowledg.vercel.app/
@@ -19,9 +19,18 @@ new blog / course / landing page, paste the URL or topic and:
 1. Get an AI **summary** of what's being proposed.
 2. Get a **0–100% conflict score** + ranked list of existing pages it overlaps
    with (cannibalization risk).
-3. See **Google Search Console** performance for the affected pages — does the
-   page we'd cannibalize actually rank?
-4. See what **competitors** publish on the same topic.
+3. See the **per-signal breakdown** (title / H1 / URL / body scored separately),
+   a rule-based **search-intent** label, and a deterministic **suggested
+   resolution + winner** (merge / consolidate / differentiate / keep-both) per
+   match — Session 11.
+4. Browse **similar-page groups** across the whole corpus (connected components
+   of the near-duplicate scan) with a winner + action per group — Session 11.
+
+> **Session 11 removed GSC + competitor data from the Conflict Checker.** The GSC
+> performance panel, "your GSC rank", cannibalization banner, and the Competitor
+> SERP / AI Overview block were all deleted, and the `/api/check/enrich` +
+> `/api/check/cannibalization` routes with them. GSC + competitor research still
+> live on their own pages (`/search-console`, `/competitors`).
 
 The corpus = every URL in https://www.edstellar.com/sitemap.xml (2,479 URLs raw;
 **~2,461 after the junk-URL filter** in `lib/sitemap.ts` drops tag archives,
@@ -938,6 +947,18 @@ BRAND_TERMS=edstellar,edstellar.com          # comma-separated; used by GSC bran
 CRON_SECRET=                                 # REQUIRED in prod — cron routes fail OPEN if unset.
                                              #   Vercel cron sends Authorization: Bearer <secret>
 WEBHOOK_API_KEY=                             # optional X-API-Key gate on /api/check for CMS hooks
+
+# Conflict automation thresholds (Session 11 — all OPTIONAL, have sane defaults
+#   in lib/thresholds.ts; override per-site without a code change)
+CONFLICT_BODY_COSINE_MERGE=0.80              # body cosine ≥ ⇒ same-intent pair is a merge
+CONFLICT_BODY_COSINE_CONSOLIDATE=0.55        # body cosine ≥ ⇒ consolidate
+CONFLICT_TITLE_JACCARD_DUP=0.80              # near-duplicate title cutoff
+CONFLICT_H1_JACCARD_DUP=0.80                 # near-duplicate H1 cutoff
+CONFLICT_SLUG_OVERLAP_DUP=0.60               # near-duplicate URL cutoff
+CONFLICT_WINNER_INBOUND=0.45                 # winner weight: internal inbound-link authority
+CONFLICT_WINNER_DEPTH=0.30                   # winner weight: content depth (tokens)
+CONFLICT_WINNER_URLCLEAN=0.25                # winner weight: URL cleanliness
+CONFLICT_WINNER_TRAFFIC=0                    # winner weight: GSC clicks (OFF by default)
 ```
 
 ---
@@ -1566,3 +1587,95 @@ Ordered by **leverage × scope of personas helped**. Top items help 3+ personas 
 ### 14E. UI ship in this session
 
 User asked for the project log to be surfaced "top right" of the dashboard. Added `app/components/ProjectLogLink.tsx` — a small floating link top-right (z-30, hidden below `sm:` breakpoint so it doesn't fight the mobile burger) that opens this PROJECTLOG.md on GitHub in a new tab. Sidebar-style — out of the way, but discoverable. Mounted in `app/(dashboard)/layout.tsx`.
+
+---
+
+## 15. Session 11 — conflict automation + grouping; GSC/SERP removed (2026-07-06)
+
+Turned the manual "find duplicate pages → decide → pick a winner" workflow into
+deterministic, config-driven tooling, and stripped the external-data panels the
+team had stopped using. Plan: [`plans/01-conflict-automation.md`](plans/01-conflict-automation.md).
+
+### 15A. Corpus data changes (direct DB, kept durable in `lib/taxonomy.ts`)
+
+- **3 new standalone content types** promoted out of `static`: `managed-training`
+  (8), `platform` (8), `consulting` (25) — 41 service/solution pages, mapped by
+  slug in `lib/taxonomy.ts` so a reingest re-derives them. Category left null (the
+  type already conveys the grouping). Type-badge colors added in `ui.tsx`.
+- **`templates` content type** — 14 `/templates/*` pages + the L&D templates hub
+  moved out of `static`. Corpus is now **2,463** pages (2 new consulting pages
+  were inserted + embedded via the local bge model).
+- Corpus breakdown by type now: course 1,698 · blog 500 · subcategory 102 ·
+  **static 55** · category 43 · **consulting 25** · templates 14 · excellence-program 10 ·
+  **managed-training 8** · **platform 8**.
+
+### 15B. Corpus page — CSV import/export
+
+- **Download CSV** (`/api/pages/export`) streams the whole filtered corpus.
+- **Upload CSV** (`/api/pages/import`) upserts by `url`; supports an `action`
+  column (`delete` removes a row). Shared parser in `lib/csv.ts` (+ tests).
+- Columns reworked: added **H1** + **Description**, removed **Clicks 28d** +
+  **Modified**; GSC clicks no longer selected for this view.
+
+### 15C. Conflict Checker — GSC + SERP removed
+
+- Deleted the GSC performance panel, "your GSC rank", cannibalization banner, and
+  the Competitor SERP / AI Overview block. Deleted routes
+  `/api/check/enrich` + `/api/check/cannibalization`. `serpOverlap` stays for
+  `/api/competitors/*` + `/api/suggestions/new-content`. GSC lib untouched
+  (still used by `/api/gsc/*` and the `/search-console` page).
+
+### 15D. Conflict automation — Phase 1 (per-match) + grouping (Stage 6-8)
+
+New pure, unit-tested modules (Node `node:test`; run `npx tsx --test lib/<x>.test.ts`):
+
+| Module | Role |
+|---|---|
+| `lib/thresholds.ts` | every cutoff + winner weight, env-overridable (`CONFLICT_*`) |
+| `lib/signals.ts` | title/H1/slug/body scored **separately** (never blended) |
+| `lib/intent.ts` | rule-based search intent (informational/commercial/transactional/navigational) |
+| `lib/resolution.ts` | pairwise `decidePair` + weighted `pickWinner` + cluster `groupAction` |
+| `lib/cluster.ts` | connected-components (union-find) over the pair graph |
+
+- `runConflictCheck` now attaches `{signals, intent, resolution}` per match +
+  `inputIntent`. The page renders a **Resolution card** (4 signal bars, intent
+  chip, action badge, winner ★, copyable 301 line).
+- **Similar-page groups** live on the Conflict Checker page: `/api/groups` reads
+  `catalog_conflicts` pairs → connected components → per-group winner + action +
+  member intents. Verified live: 130 pairs → 3 groups (38/9/2 pages).
+- Fixed a **latent bug** in `lib/inbound-links.ts`: drizzle's `sql\`\`` expanded
+  the URL array into `unnest($1,$2,…)` (a record) — rebound as a single
+  `$1::text[]` via the raw neon client. Also unbreaks `/api/internal-links`.
+
+### 15E. Sidebar
+
+- "Additional Tools" (Content Audit / Internal Links / Funnel Strategy) is now a
+  collapsible group, closed by default, auto-opening on those routes.
+
+### 15F. What's left — future upgrades (conflict automation Phases 2-5)
+
+Tracked in [`plans/01-conflict-automation.md`](plans/01-conflict-automation.md):
+
+- **Phase 2 — intent everywhere + ingest hardening.** Persist `intent` + a
+  non-indexable flag during ingest (Stage 1/5 durability); surface intent in the
+  Corpus + Catalog Conflicts views.
+- **Phase 3 — clustering in the DB.** Migration `0008` (`clusters` +
+  `cluster_members`); move the connected-components + per-cluster resolution from
+  the live `/api/groups` into a persisted, corpus-wide scan
+  (`scripts/catalog-conflicts.ts`).
+- **Phase 4 — guardrails + export.** `lib/guardrails.ts` (redirect-loop / orphan
+  / canonical-to-noindex checks); low-confidence flagging; action-plan CSV / 301
+  map export (reuse `lib/csv.ts`).
+- **Phase 5 — corpus-wide UI.** Catalog Conflicts page shows clusters (not raw
+  pairs) + resolutions + download.
+
+**Known tuning notes for later:**
+- The near-duplicate scan (`catalog-conflicts.ts`, threshold 0.85) produces a few
+  large mixed-intent mega-clusters (e.g. a 38-page category+course blob). Options:
+  raise the threshold, or split components by intent before grouping.
+- `fetchInboundCounts` is a substring `ILIKE` over `content_text` (no parsed
+  anchors), so it currently returns 0 for most pages — winners fall back to depth
+  + URL cleanliness. A real internal-links table (Session 9 §13B) would fix it.
+- External backlinks/referring domains are not in the data model; winner authority
+  uses internal inbound links only. Wiring Ahrefs/GSC-links is a config slot in
+  `lib/thresholds.ts` (`CONFLICT_WINNER_*`) away.

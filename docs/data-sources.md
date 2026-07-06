@@ -14,7 +14,7 @@ Where the Conflict Checker reads from and writes to.
 | [`data/taxonomy/competitors.json`](../data/taxonomy/competitors.json) | JSON (43 entries) | Competitor domain list for `/competitors`. | Manual edits. |
 | [`data/taxonomy/synonyms.json`](../data/taxonomy/synonyms.json) | JSON (38 entries) | Query expansion / dedupe hints. | Manual edits. |
 | [`data/taxonomy/underserved-categories.json`](../data/taxonomy/underserved-categories.json) | JSON (20 entries) | Categories with low course coverage — drives content-gap recommendations. | Same extractor (`LEAST_20` in the HTML). |
-| [`data/taxonomy/gsc-pipeline-seed.json`](../data/taxonomy/gsc-pipeline-seed.json) | JSON (25 entries) | Seed queries for GSC enrichment runs. | Same extractor. |
+| [`data/taxonomy/gsc-pipeline-seed.json`](../data/taxonomy/gsc-pipeline-seed.json) | JSON (25 entries) | Seed queries for GSC runs on the `/search-console` page. (The Conflict Checker's inline GSC enrichment was removed in Session 11.) | Same extractor. |
 
 ## Storage (Neon Postgres + pgvector)
 
@@ -40,8 +40,8 @@ The pgvector index on `pages.embedding` is HNSW with `vector_cosine_ops`.
 | **Anthropic Claude** | Alt chat provider. | `ANTHROPIC_API_KEY`, `AI_CHAT_PROVIDER=claude` | — |
 | **OpenAI** | Alt chat + alt embedder. | `OPENAI_API_KEY` | Inert if key missing. |
 | **Local embedder** (Transformers.js `bge-small-en-v1.5`) | Default — embeddings without an API call. | `AI_EMBED_PROVIDER=local` | Model downloads on first use (~30 MB). |
-| **Google Search Console** | `/search-console` page + GSC enrichment in matches. | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `GSC_SITE_URL` | Pages render without GSC columns. |
-| **Serper.dev** | `/competitors`, SERP overlap, AI Overview detection. | `SERPER_API_KEY` | `/competitors` shows an empty state. |
+| **Google Search Console** | `/search-console` page. (Removed from the Conflict Checker in Session 11.) | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `GSC_SITE_URL` | Pages render without GSC columns. |
+| **Serper.dev** | `/competitors` + `/api/suggestions/new-content` SERP overlap, AI Overview detection. (Removed from the Conflict Checker in Session 11.) | `SERPER_API_KEY` | `/competitors` shows an empty state. |
 
 ## Pipelines (npm scripts)
 
@@ -67,4 +67,4 @@ The pgvector index on `pages.embedding` is HNSW with `vector_cosine_ops`.
 - **No `DATABASE_URL`** → `persistCheck` is skipped (warning logged); check still returns a result. Best-effort, deliberate.
 - **No chat key** → `runConflictCheck` throws at step 1 (summarize). This is fatal — there's no useful fallback.
 - **Embedder down** → step 2 throws. Local embedder has no network dep after first download, so this almost only happens if OpenAI embeddings are configured and the API is down.
-- **Vector search returns 0 rows above 0.30** → returns `topScore = 0`, empty `matches`. Not an error.
+- **Vector search returns 0 rows above 0.50** (the `minSimilarity` default, raised from 0.30 in Session 6 H11) → returns `topScore = 0`, empty `matches`. Not an error.
