@@ -194,13 +194,15 @@ export function tagUrl(url: string, title?: string | null): PageTags {
   const svcSlug = path.replace(/^\//, "").replace(/\/$/, "");
   const svcType = SERVICE_PAGE_TYPE[svcSlug];
   if (svcType) {
-    const category = SERVICE_LABEL[svcType];
+    // Category is left null: the content type already conveys the grouping
+    // (Managed Training / Platform / Consulting), so repeating it in the
+    // category column would be redundant. The label is kept as a tag.
     return {
       contentType: svcType,
       courseType: null,
-      category,
+      category: null,
       subcategory: null,
-      tags: uniq([category, svcType]),
+      tags: uniq([SERVICE_LABEL[svcType], svcType]),
     };
   }
 
