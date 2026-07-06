@@ -31,31 +31,6 @@ interface CheckResult {
   checkId?: number;
 }
 
-interface EnrichData {
-  serp: any;
-  gap: string[];
-}
-
-/** Derive the primary keyword used for the SERP lookup.
- *  Priority:
- *   1. URL slug (blogs/courses/categories/topics — slug IS the primary keyword)
- *   2. The topic the user typed (for topic inputs)
- *   3. LLM keywords[0] (short head term)
- *   4. LLM primaryQuery (long-tail, last resort)
- */
-function pickSerpQuery(result: CheckResult): string {
-  if (result.inputType === "url") {
-    try {
-      const path = new URL(result.inputValue).pathname.toLowerCase().replace(/\/$/, "");
-      const m = path.match(/^\/(?:blog|course|category|topic|topics)\/(.+)$/);
-      if (m) return m[1].replace(/-/g, " ");
-    } catch {/* fall through */}
-  } else if (result.inputValue?.trim()) {
-    return result.inputValue.trim();
-  }
-  return result.keywords?.[0] || result.primaryQuery || result.inputValue;
-}
-
 export default function ConflictCheckerPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -70,10 +45,6 @@ export default function ConflictCheckerPage() {
     const t = setTimeout(() => setSlowHint(true), 5000);
     return () => clearTimeout(t);
   }, [loading]);
-
-  // Enrichment is lazy: we kick it off after a check completes.
-  const [enrich, setEnrich] = useState<EnrichData | null>(null);
-  const [enriching, setEnriching] = useState(false);
 
   // Filters for the match list.
   const [scoreMin, setScoreMin] = useState(80);
@@ -124,7 +95,7 @@ export default function ConflictCheckerPage() {
   async function run(e: React.FormEvent) {
     e.preventDefault();
     if (!input.trim()) return;
-    setLoading(true); setError(null); setResult(null); setEnrich(null); setSuggestions(null);
+    setLoading(true); setError(null); setResult(null); setSuggestions(null);
     setExplained({}); setPage(1);
     setDraft(null); setDraftError(null);
     try {
@@ -162,33 +133,6 @@ export default function ConflictCheckerPage() {
       setExplained((e) => ({ ...e, [url]: { error: (err as Error).message, loading: false } }));
     }
   }
-
-  // Auto-enrich once we have matches.
-  useEffect(() => {
-    if (!result || !result.matches.length) return;
-    let cancelled = false;
-    (async () => {
-      setEnriching(true);
-      try {
-        const urls = result.matches.slice(0, 8).map((m) => m.url);
-        const serpTopic = pickSerpQuery(result);
-        const res = await fetch("/api/check/enrich", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            urls,
-            topic: serpTopic,
-            withSerp: true,
-          }),
-        });
-        const data = await res.json();
-        if (!cancelled) setEnrich(data);
-      } finally {
-        if (!cancelled) setEnriching(false);
-      }
-    })();
-    return () => { cancelled = true };
-  }, [result]);
 
   // Cache-first generator. Sends the input directly (so it works even
   // when checkId persistence fails). Resolves synchronously: instant on
@@ -306,7 +250,7 @@ export default function ConflictCheckerPage() {
     <div>
       <PageHeader
         title="Conflict Checker"
-        subtitle="Paste a URL or a topic. We summarize it, score it (0–100%), and enrich each match with competitor data."
+        subtitle="Paste a URL or a topic. We summarize it and score it (0–100%) against the existing corpus."
       />
       <div className="p-8 space-y-6">
         <form onSubmit={run} className="space-y-3">
@@ -393,93 +337,6 @@ export default function ConflictCheckerPage() {
               )}
             </Card>
 
-            {/* Competitor SERP + AI Overview + keyword gap.
-                Sits right under the Summary so the user sees external
-                context before drilling into matches. */}
-            {enrich && enrich.serp && enrich.serp.organic && (
-              <Card>
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-sm font-semibold text-slate-900">
-                    Competitor SERP for "{enrich.serp.topic}"
-                  </h3>
-                  {enrich.serp.edstellarRank
-                    ? <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">Edstellar #{enrich.serp.edstellarRank} on Google</span>
-                    : <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">Edstellar not in top 10</span>}
-                </div>
-
-                <table className="w-full text-sm">
-                  <thead><tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
-                    <th className="py-2 pr-3 font-medium">#</th>
-                    <th className="py-2 pr-3 font-medium">Domain</th>
-                    <th className="py-2 font-medium">Title</th>
-                  </tr></thead>
-                  <tbody>
-                    {enrich.serp.organic.slice(0, 8).map((r: any) => (
-                      <tr key={r.rank} className={`border-b border-slate-100 ${r.isEdstellar ? "bg-emerald-50" : ""}`}>
-                        <td className="py-2 pr-3 tabular-nums">{r.rank}</td>
-                        <td className="py-2 pr-3 text-slate-700">
-                          {r.domain}
-                          {r.isKnown && <span className="ml-1 rounded bg-indigo-100 px-1 py-0.5 text-[10px] text-indigo-700">known</span>}
-                          {r.isEdstellar && <span className="ml-1 rounded bg-emerald-100 px-1 py-0.5 text-[10px] text-emerald-700">you</span>}
-                        </td>
-                        <td className="max-w-md truncate py-2"><a href={r.url} target="_blank" rel="noreferrer" className="text-slate-600 hover:underline">{r.title}</a></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-
-                {/* AI Overview citations — Google's AI summary panel */}
-                {enrich.serp.aiOverview ? (
-                  <div className="mt-4 rounded-lg border border-violet-200 bg-violet-50 p-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-violet-700">
-                        <span>✨ AI Overview cites</span>
-                        <span className="rounded bg-violet-100 px-1 py-0.5 text-[9px] font-bold normal-case text-violet-700">Google SGE</span>
-                      </div>
-                      {enrich.serp.aiOverview.edstellarCited
-                        ? <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">Edstellar cited ✓</span>
-                        : <span className="rounded bg-rose-100 px-2 py-0.5 text-xs text-rose-700">Edstellar not cited</span>}
-                    </div>
-                    {enrich.serp.aiOverview.summary && (
-                      <p className="mb-2 text-xs leading-relaxed text-violet-900">{enrich.serp.aiOverview.summary.slice(0, 320)}{enrich.serp.aiOverview.summary.length > 320 ? "…" : ""}</p>
-                    )}
-                    {enrich.serp.aiOverview.citations?.length > 0 && (
-                      <ol className="space-y-1 text-xs">
-                        {enrich.serp.aiOverview.citations.slice(0, 8).map((c: any, i: number) => (
-                          <li key={i} className="flex items-start gap-2">
-                            <span className="shrink-0 tabular-nums text-violet-500">{i + 1}.</span>
-                            <a href={c.url} target="_blank" rel="noreferrer"
-                              className={`truncate hover:underline ${c.isEdstellar ? "font-semibold text-emerald-700" : "text-slate-700"}`}>
-                              {c.domain}
-                              {c.isKnown && <span className="ml-1 rounded bg-indigo-100 px-1 py-0.5 text-[9px] text-indigo-700">known</span>}
-                              {c.isEdstellar && <span className="ml-1 rounded bg-emerald-100 px-1 py-0.5 text-[9px] text-emerald-700">you</span>}
-                              {" — "}
-                              <span className="text-slate-500">{c.title}</span>
-                            </a>
-                          </li>
-                        ))}
-                      </ol>
-                    )}
-                  </div>
-                ) : (
-                  <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-                    No AI Overview appeared on Google for this query.
-                  </div>
-                )}
-
-                {enrich.gap?.length > 0 && (
-                  <div className="mt-3 border-t border-slate-100 pt-3">
-                    <div className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Keyword gap (mentioned by competitors, not in your top queries)</div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {enrich.gap.map((k) => (
-                        <span key={k} className="rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-800">{k}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </Card>
-            )}
-
             {/* Filters — visible when there's anything to filter */}
             {result.matches.length > 0 && (
               <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -539,9 +396,6 @@ export default function ConflictCheckerPage() {
                 <span className="text-xs font-normal text-slate-500">
                   · of {result.matches.length} total · {explainedCount} analyzed · {reviewCount} not yet analyzed
                 </span>
-                {enriching && (
-                  <span className="text-xs font-normal text-slate-400">· fetching competitor data…</span>
-                )}
               </h2>
               {filtered.length === 0 ? (
                 <Card className="text-sm text-slate-500">
