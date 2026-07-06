@@ -91,14 +91,157 @@ export function signalScores(
   input: SignalInput,
   candidate: SignalInput,
   body: number,
+  /**
+   * Optional corpus DF index (PROJECTLOG §17). When supplied, the title & slug
+   * Jaccards are computed over DISTINCTIVE tokens only — template words shared
+   * by every page ("corporate", "training", "courses") are dropped so the
+   * lexical bars stop lighting up for pure template matches. Omit for the
+   * legacy raw-token behaviour (unchanged).
+   */
+  df?: DfIndex,
 ): SignalScores {
+  const filt = (toks: string[]) => (df ? distinctiveTokens(toks, df) : toks);
   const inputTitleTokens = input.title
     ? tokenize(input.title)
     : tokenize(input.text);
   return {
-    title: jaccard(inputTitleTokens, tokenize(candidate.title)),
+    title: jaccard(filt(inputTitleTokens), filt(tokenize(candidate.title))),
     h1: jaccard(tokenize(input.h1), tokenize(candidate.h1)),
-    slug: slugOverlap(input.url, candidate.url),
+    slug: jaccard(filt(slugTokens(input.url)), filt(slugTokens(candidate.url))),
     body: Math.max(0, Math.min(1, body)),
   };
+}
+
+// ── Topic-token layer (PROJECTLOG §17) ────────────────────────────────────
+// Shared by Content Clusters (lib/cluster.ts) and the Conflict Checker's
+// lexical signals. The corpus document-frequency of a token cleanly separates
+// template vocabulary ("training" 82%, "corporate" 78%) from topic vocabulary
+// ("big" 0.6%, "sales" 1.2%) — so a DF cap auto-learns the stopword list.
+
+/** Last non-empty path segment of a URL, tokenized. `/category/big-data-training`
+ *  → ["big","data","training"]. Section prefixes (/category/, /blog/) are
+ *  dropped — they polluted topic keys in the full-corpus simulation. */
+export function lastSegmentTokens(url: string | null | undefined): string[] {
+  if (!url) return [];
+  let path = url;
+  try {
+    path = new URL(url).pathname;
+  } catch {
+    /* raw path */
+  }
+  const seg = path.split("/").filter(Boolean).pop() ?? "";
+  return tokenize(seg);
+}
+
+/** Adjacent-pair bigrams from a token list: ["big","data","x"] → ["big data","data x"]. */
+function bigrams(tokens: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < tokens.length - 1; i++) out.push(`${tokens[i]} ${tokens[i + 1]}`);
+  return out;
+}
+
+/** A page's raw terms for topic keying: unigrams (union of title/h1/last-slug)
+ *  + bigrams (per-field adjacency, so cross-field noise pairs aren't formed). */
+export function pageTerms(input: SignalInput): { unigrams: string[]; bigrams: string[] } {
+  const fields = [tokenize(input.title), tokenize(input.h1), lastSegmentTokens(input.url)].filter(
+    (f) => f.length > 0,
+  );
+  const uni = new Set<string>();
+  const bi = new Set<string>();
+  for (const f of fields) {
+    for (const t of f) uni.add(t);
+    for (const b of bigrams(f)) bi.add(b);
+  }
+  return { unigrams: [...uni], bigrams: [...bi] };
+}
+
+/** Corpus document-frequency index over unigrams + bigrams. */
+export interface DfIndex {
+  df: Map<string, number>;
+  n: number;
+  cap: number;
+}
+
+/** Build a DF index from every page's terms. `cap` is the DF-ratio above which
+ *  a term is considered template noise (default 0.05). */
+export function buildDfIndex(pages: SignalInput[], cap = 0.05): DfIndex {
+  const df = new Map<string, number>();
+  for (const p of pages) {
+    const { unigrams, bigrams: bi } = pageTerms(p);
+    for (const t of new Set([...unigrams, ...bi])) df.set(t, (df.get(t) ?? 0) + 1);
+  }
+  return { df, n: pages.length, cap };
+}
+
+/** A term is distinctive (topic, not template) if it appears in < cap of docs. */
+export function isDistinctive(term: string, idx: DfIndex): boolean {
+  if (idx.n === 0) return true;
+  return (idx.df.get(term) ?? 0) / idx.n < idx.cap;
+}
+
+/** Smoothed inverse document frequency — rarer terms weigh more. */
+export function idf(term: string, idx: DfIndex): number {
+  const d = idx.df.get(term) ?? 0;
+  return Math.log((idx.n + 1) / (d + 1)) + 1;
+}
+
+/** Filter a token list to only its distinctive (topic) members. */
+export function distinctiveTokens(tokens: string[], idx: DfIndex): string[] {
+  return tokens.filter((t) => isDistinctive(t, idx));
+}
+
+/** A page's distinctive topic key: template terms removed. */
+export interface TopicKey {
+  unigrams: string[];
+  bigrams: string[];
+}
+
+export function topicKey(input: SignalInput, idx: DfIndex): TopicKey {
+  const { unigrams, bigrams: bi } = pageTerms(input);
+  return {
+    unigrams: unigrams.filter((t) => isDistinctive(t, idx)),
+    bigrams: bi.filter((t) => isDistinctive(t, idx)),
+  };
+}
+
+function weightMap(key: TopicKey, idx: DfIndex, bigramWeight: number): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const t of key.unigrams) m.set(t, idf(t, idx));
+  for (const t of key.bigrams) m.set(t, idf(t, idx) * bigramWeight);
+  return m;
+}
+
+/** IDF-weighted Jaccard between two topic keys, bigrams up-weighted. In [0,1].
+ *  This is the grouping score: big-data↔sales ≈ 0, big-data↔big-data-blog high. */
+export function topicOverlap(
+  a: TopicKey,
+  b: TopicKey,
+  idx: DfIndex,
+  bigramWeight = 2,
+): number {
+  const A = weightMap(a, idx, bigramWeight);
+  const B = weightMap(b, idx, bigramWeight);
+  let inter = 0;
+  let union = 0;
+  for (const t of new Set([...A.keys(), ...B.keys()])) {
+    const va = A.get(t) ?? 0;
+    const vb = B.get(t) ?? 0;
+    inter += Math.min(va, vb);
+    union += Math.max(va, vb);
+  }
+  return union === 0 ? 0 : inter / union;
+}
+
+/** Shared distinctive terms between two topic keys (bigrams first) — the
+ *  human-readable "why grouped" tags, e.g. ["big data", "big"]. */
+export function sharedTopicTerms(a: TopicKey, b: TopicKey): string[] {
+  const bset = new Set([...b.unigrams, ...b.bigrams]);
+  const shared = [...a.bigrams.filter((t) => bset.has(t)), ...a.unigrams.filter((t) => bset.has(t))];
+  return [...new Set(shared)];
+}
+
+/** A topic key's own label terms (bigrams first), for the cluster header. */
+export function topicLabel(key: TopicKey, max = 3): string {
+  const terms = [...key.bigrams, ...key.unigrams.filter((u) => !key.bigrams.some((b) => b.includes(u)))];
+  return terms.slice(0, max).join(" · ");
 }

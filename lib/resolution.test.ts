@@ -161,3 +161,34 @@ test("groupAction: same intent scales with max similarity", () => {
 test("groupAction: mixed intent → differentiate regardless of similarity", () => {
   assert.equal(groupAction(0.95, ["commercial", "informational"]), "differentiate");
 });
+
+test("groupAction: hub seed + cross-type spokes → pillar", () => {
+  assert.equal(
+    groupAction(0.6, ["commercial", "informational"], undefined, {
+      seedType: "category",
+      memberTypes: ["category", "course", "blog"],
+    }),
+    "pillar",
+  );
+});
+
+test("groupAction: same-type family under a hub seed is NOT pillar", () => {
+  // All members are the same type as the seed → normal ladder applies.
+  assert.equal(
+    groupAction(0.9, ["commercial", "commercial"], undefined, {
+      seedType: "category",
+      memberTypes: ["category", "category"],
+    }),
+    "merge",
+  );
+});
+
+test("groupAction: non-hub seed never yields pillar", () => {
+  assert.equal(
+    groupAction(0.9, ["commercial", "commercial"], undefined, {
+      seedType: "course",
+      memberTypes: ["course", "blog"],
+    }),
+    "merge",
+  );
+});

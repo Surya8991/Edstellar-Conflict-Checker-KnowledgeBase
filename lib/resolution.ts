@@ -25,7 +25,11 @@ export type ResolutionAction =
   | "merge" // near-duplicate, same intent → 301 the loser into the winner
   | "consolidate" // strong overlap, same intent → keep winner, re-link others
   | "differentiate" // some overlap, same intent → rewrite to separate them
-  | "keep-both"; // different intent → no conflict
+  | "keep-both" // different intent → no conflict
+  | "pillar"; // hub seed + spokes of other types → link spokes to the pillar
+
+/** Content types that act as a topic pillar (Content Clusters, PROJECTLOG §17). */
+const PILLAR_TYPES = new Set(["category", "subcategory", "excellence-program"]);
 
 /** Inputs to score a single page's authority (Stage 8 winner selection). */
 export interface AuthorityInput {
@@ -192,9 +196,13 @@ export function decidePair(
 }
 
 /**
- * Cluster-level action (Stage 7) for a group of ≥2 similar pages. Uses the
- * strongest pairwise similarity in the group and whether every member shares
- * one intent:
+ * Cluster-level action for a group of ≥2 similar pages.
+ *
+ * For topic clusters (Content Clusters, PROJECTLOG §17) a healthy family is a
+ * hub pillar + cross-type spokes — merge/differentiate don't apply, so when the
+ * seed is a pillar type and the group mixes in other types the action is
+ * `pillar` ("link spokes to the pillar"). Otherwise it falls back to the
+ * intent/similarity ladder for same-type near-duplicates:
  *   - mixed intent            → differentiate (they serve different searchers)
  *   - same intent, maxSim≥merge      → merge (collapse into the winner)
  *   - same intent, maxSim≥consolidate → consolidate
@@ -204,7 +212,16 @@ export function groupAction(
   maxBodySim: number,
   intents: Intent[],
   t: Thresholds = THRESHOLDS,
+  /** Optional cluster shape — enables the pillar/spoke action for topic clusters. */
+  shape?: { seedType?: string | null; memberTypes?: (string | null)[] },
 ): ResolutionAction {
+  if (
+    shape?.seedType &&
+    PILLAR_TYPES.has(shape.seedType) &&
+    (shape.memberTypes ?? []).some((mt) => mt && mt !== shape.seedType)
+  ) {
+    return "pillar";
+  }
   const sameIntent = intents.length > 0 && intents.every((i) => i === intents[0]);
   if (!sameIntent) return "differentiate";
   if (maxBodySim >= t.bodyCosineMerge) return "merge";

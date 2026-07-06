@@ -1,178 +1,200 @@
 /**
- * Connected-components clustering (plans/01-conflict-automation.md, Stage 6).
+ * Center-based ("leader") topic clustering for Content Clusters
+ * (PROJECTLOG §17D-E — replaces the old body-embedding connected-components
+ * approach, which chained different topics into a single 375-page hairball).
  *
- * The corpus scan (scripts/catalog-conflicts.ts) emits near-duplicate PAIRS.
- * A topic cluster is a connected component of that graph: page A links B, B
- * links C ⇒ {A,B,C} is one group even if A↔C was never directly compared.
+ * A cluster = one TOPIC across content types (the category page is the natural
+ * pillar; its courses/blogs are spokes). Every member matches the cluster's
+ * SEED directly by distinctive-topic-token overlap — never member↔member — so
+ * transitive chaining is impossible by construction.
  *
- * Pure + deterministic (union-find with path compression). Unit-tested.
+ * Pure + deterministic. Unit-tested in cluster.test.ts against the user's exact
+ * acceptance examples (big-data vs sales/data-analytics/blog/courses).
  */
-
-import { jaccard, tokenize, slugOverlap } from "@/lib/signals";
 import { THRESHOLDS, type Thresholds } from "@/lib/thresholds";
+import {
+  buildDfIndex,
+  topicKey,
+  topicOverlap,
+  sharedTopicTerms,
+  topicLabel,
+  type DfIndex,
+  type SignalInput,
+  type TopicKey,
+} from "@/lib/signals";
 
-/** A single similarity edge between two node ids (e.g. page URLs). */
-export type Edge = readonly [string, string];
-
-export interface CandidatePair {
-  aType: string | null;
-  bType: string | null;
-  aTitle: string | null;
-  bTitle: string | null;
-  aH1?: string | null;
-  bH1?: string | null;
-  aDescription?: string | null;
-  bDescription?: string | null;
-  aUrl?: string | null;
-  bUrl?: string | null;
-  /** Body cosine similarity 0..1. */
-  sim: number;
+export interface ClusterPage {
+  url: string;
+  title: string | null;
+  h1?: string | null;
+  type: string | null;
+  tokenCount?: number | null;
 }
 
-/** Lexical signals that can corroborate a cluster edge. */
-export type EvidenceSignal = "title" | "h1" | "description" | "url" | "body";
-
-export interface PairEvidence {
-  group: boolean;
-  /** Which signals support this edge (body listed when ≥ the type floor). */
-  support: EvidenceSignal[];
+export interface ClusterMember {
+  url: string;
+  title: string | null;
+  type: string | null;
+  /** Distinctive topic tokens shared with the seed (the "why grouped" tags). */
+  sharedTerms: string[];
+  /** IDF-weighted topic overlap vs the seed, 0..1 (1 for the seed itself). */
+  matchSim: number;
+  /** Body cosine vs the seed when the caller supplied it, else null. */
+  bodySim: number | null;
+  isSeed: boolean;
 }
 
-/** Plural-normalized tokens for corroboration matching: "skill gaps" must
- *  match "skills gap" (measured false-negative in the live corpus). Both
- *  sides get the same normalization, so consistency is what matters. */
-function supportTokens(text: string | null | undefined): string[] {
-  return tokenize(text).map((tok) => (tok.length > 3 ? tok.replace(/s$/, "") : tok));
+export interface TopicCluster {
+  seedUrl: string;
+  /** Human-readable topic label, e.g. "big data" (seed's distinctive terms). */
+  label: string;
+  members: ClusterMember[];
 }
 
-/**
- * Multi-signal edge evidence (Stage 6 precision rules, PROJECTLOG 15G + 15H —
- * measured against the live corpus).
- *
- * An edge must NEVER rest on one signal:
- *  - Body cosine alone is not enough below the self-sufficient bar — course &
- *    static template boilerplate inflates it (/enquiry-form ↔ /contact-us
- *    measured 88% body, zero lexical overlap).
- *  - Same title/URL alone is not enough — the type-aware body floor always
- *    applies.
- *
- * Rules:
- *  1. Cross-type pairs never group (bleed → Catalog Conflicts page).
- *  2. Body ≥ type-aware floor: course↔course needs groupSimCourse, or
- *     groupSimCourseTitle + title Jaccard ≥ groupTitleJaccardCourse
- *     (Express.js vs Node.js: body 0.74 / title 0.5 → never groups);
- *     other same-type pairs need groupSimilarity.
- *  3. Corroboration: ≥1 of title/H1/description/slug at plural-normalized
- *     Jaccard ≥ groupSupportJaccard — unless body ≥ groupBodySelfSufficient
- *     (near-verbatim duplicate).
- */
-export function evaluatePair(p: CandidatePair, t: Thresholds = THRESHOLDS): PairEvidence {
-  const none: PairEvidence = { group: false, support: [] };
-  if (!p.aType || p.aType !== p.bType) return none;
-
-  // Lexical corroboration signals (computed once; also drive UI evidence tags).
-  const support: EvidenceSignal[] = [];
-  if (jaccard(supportTokens(p.aTitle), supportTokens(p.bTitle)) >= t.groupSupportJaccard) support.push("title");
-  if (jaccard(supportTokens(p.aH1), supportTokens(p.bH1)) >= t.groupSupportJaccard) support.push("h1");
-  if (jaccard(supportTokens(p.aDescription), supportTokens(p.bDescription)) >= t.groupSupportJaccard) support.push("description");
-  if (slugOverlap(p.aUrl, p.bUrl) >= t.groupSupportJaccard) support.push("url");
-
-  // Type-aware body floor.
-  let bodyOk: boolean;
-  if (p.aType === "course") {
-    bodyOk =
-      p.sim >= t.groupSimCourse ||
-      (p.sim >= t.groupSimCourseTitle &&
-        jaccard(tokenize(p.aTitle), tokenize(p.bTitle)) >= t.groupTitleJaccardCourse);
-  } else {
-    bodyOk = p.sim >= t.groupSimilarity;
-  }
-  if (!bodyOk) return { group: false, support };
-
-  // Corroboration: lexical support, or near-verbatim body.
-  const group = p.sim >= t.groupBodySelfSufficient || support.length >= 1;
-  return { group, support: group ? ["body", ...support] : support };
-}
-
-/** Back-compat boolean wrapper over evaluatePair. */
-export function shouldGroupPair(p: CandidatePair, t: Thresholds = THRESHOLDS): boolean {
-  return evaluatePair(p, t).group;
-}
-
-class UnionFind {
-  private parent = new Map<string, string>();
-
-  private find(x: string): string {
-    if (!this.parent.has(x)) {
-      this.parent.set(x, x);
-      return x;
-    }
-    // Walk to the root.
-    let root = x;
-    while (this.parent.get(root) !== root) {
-      root = this.parent.get(root)!;
-    }
-    // Path compression: point every node on the path straight at the root.
-    let cur = x;
-    while (cur !== root) {
-      const next = this.parent.get(cur)!;
-      this.parent.set(cur, root);
-      cur = next;
-    }
-    return root;
-  }
-
-  union(a: string, b: string): void {
-    const ra = this.find(a);
-    const rb = this.find(b);
-    if (ra !== rb) this.parent.set(ra, rb);
-  }
-
-  add(x: string): void {
-    if (!this.parent.has(x)) this.parent.set(x, x);
-  }
-
-  root(x: string): string {
-    return this.find(x);
-  }
+export interface ClusterResult {
+  clusters: TopicCluster[];
+  /** URLs whose topic is genuinely unique (never reached minSize) — an answer,
+   *  not a coverage gap. */
+  singletons: string[];
+  /** Total pages evaluated (every page is keyed and considered). */
+  corpusSize: number;
+  /** The DF index built over the corpus — exposed so callers can reuse it. */
+  dfIndex: DfIndex;
 }
 
 /**
- * Group nodes into connected components from a list of edges. Returns each
- * component as a sorted array of node ids; singletons (nodes with no edges)
- * are omitted unless passed in `extraNodes`. Components are sorted largest
- * first, then by first member for a stable order.
+ * Pillar-priority seed ordering: hubs become seeds before their spokes, so a
+ * course/blog attaches to its category rather than seeding a rival cluster.
  */
-export function connectedComponents(
-  edges: Edge[],
-  extraNodes: string[] = [],
-): string[][] {
-  const uf = new UnionFind();
-  for (const [a, b] of edges) uf.union(a, b);
-  for (const n of extraNodes) uf.add(n);
+const SEED_RANK: Record<string, number> = {
+  category: 0,
+  subcategory: 1,
+  "excellence-program": 2,
+  "managed-training": 3,
+  platform: 3,
+  consulting: 3,
+  location: 3,
+  templates: 3,
+  course: 4,
+  blog: 5,
+  static: 6,
+};
+export function seedRank(type: string | null): number {
+  return SEED_RANK[type ?? "static"] ?? 6;
+}
 
-  const groups = new Map<string, string[]>();
-  const seen = new Set<string>();
-  for (const [a, b] of edges) {
-    for (const node of [a, b]) {
-      if (seen.has(node)) continue;
-      seen.add(node);
-      const r = uf.root(node);
-      const g = groups.get(r) ?? [];
-      g.push(node);
-      groups.set(r, g);
+/** Hub content types whose clusters are pillar/spoke families. */
+export const HUB_TYPES = new Set(["category", "subcategory", "excellence-program"]);
+
+export interface ClusterOpts {
+  dfCap?: number;
+  overlap?: number;
+  bodyFloor?: number;
+  bigramWeight?: number;
+  minSize?: number;
+  /**
+   * Body cosine between seed and candidate URLs, when the caller can supply it
+   * (the route computes these in one batched query). Return null/undefined when
+   * unknown → the body floor is skipped for that pair.
+   */
+  bodySim?: (seedUrl: string, memberUrl: string) => number | null | undefined;
+}
+
+const sigInput = (p: ClusterPage): SignalInput => ({ title: p.title, h1: p.h1, url: p.url });
+
+/**
+ * Cluster a whole corpus by topic. Returns clusters (seeds with ≥ minSize
+ * members), the unique-topic singletons, and the DF index used.
+ */
+export function clusterByTopic(
+  pages: ClusterPage[],
+  opts: ClusterOpts = {},
+  t: Thresholds = THRESHOLDS,
+): ClusterResult {
+  const dfCap = opts.dfCap ?? t.topicDfCap;
+  const overlapBar = opts.overlap ?? t.topicOverlap;
+  const bodyFloor = opts.bodyFloor ?? t.topicBodyFloor;
+  const bigramWeight = opts.bigramWeight ?? 2;
+  const minSize = Math.max(2, opts.minSize ?? 2);
+
+  const dfIndex = buildDfIndex(pages.map(sigInput), dfCap);
+  const keyOf = new Map<string, TopicKey>();
+  for (const p of pages) keyOf.set(p.url, topicKey(sigInput(p), dfIndex));
+
+  // Deterministic pillar-priority order (hubs first, then URL tiebreak).
+  const ordered = [...pages].sort(
+    (a, b) => seedRank(a.type) - seedRank(b.type) || a.url.localeCompare(b.url),
+  );
+
+  interface Seed {
+    page: ClusterPage;
+    key: TopicKey;
+    members: ClusterMember[];
+  }
+  const seeds: Seed[] = [];
+
+  for (const p of ordered) {
+    const key = keyOf.get(p.url)!;
+    let best: { seed: Seed; overlap: number; shared: string[]; body: number | null } | null = null;
+
+    // A page with an empty topic key can only ever seed its own singleton.
+    if (key.unigrams.length || key.bigrams.length) {
+      for (const s of seeds) {
+        const ov = topicOverlap(key, s.key, dfIndex, bigramWeight);
+        if (ov < overlapBar) continue;
+        const body = opts.bodySim?.(s.page.url, p.url) ?? null;
+        if (body != null && body < bodyFloor) continue; // body floor vs seed
+        if (!best || ov > best.overlap) {
+          best = { seed: s, overlap: ov, shared: sharedTopicTerms(key, s.key), body };
+        }
+      }
+    }
+
+    if (best) {
+      best.seed.members.push({
+        url: p.url,
+        title: p.title,
+        type: p.type,
+        sharedTerms: best.shared,
+        matchSim: Number(best.overlap.toFixed(4)),
+        bodySim: best.body == null ? null : Number(best.body.toFixed(4)),
+        isSeed: false,
+      });
+    } else {
+      seeds.push({
+        page: p,
+        key,
+        members: [
+          {
+            url: p.url,
+            title: p.title,
+            type: p.type,
+            sharedTerms: [...key.bigrams, ...key.unigrams].slice(0, 5),
+            matchSim: 1,
+            bodySim: null,
+            isSeed: true,
+          },
+        ],
+      });
     }
   }
-  for (const n of extraNodes) {
-    if (seen.has(n)) continue;
-    seen.add(n);
-    const r = uf.root(n);
-    const g = groups.get(r) ?? [];
-    g.push(n);
-    groups.set(r, g);
-  }
 
-  return [...groups.values()]
-    .map((g) => g.slice().sort())
-    .sort((a, b) => b.length - a.length || a[0].localeCompare(b[0]));
+  const clusters: TopicCluster[] = [];
+  const singletons: string[] = [];
+  for (const s of seeds) {
+    if (s.members.length >= minSize) {
+      clusters.push({
+        seedUrl: s.page.url,
+        label: topicLabel(s.key) || "(untitled topic)",
+        members: s.members,
+      });
+    } else {
+      for (const m of s.members) singletons.push(m.url);
+    }
+  }
+  clusters.sort(
+    (a, b) => b.members.length - a.members.length || a.seedUrl.localeCompare(b.seedUrl),
+  );
+
+  return { clusters, singletons, corpusSize: pages.length, dfIndex };
 }

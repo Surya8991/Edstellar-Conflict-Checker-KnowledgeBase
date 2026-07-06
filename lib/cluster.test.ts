@@ -1,144 +1,160 @@
 /** npx tsx --test lib/cluster.test.ts */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { connectedComponents, shouldGroupPair, evaluatePair } from "./cluster";
+import { clusterByTopic, seedRank, type ClusterPage } from "./cluster";
+import { buildDfIndex, isDistinctive } from "./signals";
 
-test("transitive edges form one component", () => {
-  // A-B, B-C ⇒ {A,B,C} even though A-C was never a direct edge.
-  const groups = connectedComponents([["a", "b"], ["b", "c"]]);
-  assert.equal(groups.length, 1);
-  assert.deepEqual(groups[0], ["a", "b", "c"]);
-});
-
-test("disjoint edges form separate components", () => {
-  const groups = connectedComponents([["a", "b"], ["x", "y"], ["y", "z"]]);
-  assert.equal(groups.length, 2);
-  // Largest first: {x,y,z} before {a,b}.
-  assert.deepEqual(groups[0], ["x", "y", "z"]);
-  assert.deepEqual(groups[1], ["a", "b"]);
-});
-
-test("no edges ⇒ no components (singletons omitted)", () => {
-  assert.deepEqual(connectedComponents([]), []);
-});
-
-test("extraNodes with no edges appear as singletons", () => {
-  const groups = connectedComponents([["a", "b"]], ["solo"]);
-  assert.equal(groups.length, 2);
-  assert.deepEqual(groups[0], ["a", "b"]);
-  assert.deepEqual(groups[1], ["solo"]);
-});
-
-test("duplicate edges don't duplicate members", () => {
-  const groups = connectedComponents([["a", "b"], ["a", "b"], ["b", "a"]]);
-  assert.equal(groups.length, 1);
-  assert.deepEqual(groups[0], ["a", "b"]);
-});
-
-test("chained merge across many edges", () => {
-  const groups = connectedComponents([
-    ["1", "2"], ["3", "4"], ["2", "3"], ["5", "6"],
-  ]);
-  assert.equal(groups.length, 2);
-  assert.deepEqual(groups[0], ["1", "2", "3", "4"]);
-  assert.deepEqual(groups[1], ["5", "6"]);
-});
-
-// ── shouldGroupPair (type-aware precision rules) ──────────────────────────
-
-test("cross-type pairs never group (bleed, not duplication)", () => {
-  assert.equal(shouldGroupPair({ aType: "category", bType: "course", aTitle: "x", bTitle: "x", sim: 0.99 }), false);
-  assert.equal(shouldGroupPair({ aType: null, bType: null, aTitle: "x", bTitle: "x", sim: 0.99 }), false);
-});
-
-test("distinct courses with template-inflated similarity do NOT group", () => {
-  // Express.js vs Node.js: different products, title Jaccard 0.5, body ~0.74-0.90.
-  assert.equal(shouldGroupPair({
-    aType: "course", bType: "course",
-    aTitle: "Express JS Training", bTitle: "Node JS Training",
-    sim: 0.90,
-  }), false);
-});
-
-test("true duplicate courses group at the hard bar", () => {
-  assert.equal(shouldGroupPair({
-    aType: "course", bType: "course",
-    aTitle: "Anything", bTitle: "Entirely Different",
-    sim: 0.95,
-  }), true);
-});
-
-test("re-listed course (same title) groups at the softer bar", () => {
-  assert.equal(shouldGroupPair({
-    aType: "course", bType: "course",
-    aTitle: "Leadership Skills Training", bTitle: "Leadership Skills Training",
-    sim: 0.89,
-  }), true);
-});
-
-test("blogs group at the editorial threshold WITH lexical corroboration", () => {
-  const base = {
-    aType: "blog", bType: "blog",
-    aTitle: "Top Big Data Training Companies", bTitle: "Top Corporate Training Companies",
-  };
-  assert.equal(shouldGroupPair({ ...base, sim: 0.86 }), true);
-  assert.equal(shouldGroupPair({ ...base, sim: 0.84 }), false); // below body floor
-});
-
-// ── evaluatePair (multi-signal evidence, 15H) ─────────────────────────────
-
-test("body similarity alone never groups below the self-sufficient bar", () => {
-  // /enquiry-form vs /contact-us: 88% template body, zero lexical overlap.
-  const r = evaluatePair({
-    aType: "static", bType: "static",
-    aTitle: "Enquire Now", bTitle: "Contact Us",
-    aH1: "Enquiry", bH1: "Reach Our Team",
-    aDescription: "Send an enquiry", bDescription: "Get in touch with the team",
-    aUrl: "https://x.com/enquiry-form", bUrl: "https://x.com/contact-us",
-    sim: 0.88,
+/**
+ * A realistic-shape corpus: ~200 filler category pages, each on a UNIQUE coined
+ * topic, all sharing the template word "training". This reproduces the live-DB
+ * ratios where the template word is ~100% of pages (filtered) while a topic
+ * word like "big" (0.6%) or "data" (3.8%) stays under the 5% DF cap
+ * (distinctive). A small corpus would push the 4–5 big-data occurrences over
+ * 5% — the cap is a *ratio*, so the corpus must be corpus-sized.
+ */
+function fillerPages(n = 200): ClusterPage[] {
+  return Array.from({ length: n }, (_, i) => {
+    const topic = `subjectterm${i}`; // unique token per page → each ~0.5% DF
+    return {
+      url: `https://x.com/category/${topic}-training`,
+      title: `Subjectterm${i} Training`,
+      type: "category",
+    };
   });
-  assert.equal(r.group, false);
-  assert.deepEqual(r.support, []);
+}
+
+const bigDataCat: ClusterPage = {
+  url: "https://x.com/category/big-data-training",
+  title: "Big Data Training",
+  type: "category",
+};
+const salesCat: ClusterPage = {
+  url: "https://x.com/category/sales-training",
+  title: "Sales Training",
+  type: "category",
+};
+const dataAnalyticsCat: ClusterPage = {
+  url: "https://x.com/category/data-analytics-training",
+  title: "Data Analytics Training",
+  type: "category",
+};
+const bigDataBlog: ClusterPage = {
+  url: "https://x.com/blog/big-data-training-companies",
+  title: "Top Big Data Training Companies",
+  type: "blog",
+};
+const bigDataCourse1: ClusterPage = {
+  url: "https://x.com/course/google-big-data-training",
+  title: "Google Big Data Training",
+  type: "course",
+};
+const bigDataCourse2: ClusterPage = {
+  url: "https://x.com/course/informatica-big-data-training",
+  title: "Informatica Big Data Training",
+  type: "course",
+};
+
+const CORPUS: ClusterPage[] = [
+  bigDataCat, salesCat, dataAnalyticsCat, bigDataBlog, bigDataCourse1, bigDataCourse2,
+  ...fillerPages(),
+];
+
+function clusterOf(url: string, res: ReturnType<typeof clusterByTopic>) {
+  return res.clusters.find((c) => c.members.some((m) => m.url === url));
+}
+
+// ── DF template-vocabulary learning ───────────────────────────────────────
+
+test("DF cap auto-learns template vs topic vocabulary", () => {
+  const idx = buildDfIndex(
+    CORPUS.map((p) => ({ title: p.title, url: p.url })),
+    0.05,
+  );
+  // "training" is in every page → template noise → not distinctive.
+  assert.equal(isDistinctive("training", idx), false);
+  // "big" / "sales" are rare → topic tokens → distinctive.
+  assert.equal(isDistinctive("big", idx), true);
+  assert.equal(isDistinctive("sales", idx), true);
 });
 
-test("near-verbatim body (≥ self-sufficient) groups without lexical support", () => {
-  const r = evaluatePair({
-    aType: "blog", bType: "blog",
-    aTitle: "Alpha", bTitle: "Omega",
-    sim: 0.94,
-  });
-  assert.equal(r.group, true);
-  assert.ok(r.support.includes("body"));
+// ── The user's exact acceptance examples ──────────────────────────────────
+
+test("big-data category and sales category are in DIFFERENT clusters", () => {
+  const res = clusterByTopic(CORPUS);
+  const bd = clusterOf(bigDataCat.url, res);
+  const sales = clusterOf(salesCat.url, res);
+  // Never co-clustered (the mega-cluster bug).
+  if (bd && sales) assert.notEqual(bd.seedUrl, sales.seedUrl);
+  assert.ok(!bd?.members.some((m) => m.url === salesCat.url));
 });
 
-test("same title alone never groups — body floor always applies", () => {
-  const r = evaluatePair({
-    aType: "blog", bType: "blog",
-    aTitle: "Leadership Guide", bTitle: "Leadership Guide",
-    sim: 0.6, // well below the editorial floor
-  });
-  assert.equal(r.group, false);
+test("big-data category and data-analytics category are in DIFFERENT clusters", () => {
+  const res = clusterByTopic(CORPUS);
+  const bd = clusterOf(bigDataCat.url, res);
+  assert.ok(!bd?.members.some((m) => m.url === dataAnalyticsCat.url));
 });
 
-test("plural normalization corroborates 'skill gaps' vs 'skills gap'", () => {
-  const r = evaluatePair({
-    aType: "blog", bType: "blog",
-    aTitle: "How to Identify Skill Gaps", bTitle: "Common Skills Gap Examples",
-    sim: 0.85,
-  });
-  assert.equal(r.group, true);
-  assert.ok(r.support.includes("title"));
+test("big-data category and big-data blog are in the SAME cluster", () => {
+  const res = clusterByTopic(CORPUS);
+  const bd = clusterOf(bigDataCat.url, res);
+  assert.ok(bd, "big-data forms a cluster");
+  assert.ok(bd!.members.some((m) => m.url === bigDataBlog.url), "blog is a member");
 });
 
-test("evidence lists every corroborating signal", () => {
-  const r = evaluatePair({
-    aType: "blog", bType: "blog",
-    aTitle: "Skill Matrix Guide", bTitle: "Skill Matrix Handbook",
-    aH1: "Skill Matrix", bH1: "The Skill Matrix",
-    aDescription: "Build a skill matrix", bDescription: "How to build a skill matrix",
-    aUrl: "https://x.com/blog/skill-matrix-guide", bUrl: "https://x.com/blog/skill-matrix-handbook",
-    sim: 0.9,
+test("big-data category and its courses are in the SAME cluster (cross-type)", () => {
+  const res = clusterByTopic(CORPUS);
+  const bd = clusterOf(bigDataCat.url, res);
+  assert.ok(bd!.members.some((m) => m.url === bigDataCourse1.url));
+  assert.ok(bd!.members.some((m) => m.url === bigDataCourse2.url));
+  // The seed is the category (the pillar), not a course/blog.
+  assert.equal(bd!.seedUrl, bigDataCat.url);
+});
+
+test("cluster label and member evidence surface the shared topic tokens", () => {
+  const res = clusterByTopic(CORPUS);
+  const bd = clusterOf(bigDataCat.url, res)!;
+  assert.match(bd.label, /big|data/);
+  const blog = bd.members.find((m) => m.url === bigDataBlog.url)!;
+  assert.ok(blog.sharedTerms.some((t) => /big|data/.test(t)));
+  assert.ok(blog.matchSim >= 0.35);
+});
+
+// ── Body floor demotes a topic match with no body overlap ─────────────────
+
+test("body floor demotes a same-topic member with near-zero body cosine", () => {
+  const res = clusterByTopic(CORPUS, {
+    // big-data blog shares the topic but pretend its body is unrelated.
+    bodySim: (seed, member) =>
+      member === bigDataBlog.url ? 0.1 : 0.95,
   });
-  assert.equal(r.group, true);
-  for (const s of ["body", "title", "h1", "description", "url"]) assert.ok(r.support.includes(s as any), s);
+  const bd = clusterOf(bigDataCat.url, res);
+  assert.ok(!bd?.members.some((m) => m.url === bigDataBlog.url), "blog demoted by body floor");
+  assert.ok(res.singletons.includes(bigDataBlog.url));
+});
+
+// ── Coverage + no mega-cluster ────────────────────────────────────────────
+
+test("every page is accounted for (clustered + singletons = corpus)", () => {
+  const res = clusterByTopic(CORPUS);
+  const clustered = new Set(res.clusters.flatMap((c) => c.members.map((m) => m.url)));
+  const total = clustered.size + res.singletons.length;
+  assert.equal(total, CORPUS.length);
+  assert.equal(res.corpusSize, CORPUS.length);
+});
+
+test("no mega-cluster: largest cluster stays a single coherent topic", () => {
+  const res = clusterByTopic(CORPUS);
+  const largest = res.clusters[0];
+  // The only real family here is big-data (cat + blog + 2 courses = 4).
+  assert.ok(largest.members.length <= 5);
+  assert.ok(!largest.members.some((m) => m.url === salesCat.url && largest.seedUrl === bigDataCat.url));
+});
+
+// ── seedRank ordering (pillars before spokes) ─────────────────────────────
+
+test("seedRank puts hubs before courses and blogs", () => {
+  assert.ok(seedRank("category") < seedRank("course"));
+  assert.ok(seedRank("course") < seedRank("blog"));
+  assert.ok(seedRank("blog") < seedRank("static"));
+  assert.equal(seedRank(null), seedRank("static"));
 });
