@@ -2866,10 +2866,12 @@ Follow-ups to §18J/§18L.
 so a page that broke mid-week could linger up to 7 days. Extracted the probe +
 batched-write logic into `lib/http-status.refreshHttpStatus({ limit })` (shared,
 `isBrokenStatus` unit-tested) and added it as **Job 6 of the daily gsc-snapshot
-cron** (bounded `CRON_HTTP_STATUS_DAILY_LIMIT`, default 600, oldest-audited
-first - rotates the whole corpus every few days on top of the weekly full sweep).
-Job 6 runs LAST + isolated, so a slow HEAD sweep can never cost the snapshots
-above (they've already committed). No new cron entry → the Hobby 2-cron cap is
+cron**. It re-checks the **whole corpus every day** (`CRON_HTTP_STATUS_DAILY_LIMIT`,
+default 100000 ≈ all; probe concurrency `CRON_HTTP_STATUS_CONCURRENCY`, default 24
+so the full HEAD sweep - oldest-audited first - fits inside the 300s budget next
+to the other jobs). Job 6 runs LAST + isolated with writes batched every 200 rows,
+so even a mid-sweep timeout is non-fatal (the snapshots above already committed;
+partial status writes persist). No new cron entry → the Hobby 2-cron cap is
 untouched. `audit-links` now just calls the same shared function (limit 1500).
 
 **Bulk status change.** Each conflict card has a checkbox; a "select all

@@ -8,10 +8,13 @@ import { refreshHttpStatus } from "@/lib/http-status";
 import { log } from "@/lib/logger";
 import { requireCronAuth } from "@/lib/cron-auth";
 
-// Daily bounded HTTP-status refresh (Job 6). Oldest-audited pages first, so this
-// rotates through the whole corpus every few days on top of the weekly full
-// sweep - keeps dead pages out of Keyword Cannibalization (§18M). Env-overridable.
-const HTTP_STATUS_DAILY_LIMIT = Number(process.env.CRON_HTTP_STATUS_DAILY_LIMIT || 600);
+// Daily HTTP-status refresh (Job 6). Defaults to the WHOLE corpus every day
+// (§18M) - oldest-audited first, so recently-broken pages leave Keyword
+// Cannibalization within a day. Higher probe concurrency keeps the full sweep
+// inside the 300s cron budget alongside the snapshots above. Env-overridable:
+// set CRON_HTTP_STATUS_DAILY_LIMIT to a smaller number to bound it again.
+const HTTP_STATUS_DAILY_LIMIT = Number(process.env.CRON_HTTP_STATUS_DAILY_LIMIT || 100000);
+const HTTP_STATUS_DAILY_CONCURRENCY = Number(process.env.CRON_HTTP_STATUS_CONCURRENCY || 24);
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,8 +29,9 @@ export const maxDuration = 300;
  *   3. Mark pages stale: gsc_clicks_28d < 5 AND lastmod older than 12 months (#28).
  *   4. Per-page 1m/3m/6m totals + top-5 queries into gsc_metrics (§17O).
  *   5. Keyword-cannibalization conflicts snapshot (§18).
- *   6. Bounded HTTP-status refresh (§18M) - keeps pages.http_status fresh so the
- *      dead-page filter in /api/cannibalization stays accurate day-to-day.
+ *   6. HTTP-status refresh (§18M) - re-checks the whole corpus daily (bump-able
+ *      via CRON_HTTP_STATUS_DAILY_LIMIT) so pages.http_status stays fresh and the
+ *      dead-page filter in /api/cannibalization is accurate within a day.
  */
 const STALE_LASTMOD_DAYS = 365;
 const STALE_CLICKS_THRESHOLD = 5;
@@ -180,13 +184,17 @@ export async function GET(request: NextRequest) {
       log.error("keyword_conflicts snapshot failed", { error: (e as Error).message });
     }
 
-    // --- Job 6: bounded HTTP-status refresh (§18M). LAST + isolated so a slow
-    //     HEAD sweep can never cost us the snapshots above (they've already
-    //     committed). Keeps `pages.http_status` fresh so the dead-page filter in
-    //     /api/cannibalization catches recently-broken URLs day-to-day.
+    // --- Job 6: HTTP-status refresh (§18M) - whole corpus daily by default.
+    //     LAST + isolated so a slow HEAD sweep can never cost us the snapshots
+    //     above (they've already committed); writes batch every 200 rows so even
+    //     a mid-sweep timeout persists partial progress. Keeps `pages.http_status`
+    //     fresh so /api/cannibalization drops recently-broken URLs within a day.
     let httpStatus: { checked: number; broken: number; brokenRate: number } | { error: string };
     try {
-      httpStatus = await refreshHttpStatus({ limit: HTTP_STATUS_DAILY_LIMIT });
+      httpStatus = await refreshHttpStatus({
+        limit: HTTP_STATUS_DAILY_LIMIT,
+        concurrency: HTTP_STATUS_DAILY_CONCURRENCY,
+      });
     } catch (e) {
       httpStatus = { error: (e as Error).message };
       log.error("http_status refresh failed", { error: (e as Error).message });
