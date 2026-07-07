@@ -34,7 +34,6 @@ interface CGroup {
   positionGap: number;
   bestPosition: number;
   crossType: boolean;
-  commercialAtRisk: boolean;
   severity: Severity;
   primaryPage: string;
   action: string;
@@ -80,11 +79,6 @@ const ACTION_STYLE: Record<string, { label: string; cls: string; hint: string }>
     cls: "bg-indigo-100 text-indigo-700",
     hint: "Same intent, fighting each other. 301-redirect the losers into the primary page and merge the content.",
   },
-  "protect-commercial": {
-    label: "Protect the money page",
-    cls: "bg-red-100 text-red-700",
-    hint: "A lower-value page is outranking your course/category. Point internal links at the commercial page and de-optimize the blog for this term (don't 301 across intents).",
-  },
   differentiate: {
     label: "Differentiate",
     cls: "bg-amber-100 text-amber-700",
@@ -93,9 +87,65 @@ const ACTION_STYLE: Record<string, { label: string; cls: string; hint: string }>
   monitor: {
     label: "Monitor",
     cls: "bg-slate-100 text-slate-600",
-    hint: "Different types but the right (commercial) page is already winning. Keep an eye on it.",
+    hint: "Different content types competing for this query. Don't 301 across intents - keep an eye on it and differentiate the pages if it worsens.",
   },
 };
+
+// ── sort + gap-window controls ─────────────────────────────────────────────
+type SortKey = "severity" | "gap-asc" | "gap-desc" | "clicks" | "impr" | "pos-best" | "pos-worst";
+const SORTS: { key: SortKey; label: string }[] = [
+  { key: "severity", label: "Severity" },
+  { key: "gap-asc", label: "Gap ↑" },
+  { key: "gap-desc", label: "Gap ↓" },
+  { key: "clicks", label: "Clicks" },
+  { key: "impr", label: "Impressions" },
+  { key: "pos-best", label: "Best pos" },
+  { key: "pos-worst", label: "Worst pos" },
+];
+// Preset max-spread windows (positions). Hides groups whose pages sprawl wider.
+const GAP_PRESETS = [5, 10, 20] as const;
+
+/** Full avg-position spread across ALL pages in a group (leader → laggard).
+ *  The card's "gap" is only the top-2 difference; this is the real sprawl a
+ *  page like the 3rd one 35 positions back contributes. */
+function pageSpread(g: CGroup): number {
+  if (g.pages.length < 2) return 0;
+  let min = Infinity;
+  let max = -Infinity;
+  for (const p of g.pages) {
+    if (p.position < min) min = p.position;
+    if (p.position > max) max = p.position;
+  }
+  return max - min;
+}
+
+/** Re-order groups by the chosen key. "severity" keeps the API order
+ *  (severity → clicks → impressions). */
+function sortGroups(list: CGroup[], key: SortKey): CGroup[] {
+  if (key === "severity") return list;
+  const a = list.slice();
+  switch (key) {
+    case "gap-asc":
+      a.sort((x, y) => x.positionGap - y.positionGap);
+      break;
+    case "gap-desc":
+      a.sort((x, y) => y.positionGap - x.positionGap);
+      break;
+    case "clicks":
+      a.sort((x, y) => y.totalClicks - x.totalClicks);
+      break;
+    case "impr":
+      a.sort((x, y) => y.totalImpressions - x.totalImpressions);
+      break;
+    case "pos-best":
+      a.sort((x, y) => x.bestPosition - y.bestPosition);
+      break;
+    case "pos-worst":
+      a.sort((x, y) => y.bestPosition - x.bestPosition);
+      break;
+  }
+  return a;
+}
 
 function downloadCsv(filename: string, headers: string[], rows: (string | number)[][]) {
   const esc = (v: string | number) => {
@@ -139,6 +189,8 @@ function Inner() {
   const [sevFilter, setSevFilter] = useState<Severity | null>(null);
   const [actionFilter, setActionFilter] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
+  const [maxGap, setMaxGap] = useState<number | null>(null); // hide groups whose page spread exceeds this
+  const [sortBy, setSortBy] = useState<SortKey>("severity");
 
   // Tabs 1-3: pre-computed keyword conflicts.
   useEffect(() => {
@@ -209,26 +261,30 @@ function Inner() {
   }, [search]);
 
   const hasType = (g: CGroup, t: string) => g.pages.some((p) => (p.contentType ?? "other") === t);
+  const withinGap = useMemo(
+    () => (g: CGroup) => maxGap == null || pageSpread(g) <= maxGap,
+    [maxGap],
+  );
 
-  // Contextual counts: each dimension respects the OTHER active filters + search.
+  // Contextual counts: each dimension respects the OTHER active filters + search + gap window.
   const sevCounts = useMemo(() => {
     const c: Record<Severity, number> = { high: 0, medium: 0, low: 0 };
     for (const g of rows)
-      if (matchesSearch(g) && (!actionFilter || g.action === actionFilter) && (!typeFilter || hasType(g, typeFilter)))
+      if (matchesSearch(g) && withinGap(g) && (!actionFilter || g.action === actionFilter) && (!typeFilter || hasType(g, typeFilter)))
         c[g.severity]++;
     return c;
-  }, [rows, matchesSearch, actionFilter, typeFilter]);
+  }, [rows, matchesSearch, withinGap, actionFilter, typeFilter]);
   const actionCounts = useMemo(() => {
     const c: Record<string, number> = {};
     for (const g of rows)
-      if (matchesSearch(g) && (!sevFilter || g.severity === sevFilter) && (!typeFilter || hasType(g, typeFilter)))
+      if (matchesSearch(g) && withinGap(g) && (!sevFilter || g.severity === sevFilter) && (!typeFilter || hasType(g, typeFilter)))
         c[g.action] = (c[g.action] ?? 0) + 1;
     return c;
-  }, [rows, matchesSearch, sevFilter, typeFilter]);
+  }, [rows, matchesSearch, withinGap, sevFilter, typeFilter]);
   const typeCounts = useMemo(() => {
     const c: Record<string, number> = {};
     for (const g of rows) {
-      if (!(matchesSearch(g) && (!sevFilter || g.severity === sevFilter) && (!actionFilter || g.action === actionFilter))) continue;
+      if (!(matchesSearch(g) && withinGap(g) && (!sevFilter || g.severity === sevFilter) && (!actionFilter || g.action === actionFilter))) continue;
       const seen = new Set<string>();
       for (const p of g.pages) {
         const t = p.contentType ?? "other";
@@ -243,14 +299,18 @@ function Inner() {
 
   const filtered = useMemo(
     () =>
-      rows.filter(
-        (g) =>
-          matchesSearch(g) &&
-          (!sevFilter || g.severity === sevFilter) &&
-          (!actionFilter || g.action === actionFilter) &&
-          (!typeFilter || hasType(g, typeFilter)),
+      sortGroups(
+        rows.filter(
+          (g) =>
+            matchesSearch(g) &&
+            withinGap(g) &&
+            (!sevFilter || g.severity === sevFilter) &&
+            (!actionFilter || g.action === actionFilter) &&
+            (!typeFilter || hasType(g, typeFilter)),
+        ),
+        sortBy,
       ),
-    [rows, matchesSearch, sevFilter, actionFilter, typeFilter],
+    [rows, matchesSearch, withinGap, sevFilter, actionFilter, typeFilter, sortBy],
   );
   const mergeFiltered = useMemo(() => {
     const s = search.trim().toLowerCase();
@@ -258,20 +318,23 @@ function Inner() {
     return merge.filter((c) => c.label.toLowerCase().includes(s) || c.members.some((m) => m.url.toLowerCase().includes(s)));
   }, [merge, search]);
 
-  const hasFilter = !!(search.trim() || sevFilter || actionFilter || typeFilter);
+  const hasFilter = !!(search.trim() || sevFilter || actionFilter || typeFilter || maxGap != null);
   function clearFilters() {
     setSearch("");
     setSevFilter(null);
     setActionFilter(null);
     setTypeFilter(null);
+    setMaxGap(null);
   }
 
-  // Reset page on tab/filter change; drop pill filters when switching tabs.
-  useEffect(() => setPage(1), [tab, search, sevFilter, actionFilter, typeFilter]);
+  // Reset page on tab/filter/sort change; drop pill filters when switching tabs.
+  useEffect(() => setPage(1), [tab, search, sevFilter, actionFilter, typeFilter, maxGap, sortBy]);
   useEffect(() => {
     setSevFilter(null);
     setActionFilter(null);
     setTypeFilter(null);
+    setMaxGap(null);
+    setSortBy("severity");
   }, [tab]);
 
   function go(slug: TabSlug) {
@@ -393,6 +456,29 @@ function Inner() {
                   />
                 ))}
             </FilterGroup>
+
+            <FilterGroup label="Sort">
+              {SORTS.map((s) => (
+                <FilterChip
+                  key={s.key}
+                  label={s.label}
+                  active={sortBy === s.key}
+                  onClick={() => setSortBy(s.key)}
+                />
+              ))}
+            </FilterGroup>
+
+            <FilterGroup label="Max gap">
+              <FilterChip label="Any" active={maxGap == null} onClick={() => setMaxGap(null)} />
+              {GAP_PRESETS.map((g) => (
+                <FilterChip
+                  key={g}
+                  label={`≤ ${g}`}
+                  active={maxGap === g}
+                  onClick={() => setMaxGap(maxGap === g ? null : g)}
+                />
+              ))}
+            </FilterGroup>
           </>
         )}
       </FilterBar>
@@ -492,8 +578,13 @@ function ConflictCard({ g }: { g: CGroup }) {
           </div>
           <div className="mt-1 text-xs text-slate-500 tabular-nums">
             {g.pageCount} pages · {g.totalImpressions.toLocaleString()} impr · {g.totalClicks.toLocaleString()} clicks · gap{" "}
-            {g.positionGap.toFixed(1)} · best pos {g.bestPosition.toFixed(1)}
-            {g.commercialAtRisk && <span className="ml-2 font-medium text-red-600">⚠ money page losing</span>}
+            {g.positionGap.toFixed(1)}
+            {g.pageCount > 2 && (
+              <span title="Full avg-position spread from the leader to the furthest page">
+                {" "}· spread {pageSpread(g).toFixed(1)}
+              </span>
+            )}{" "}
+            · best pos {g.bestPosition.toFixed(1)}
           </div>
         </div>
         <span title={action.hint} className={`shrink-0 cursor-help rounded-md px-2 py-1 text-xs font-medium ${action.cls}`}>

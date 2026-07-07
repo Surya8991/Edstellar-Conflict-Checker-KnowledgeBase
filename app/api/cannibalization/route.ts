@@ -33,7 +33,7 @@ export async function GET(_req: NextRequest) {
     const sql = neon(process.env.DATABASE_URL);
     const rows = (await sql.query(
       `SELECT query, total_clicks, total_impressions, page_count, position_gap, best_position,
-              cross_type, branded, commercial_at_risk, severity, primary_page,
+              cross_type, branded, severity, primary_page,
               recommended_action, pages, computed_at
          FROM keyword_conflicts
         WHERE range_label = $1
@@ -70,7 +70,6 @@ export async function GET(_req: NextRequest) {
         positionGap: g.positionGap,
         bestPosition: g.bestPosition,
         crossType: g.crossType,
-        commercialAtRisk: g.commercialAtRisk,
         severity: g.severity,
         primaryPage: g.primaryPage,
         action: g.action,

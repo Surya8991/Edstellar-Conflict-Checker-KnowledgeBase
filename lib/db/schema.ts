@@ -159,7 +159,6 @@ export const keywordConflicts = pgTable(
     bestPosition: real("best_position"),
     crossType: boolean("cross_type").notNull().default(false),
     branded: boolean("branded").notNull().default(false),
-    commercialAtRisk: boolean("commercial_at_risk").notNull().default(false),
     severity: text("severity").notNull().default("low"),
     primaryPage: text("primary_page"),
     recommendedAction: text("recommended_action"),

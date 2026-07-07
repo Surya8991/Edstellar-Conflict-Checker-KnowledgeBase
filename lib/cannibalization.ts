@@ -14,9 +14,14 @@
  *    pages ranking for "edstellar ..." is expected. The read layer hides them.
  *  - GSC reports URL variants (trailing slash, #fragment, ?utm=) as different
  *    pages; `normalizeUrl` collapses them so one page can't cannibalize itself.
- *  - The WORST conflict is a low-value page (blog) outranking a commercial page
- *    (course/category) for the same query - that's lost revenue, not just split
- *    equity. That's `commercialAtRisk` and it forces severity to `high`.
+ *  - Cross-type clashes (a blog and a course ranking for the same query) are
+ *    detected (`crossType`) and surfaced on their own tab; the recommended
+ *    action for them is `monitor` (near) or `differentiate` (far apart).
+ *  - `intentMismatch` (BACKEND-ONLY - never rendered as a label in the UI): a
+ *    higher-funnel page (blog) outranks the conversion-intent page (course/
+ *    category) for the same query. It boosts severity to `high` and keeps the
+ *    conversion page as `primaryPage`, so the ranking/advice stays SEO-correct
+ *    (never 301 across intents) without any user-facing wording.
  *  - "Near position" (the two pages are close together AND both actually rank)
  *    is where consolidation pays off most - Google is genuinely undecided.
  */
@@ -32,7 +37,7 @@ export interface RawRow {
 }
 
 export type Severity = "high" | "medium" | "low";
-export type ConflictAction = "consolidate" | "protect-commercial" | "differentiate" | "monitor";
+export type ConflictAction = "consolidate" | "differentiate" | "monitor";
 export type PageRole = "primary" | "cannibal";
 
 export interface ConflictPage {
@@ -54,7 +59,10 @@ export interface ConflictGroup {
   positionGap: number; // gap between the top-2 pages' avg positions
   crossType: boolean;
   branded: boolean;
-  commercialAtRisk: boolean;
+  /** Backend-only SEO signal: the conversion-intent page is being outranked by a
+   *  higher-funnel page. Boosts severity; NEVER surfaced as a label in the UI
+   *  and not included in the /api/cannibalization payload. */
+  intentMismatch: boolean;
   severity: Severity;
   primaryPage: string;
   action: ConflictAction;
@@ -68,9 +76,10 @@ export interface BuildOpts {
   brandTerms: string[];
 }
 
-/** Commercial value of a content type - a course is the money page, a blog is TOFU.
- *  Used to decide who to protect when types collide. Higher = more commercial. */
-const COMMERCIAL_RANK: Record<string, number> = {
+/** Relative value of a content type - a course/category is higher-value, a blog
+ *  is TOFU. Used only to pick which page to keep as primary when types collide
+ *  (cross-type groups). Higher = higher value. */
+const CONTENT_VALUE_RANK: Record<string, number> = {
   course: 3,
   "managed-training": 3,
   platform: 3,
@@ -81,7 +90,7 @@ const COMMERCIAL_RANK: Record<string, number> = {
   blog: 1,
 };
 function commercialRank(t: string | null): number {
-  return COMMERCIAL_RANK[t ?? ""] ?? 1;
+  return CONTENT_VALUE_RANK[t ?? ""] ?? 1;
 }
 
 /** Collapse GSC URL variants (protocol/case/trailing-slash/#frag/?query) so a
@@ -233,15 +242,14 @@ export function classifyGroup(
 
   const crossType = new Set(pages.map((p) => p.contentType ?? "unknown")).size >= 2;
   const branded = isBrandedQuery(query, opts.brandTerms);
-
-  // Commercial-at-risk: the most commercial page is NOT the one winning.
   const maxCommercial = Math.max(...pages.map((p) => commercialRank(p.contentType)));
-  const topCommercial = commercialRank(pages[0].contentType);
-  const commercialAtRisk = maxCommercial > topCommercial;
 
-  // Primary page = who we recommend to keep/win. For a cross-type clash we
-  // protect the most commercial page (even if it's currently losing); else the
-  // best current performer (position, then clicks).
+  // Intent mismatch (backend-only): the highest-value page is NOT the one winning.
+  const intentMismatch = maxCommercial > commercialRank(pages[0].contentType);
+
+  // Primary page = who we recommend to keep/win. For a cross-type clash we keep
+  // the higher-value content type (even if it's currently losing); else the best
+  // current performer (position, then clicks).
   let primary: ConflictPage;
   if (crossType && maxCommercial > 1) {
     primary = pages
@@ -256,16 +264,17 @@ export function classifyGroup(
   const near = positionGap <= opts.nearGap;
   let action: ConflictAction;
   if (crossType && maxCommercial > 1) {
-    action = commercialAtRisk ? "protect-commercial" : "monitor";
+    action = near ? "monitor" : "differentiate";
   } else if (near) {
     action = "consolidate";
   } else {
     action = "differentiate";
   }
 
-  // Severity (explainable).
+  // Severity (explainable). An intent mismatch is lost revenue, not just split
+  // equity, so it always ranks high - the UI just shows "high", no special label.
   let severity: Severity = "low";
-  if (commercialAtRisk || totalClicks >= 50 || (near && totalClicks >= 10)) severity = "high";
+  if (intentMismatch || totalClicks >= 50 || (near && totalClicks >= 10)) severity = "high";
   else if (near || totalClicks >= 10 || totalImpressions >= 500) severity = "medium";
 
   return {
@@ -277,7 +286,7 @@ export function classifyGroup(
     positionGap: round2(positionGap),
     crossType,
     branded,
-    commercialAtRisk,
+    intentMismatch,
     severity,
     primaryPage: primary.page,
     action,

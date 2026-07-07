@@ -63,7 +63,7 @@ test("same-type near-position pages → consolidate, high severity on traffic", 
   assert.equal(g.primaryPage, "https://s.com/blog/agile-1"); // best position
 });
 
-test("blog outranking a course (cross-type) → protect-commercial + high + commercialAtRisk", () => {
+test("blog outranking a course (cross-type, near) → intentMismatch boosts severity, backend-only", () => {
   const rows = [
     row("leadership training", "https://s.com/blog/leadership-tips", 20, 500, 3),
     row("leadership training", "https://s.com/leadership-course", 5, 300, 8),
@@ -74,10 +74,10 @@ test("blog outranking a course (cross-type) → protect-commercial + high + comm
   ]);
   const [g] = buildConflicts(rows, types, THRESHOLDS, OPTS);
   assert.equal(g.crossType, true);
-  assert.equal(g.commercialAtRisk, true);
-  assert.equal(g.action, "protect-commercial");
-  assert.equal(g.severity, "high");
-  // primary should be the course (protect it) even though the blog ranks higher
+  assert.equal(g.intentMismatch, true); // conversion page is losing
+  assert.equal(g.severity, "high"); // mismatch forces high even at 25 clicks
+  assert.equal(g.action, "monitor"); // top-2 within nearGap; no special user-facing action
+  // primary should be the course (higher value) even though the blog ranks higher
   assert.equal(g.primaryPage, "https://s.com/leadership-course");
 });
 

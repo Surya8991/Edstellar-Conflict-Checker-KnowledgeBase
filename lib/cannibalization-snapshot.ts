@@ -44,7 +44,6 @@ export async function ensureKeywordConflictsTable(): Promise<void> {
       best_position      real,
       cross_type         boolean NOT NULL DEFAULT false,
       branded            boolean NOT NULL DEFAULT false,
-      commercial_at_risk boolean NOT NULL DEFAULT false,
       severity           text NOT NULL DEFAULT 'low',
       primary_page       text,
       recommended_action text,
@@ -131,13 +130,13 @@ export async function snapshotKeywordConflicts(): Promise<{
     await sql.query(
       `INSERT INTO keyword_conflicts
          (site_url, query, range_label, total_clicks, total_impressions, page_count,
-          position_gap, best_position, cross_type, branded, commercial_at_risk,
+          position_gap, best_position, cross_type, branded,
           severity, primary_page, recommended_action, pages, computed_at)
-       SELECT $1, q, $2, tc, ti, pc, pg, bp, ct, br, car, sev, pp, act, pj::jsonb, now()
+       SELECT $1, q, $2, tc, ti, pc, pg, bp, ct, br, sev, pp, act, pj::jsonb, now()
        FROM unnest(
          $3::text[], $4::int[], $5::int[], $6::int[], $7::real[], $8::real[],
-         $9::bool[], $10::bool[], $11::bool[], $12::text[], $13::text[], $14::text[], $15::text[]
-       ) AS t(q, tc, ti, pc, pg, bp, ct, br, car, sev, pp, act, pj)`,
+         $9::bool[], $10::bool[], $11::text[], $12::text[], $13::text[], $14::text[]
+       ) AS t(q, tc, ti, pc, pg, bp, ct, br, sev, pp, act, pj)`,
       [
         siteUrl,
         RANGE_LABEL,
@@ -149,7 +148,6 @@ export async function snapshotKeywordConflicts(): Promise<{
         groups.map((g) => g.bestPosition),
         groups.map((g) => g.crossType),
         groups.map((g) => g.branded),
-        groups.map((g) => g.commercialAtRisk),
         groups.map((g) => g.severity),
         groups.map((g) => g.primaryPage),
         groups.map((g) => g.action),
