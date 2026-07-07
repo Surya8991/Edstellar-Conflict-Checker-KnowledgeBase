@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   LineChart,
   Line,
@@ -46,6 +46,22 @@ const TABS = [
 ] as const;
 type Tab = (typeof TABS)[number];
 
+/** URL slug per tab, so each section is its own addressable page + sidebar link. */
+export const TAB_SLUGS: Record<Tab, string> = {
+  Overview: "overview",
+  Cannibalization: "cannibalization",
+  "Striking Distance": "striking-distance",
+  "CTR Opportunity": "ctr-opportunity",
+  Movers: "movers",
+  Untapped: "untapped",
+  "Catalog Gap": "catalog-gap",
+  "Stale Pages": "stale-pages",
+  "Index Coverage": "index-coverage",
+};
+const SLUG_TO_TAB = Object.fromEntries(
+  Object.entries(TAB_SLUGS).map(([t, s]) => [s, t as Tab]),
+) as Record<string, Tab>;
+
 interface Insights {
   range: string;
   startDate: string;
@@ -79,14 +95,25 @@ export default function SearchConsolePage() {
 
 function SearchConsoleInner() {
   const params = useSearchParams();
+  const router = useRouter();
   const connected = params.get("gsc") === "connected";
   const gscError = params.get("gsc") === "error";
+  // The active tab is URL-driven (?section=<slug>) so the sidebar sub-nav can
+  // link to each section as its own page.
+  const section = params.get("section");
 
   const [range, setRange] = useState("28d");
   const [customDates, setCustomDates] = useState<{ startDate: string; endDate: string }>(
     defaultCustomRange(),
   );
-  const [tab, setTab] = useState<Tab>("Overview");
+  const [tab, setTab] = useState<Tab>((section && SLUG_TO_TAB[section]) || "Overview");
+  // Sync the tab when the URL section changes (sidebar navigation). Same-route
+  // param change - the component stays mounted, so `data` is NOT re-fetched.
+  useEffect(() => {
+    const t = section ? SLUG_TO_TAB[section] : undefined;
+    if (t) setTab(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section]);
   const [data, setData] = useState<Insights | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -311,7 +338,10 @@ function SearchConsoleInner() {
           {TABS.map((t) => (
             <button
               key={t}
-              onClick={() => setTab(t)}
+              onClick={() => {
+                setTab(t);
+                router.replace(`/search-console?section=${TAB_SLUGS[t]}`, { scroll: false });
+              }}
               className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${
                 tab === t
                   ? "border-slate-900 text-slate-900"

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   LayoutDashboard,
   ScanSearch,
@@ -35,7 +35,21 @@ const NAV: { href: string; label: string; icon: any }[] = [
   // Conflicts). The /history page + /api routes still exist and dashboard
   // links to /history keep working; uncomment to restore the nav link.
   // { href: "/history",            label: "Score History",     icon: History },
-  { href: "/search-console",     label: "Search Console",    icon: LineChart },
+  // Search Console is rendered separately below as an expandable parent with a
+  // sub-section per GSC report (?section=<slug>).
+];
+
+/** GSC report sections - each is its own addressable page under /search-console. */
+const SEARCH_CONSOLE_SECTIONS = [
+  { slug: "overview",         label: "Overview" },
+  { slug: "cannibalization",  label: "Cannibalization" },
+  { slug: "striking-distance", label: "Striking Distance" },
+  { slug: "ctr-opportunity",  label: "CTR Opportunity" },
+  { slug: "movers",           label: "Movers" },
+  { slug: "untapped",         label: "Untapped" },
+  { slug: "catalog-gap",      label: "Catalog Gap" },
+  { slug: "stale-pages",      label: "Stale Pages" },
+  { slug: "index-coverage",   label: "Index Coverage" },
 ];
 
 const ADDITIONAL_NAV: { href: string; label: string; icon: any }[] = [
@@ -53,7 +67,14 @@ const ADDITIONAL_NAV: { href: string; label: string; icon: any }[] = [
 
 export default function Sidebar({ user, signOutSlot }: { user?: SidebarUser | null; signOutSlot?: React.ReactNode }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
+
+  // Search Console is an expandable parent; its sub-nav links to ?section=<slug>.
+  const onSearchConsole = pathname === "/search-console" || pathname.startsWith("/search-console/");
+  const activeSection = searchParams.get("section") || "overview";
+  const [scOpen, setScOpen] = useState(onSearchConsole);
+  useEffect(() => { if (onSearchConsole) setScOpen(true) }, [onSearchConsole]);
 
   // "Additional Tools" is a collapsible group, closed by default. Auto-open it
   // when the current route is one of its items so the active link isn't hidden.
@@ -152,6 +173,50 @@ export default function Sidebar({ user, signOutSlot }: { user?: SidebarUser | nu
               </Link>
             );
           })}
+
+          {/* Search Console - expandable parent, one page per GSC report. */}
+          <div>
+            <div className="flex items-center">
+              <Link
+                href="/search-console?section=overview"
+                className={`flex flex-1 items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
+                  onSearchConsole ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                <LineChart size={17} />
+                Search Console
+              </Link>
+              <button
+                type="button"
+                onClick={() => setScOpen((v) => !v)}
+                aria-label="Toggle Search Console sections"
+                aria-expanded={scOpen}
+                className="ml-1 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"
+              >
+                <ChevronDown size={14} className={`transition-transform ${scOpen ? "" : "-rotate-90"}`} />
+              </button>
+            </div>
+            {scOpen && (
+              <div className="mt-1 space-y-0.5 pl-8">
+                {SEARCH_CONSOLE_SECTIONS.map((s) => {
+                  const active = onSearchConsole && activeSection === s.slug;
+                  return (
+                    <Link
+                      key={s.slug}
+                      href={`/search-console?section=${s.slug}`}
+                      className={`block rounded-lg px-3 py-1.5 text-[13px] transition ${
+                        active
+                          ? "bg-slate-100 font-medium text-slate-900"
+                          : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                      }`}
+                    >
+                      {s.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           <button
             type="button"
