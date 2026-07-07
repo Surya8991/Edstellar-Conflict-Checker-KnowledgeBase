@@ -50,7 +50,7 @@ npm run dev        # http://localhost:3000
 
 ## Features by page
 
-Top-level nav: Dashboard, Conflict Checker, Content Clusters, Search Console, Competitors, Corpus. Manager View, Bulk Check, Content Audit, Internal Links, Funnel Strategy, and Catalog Conflicts live under the collapsible **Additional Tools** section of the sidebar. Score History is hidden from the sidebar as of Session 13 (the `/history` page and all dashboard links to it still work).
+Top-level nav: Dashboard, Edstellar Database (the `/corpus` page), Conflict Checker, Content Clusters, Search Console. Manager View, Competitors, Bulk Check, Content Audit, Internal Links, Funnel Strategy, and Catalog Conflicts live under the collapsible **Additional Tools** section of the sidebar. Score History is hidden from the sidebar as of Session 13 (the `/history` page and all dashboard links to it still work).
 
 | Route | What it does |
 |---|---|
@@ -60,8 +60,8 @@ Top-level nav: Dashboard, Conflict Checker, Content Clusters, Search Console, Co
 | `/bulk-check` | Run the Conflict Checker on up to 100 URLs/topics at once; export as CSV. Under Additional Tools. |
 | `/history` | Score History - timeline of every check run, with editorial outcome tracking. Hidden from the sidebar as of Session 13 (reachable directly + via dashboard links). |
 | `/search-console` | GSC clicks/impressions/CTR/position, 24h–12m, with a trend chart. Click **Connect Google** to authorize. |
-| `/competitors` | SERP-based competitor research per topic (needs `SERPER_API_KEY`). |
-| `/corpus` | Browse/search the ingested pages; CSV export/import. |
+| `/competitors` | SERP-based competitor research per topic (needs `SERPER_API_KEY`). Under Additional Tools. |
+| `/corpus` | **Edstellar Database** - browse/search the ingested pages; CSV export/import. Sits directly below Dashboard in the nav. |
 | `/manager` | Manager View - leadership-facing weekly KPIs and per-user activity. |
 | `/audit` | Content Audit - per-page health scan (meta, links, duplicates, images, staleness). |
 | `/internal-links` | Suggests existing pages a draft should link to. |
