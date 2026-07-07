@@ -4,21 +4,30 @@ import { google } from "googleapis";
 import { getAuthorizedClient, resolveSiteUrl } from "@/lib/gsc";
 import { snapshotGscMetrics } from "@/lib/gsc-metrics";
 import { snapshotKeywordConflicts } from "@/lib/cannibalization-snapshot";
+import { refreshHttpStatus } from "@/lib/http-status";
 import { log } from "@/lib/logger";
 import { requireCronAuth } from "@/lib/cron-auth";
+
+// Daily bounded HTTP-status refresh (Job 6). Oldest-audited pages first, so this
+// rotates through the whole corpus every few days on top of the weekly full
+// sweep - keeps dead pages out of Keyword Cannibalization (§18M). Env-overridable.
+const HTTP_STATUS_DAILY_LIMIT = Number(process.env.CRON_HTTP_STATUS_DAILY_LIMIT || 600);
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 /**
- * Daily cron - three jobs in one:
- *   1. Snapshot yesterday's totals + branded vs non-branded into
- *      gsc_daily_totals (the legacy job).
- *   2. Sync per-page last-28-day clicks/impressions/position onto the
- *      pages row (powers business-impact severity scoring - #26).
- *   3. Mark pages stale: gsc_clicks_28d < 5 AND lastmod older than 12 months
- *      (powers the stale-content tab - #28).
+ * Daily cron - six jobs in one (each later job is isolated so it can't cost the
+ * earlier, already-committed ones):
+ *   1. Snapshot yesterday's totals + branded vs non-branded into gsc_daily_totals.
+ *   2. Sync per-page last-28-day clicks/impressions/position onto the pages row
+ *      (powers business-impact severity scoring - #26).
+ *   3. Mark pages stale: gsc_clicks_28d < 5 AND lastmod older than 12 months (#28).
+ *   4. Per-page 1m/3m/6m totals + top-5 queries into gsc_metrics (§17O).
+ *   5. Keyword-cannibalization conflicts snapshot (§18).
+ *   6. Bounded HTTP-status refresh (§18M) - keeps pages.http_status fresh so the
+ *      dead-page filter in /api/cannibalization stays accurate day-to-day.
  */
 const STALE_LASTMOD_DAYS = 365;
 const STALE_CLICKS_THRESHOLD = 5;
@@ -171,6 +180,18 @@ export async function GET(request: NextRequest) {
       log.error("keyword_conflicts snapshot failed", { error: (e as Error).message });
     }
 
+    // --- Job 6: bounded HTTP-status refresh (§18M). LAST + isolated so a slow
+    //     HEAD sweep can never cost us the snapshots above (they've already
+    //     committed). Keeps `pages.http_status` fresh so the dead-page filter in
+    //     /api/cannibalization catches recently-broken URLs day-to-day.
+    let httpStatus: { checked: number; broken: number; brokenRate: number } | { error: string };
+    try {
+      httpStatus = await refreshHttpStatus({ limit: HTTP_STATUS_DAILY_LIMIT });
+    } catch (e) {
+      httpStatus = { error: (e as Error).message };
+      log.error("http_status refresh failed", { error: (e as Error).message });
+    }
+
     log.info("gsc snapshot complete", {
       date: yesterday,
       clicks: day?.clicks ?? 0,
@@ -185,6 +206,7 @@ export async function GET(request: NextRequest) {
       stale_count: staleCount,
       gsc_metrics: gscMetrics,
       cannibalization,
+      http_status: httpStatus,
     });
   } catch (e) {
     log.error("gsc snapshot failed", { error: (e as Error).message });

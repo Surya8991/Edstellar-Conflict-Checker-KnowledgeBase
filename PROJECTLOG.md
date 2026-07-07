@@ -2856,3 +2856,35 @@ Pure helper `isLivePageStatus(status)` in `lib/cannibalization.ts` (unit-tested)
 A group that falls below 2 live pages disappears (no real conflict with one page).
 Live-verified: the dead URL is gone from every group, its 2-page group collapsed,
 0 non-corpus pages survive; total groups 1,184 → 1,130. 10 cannibalization tests.
+
+### 18M. Daily HTTP-status refresh, bulk status change, status filter as chips
+
+Follow-ups to §18J/§18L.
+
+**Daily HTTP-status refresh (no new cron).** The dead-page filter reads
+`pages.http_status`, previously only refreshed by the WEEKLY `audit-links` cron -
+so a page that broke mid-week could linger up to 7 days. Extracted the probe +
+batched-write logic into `lib/http-status.refreshHttpStatus({ limit })` (shared,
+`isBrokenStatus` unit-tested) and added it as **Job 6 of the daily gsc-snapshot
+cron** (bounded `CRON_HTTP_STATUS_DAILY_LIMIT`, default 600, oldest-audited
+first - rotates the whole corpus every few days on top of the weekly full sweep).
+Job 6 runs LAST + isolated, so a slow HEAD sweep can never cost the snapshots
+above (they've already committed). No new cron entry → the Hobby 2-cron cap is
+untouched. `audit-links` now just calls the same shared function (limit 1500).
+
+**Bulk status change.** Each conflict card has a checkbox; a "select all
+(filtered)" checkbox sits in the list header. Selecting ≥1 shows a bulk bar
+("N selected · Set status: Pending/In progress/Completed/Ignored · Clear"). The
+annotation route's POST now accepts `{ queries: string[], status }` (one bulk
+UNNEST upsert that sets status and leaves each note untouched) alongside the
+single `{ query, status?, note? }`. Selection clears on tab switch.
+
+**Status filter → chips with visible counts.** The Status control was a dropdown
+(counts hidden until opened). With 4 options it belongs as chips per the §18I
+policy, so it's now a `FilterGroup` of colour-dotted `FilterChip`s next to
+Severity/Action - the per-status breakdown (Pending N · In progress N ·
+Completed N · Ignored N) is visible at a glance and still filters.
+
+Typecheck clean; 11 lib tests (added `isBrokenStatus`). Live-verified: status
+chips show live counts, bulk-set 2 conflicts → "ignored" persisted via the batch
+endpoint, zero console errors on a fresh server.

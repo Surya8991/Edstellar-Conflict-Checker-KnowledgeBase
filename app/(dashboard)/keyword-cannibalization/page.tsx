@@ -225,6 +225,30 @@ function Inner() {
       return { ...prev, [query]: next };
     });
   }, []);
+  // Bulk selection + status change.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toggleSelect = useCallback((query: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(query)) next.delete(query);
+      else next.add(query);
+      return next;
+    });
+  }, []);
+  const bulkSetStatus = useCallback((status: ConflictStatus, queries: string[]) => {
+    if (!queries.length) return;
+    setAnnos((prev) => {
+      const next = { ...prev };
+      for (const q of queries) next[q] = { status, note: prev[q]?.note ?? "" };
+      return next;
+    });
+    fetch("/api/cannibalization/annotation", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ queries, status }),
+    }).catch(() => {});
+    setSelected(new Set());
+  }, []);
 
   // Tabs 1-3: pre-computed keyword conflicts.
   useEffect(() => {
@@ -401,6 +425,7 @@ function Inner() {
     setMaxGap(null);
     setStatusFilter("");
     setSortBy("severity");
+    setSelected(new Set());
   }, [tab]);
 
   function go(slug: TabSlug) {
@@ -506,6 +531,20 @@ function Inner() {
                 ))}
             </FilterGroup>
 
+            <FilterGroup label="Status">
+              <FilterChip label="All" active={!statusFilter} onClick={() => setStatusFilter("")} />
+              {STATUS_OPTS.map((s) => (
+                <FilterChip
+                  key={s.value}
+                  label={s.label}
+                  count={statusCounts[s.value]}
+                  active={statusFilter === s.value}
+                  dotClass={s.dot}
+                  onClick={() => setStatusFilter(statusFilter === s.value ? "" : s.value)}
+                />
+              ))}
+            </FilterGroup>
+
             <FilterRow>
               <FilterSelect
                 label="Type"
@@ -523,12 +562,6 @@ function Inner() {
                 options={SORTS.map((s) => ({ value: s.key, label: s.label }))}
                 allLabel={null}
                 defaultValue="severity"
-              />
-              <FilterSelect
-                label="Status"
-                value={statusFilter}
-                onChange={(v) => setStatusFilter(v as ConflictStatus | "")}
-                options={STATUS_OPTS.map((s) => ({ value: s.value, label: s.label, count: statusCounts[s.value] }))}
               />
             </FilterRow>
 
@@ -571,11 +604,19 @@ function Inner() {
         </Card>
       ) : (
         <>
-          <div className="mb-3 flex items-center justify-between">
-            <span className="text-xs text-slate-500 tabular-nums">
-              {filtered.length} {filtered.length === 1 ? "conflict" : "conflicts"}
-              {filtered.length !== rows.length ? ` of ${rows.length}` : ""}
-            </span>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-500">
+              <input
+                type="checkbox"
+                checked={filtered.length > 0 && filtered.every((g) => selected.has(g.query))}
+                onChange={(e) => setSelected(e.target.checked ? new Set(filtered.map((g) => g.query)) : new Set())}
+                className="h-3.5 w-3.5 rounded border-slate-300"
+              />
+              <span className="tabular-nums">
+                {filtered.length} {filtered.length === 1 ? "conflict" : "conflicts"}
+                {filtered.length !== rows.length ? ` of ${rows.length}` : ""}
+              </span>
+            </label>
             <button
               onClick={() =>
                 downloadCsv(
@@ -605,9 +646,39 @@ function Inner() {
             </button>
           </div>
 
+          {/* Bulk status bar - appears once anything is selected. */}
+          {selected.size > 0 && (
+            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-slate-300 bg-slate-50 px-3 py-2">
+              <span className="text-sm font-medium text-slate-700 tabular-nums">{selected.size} selected</span>
+              <span className="text-slate-300">·</span>
+              <span className="text-xs text-slate-500">Set status:</span>
+              {STATUS_OPTS.map((s) => (
+                <button
+                  key={s.value}
+                  onClick={() => bulkSetStatus(s.value, [...selected])}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
+                  {s.label}
+                </button>
+              ))}
+              <div className="grow" />
+              <button onClick={() => setSelected(new Set())} className="text-xs text-slate-500 hover:text-slate-800">
+                Clear selection
+              </button>
+            </div>
+          )}
+
           <div className="space-y-3">
             {paged.map((g) => (
-              <ConflictCard key={g.query} g={g} anno={annos[g.query]} onSave={saveAnno} />
+              <ConflictCard
+                key={g.query}
+                g={g}
+                anno={annos[g.query]}
+                onSave={saveAnno}
+                selected={selected.has(g.query)}
+                onToggleSelect={() => toggleSelect(g.query)}
+              />
             ))}
           </div>
 
@@ -631,7 +702,19 @@ function Inner() {
   );
 }
 
-function ConflictCard({ g, anno, onSave }: { g: CGroup; anno?: Anno; onSave: (query: string, patch: Partial<Anno>) => void }) {
+function ConflictCard({
+  g,
+  anno,
+  onSave,
+  selected,
+  onToggleSelect,
+}: {
+  g: CGroup;
+  anno?: Anno;
+  onSave: (query: string, patch: Partial<Anno>) => void;
+  selected: boolean;
+  onToggleSelect: () => void;
+}) {
   const action = ACTION_STYLE[g.action] ?? ACTION_STYLE.differentiate;
   const status = anno?.status ?? "pending";
   const savedNote = anno?.note ?? "";
@@ -644,9 +727,17 @@ function ConflictCard({ g, anno, onSave }: { g: CGroup; anno?: Anno; onSave: (qu
   const sm = statusMeta(status);
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
+    <div className={`rounded-xl border bg-white p-4 ${selected ? "border-slate-400 ring-1 ring-slate-300" : "border-slate-200"}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0">
+        <div className="flex min-w-0 items-start gap-2.5">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggleSelect}
+            aria-label="Select conflict for bulk actions"
+            className="mt-1 h-3.5 w-3.5 shrink-0 rounded border-slate-300"
+          />
+          <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase ${SEV_STYLE[g.severity]}`}>
               {g.severity}
@@ -667,6 +758,7 @@ function ConflictCard({ g, anno, onSave }: { g: CGroup; anno?: Anno; onSave: (qu
                 {" "}· <span className="font-medium text-slate-600">{atRisk.toLocaleString()} clicks at risk</span>
               </span>
             )}
+          </div>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
