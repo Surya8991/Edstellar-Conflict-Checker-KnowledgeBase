@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PageHeader, Card, ConflictBadge, ScoreBar, TypeChip, TYPE_COLORS, INTENT_STYLE, ACTION_STYLE, type Intent } from "@/app/components/ui";
+import { FilterChip } from "@/app/components/Filters";
 import { Pagination } from "@/app/components/Pagination";
 import { toast } from "@/app/components/Toast";
 import { scoreBarColor as bandBarColor, scoreTextColor as bandTextColor, intentStage } from "@/lib/score-bands";
@@ -430,10 +431,8 @@ export default function ConflictCheckerPage() {
                   hide unanalyzed
                 </label>
                 <span className="ml-2 text-slate-500">Sort:</span>
-                <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} className="rounded border border-slate-300 bg-white px-2 py-1">
-                  <option value="score">by score</option>
-                  <option value="similarity">by similarity</option>
-                </select>
+                <FilterChip label="by score" active={sortBy === "score"} onClick={() => setSortBy("score")} />
+                <FilterChip label="by similarity" active={sortBy === "similarity"} onClick={() => setSortBy("similarity")} />
                 <span className="ml-auto text-slate-400">{filtered.length} of {result.matches.length}</span>
               </div>
             )}

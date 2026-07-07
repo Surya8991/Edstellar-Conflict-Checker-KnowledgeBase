@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { PageHeader, Card } from "@/app/components/ui";
 import { Pagination } from "@/app/components/Pagination";
+import { FilterChip } from "@/app/components/Filters";
 import {
   LineChart,
   Line,
@@ -111,16 +112,12 @@ export default function HistoryPage() {
               placeholder="Filter checks..."
               className="flex-1 min-w-[160px] rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-slate-900"
             />
-            <select
-              value={scoreBand}
-              onChange={(e) => setScoreBand(e.target.value as "all" | "block" | "review" | "pass")}
-              className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700"
-            >
-              <option value="all">all scores</option>
-              <option value="block">block 80+</option>
-              <option value="review">review 60-79</option>
-              <option value="pass">pass under 60</option>
-            </select>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <FilterChip label="All" active={scoreBand === "all"} onClick={() => setScoreBand("all")} />
+              <FilterChip label="block 80+" active={scoreBand === "block"} dotClass="bg-red-400" onClick={() => setScoreBand(scoreBand === "block" ? "all" : "block")} />
+              <FilterChip label="review 60-79" active={scoreBand === "review"} dotClass="bg-amber-400" onClick={() => setScoreBand(scoreBand === "review" ? "all" : "review")} />
+              <FilterChip label="pass <60" active={scoreBand === "pass"} dotClass="bg-emerald-400" onClick={() => setScoreBand(scoreBand === "pass" ? "all" : "pass")} />
+            </div>
           </div>
 
           <Card className="p-0">

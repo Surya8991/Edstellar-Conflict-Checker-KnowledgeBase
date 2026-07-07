@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { PageHeader, Card, TYPE_COLORS } from "@/app/components/ui";
 import { Pagination as SharedPagination } from "@/app/components/Pagination";
-import { SearchBox } from "@/app/components/Filters";
+import { FilterSelect, SearchBox } from "@/app/components/Filters";
 import { sameUrl } from "@/lib/url";
 
 interface PageRow {
@@ -216,30 +216,19 @@ export default function CorpusPage() {
           </div>
         </div>
 
-        {/* Top categories - quick filter */}
+        {/* Top categories - dropdown (20+ options would wrap into a chip wall) */}
         {topCategories.length > 0 && (
-          <div className="rounded-xl border border-slate-200 bg-white p-3">
-            <div className="mb-2 flex items-center justify-between">
-              <div className="text-xs font-medium uppercase tracking-wider text-slate-500">Top categories</div>
-              {category && (
-                <button onClick={() => setCategory("")} className="text-xs text-slate-500 hover:text-slate-700">clear ×</button>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {topCategories.slice(0, 20).map((c) => (
-                <button
-                  key={c.category}
-                  onClick={() => setCategory(category === c.category ? "" : c.category)}
-                  className={`rounded-full border px-2.5 py-0.5 text-xs ${
-                    category === c.category
-                      ? "border-amber-500 bg-amber-500 text-white"
-                      : "border-slate-300 bg-white text-slate-700 hover:border-slate-400"
-                  }`}
-                >
-                  {c.category} <span className={`tabular-nums ${category === c.category ? "text-amber-100" : "text-slate-400"}`}>{c.n}</span>
-                </button>
-              ))}
-            </div>
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
+            <FilterSelect
+              label="Category"
+              value={category}
+              onChange={setCategory}
+              options={topCategories.map((c) => ({ value: c.category, label: c.category, count: c.n }))}
+              allLabel="All categories"
+            />
+            {category && (
+              <button onClick={() => setCategory("")} className="text-xs text-slate-500 hover:text-slate-700">clear ×</button>
+            )}
           </div>
         )}
 

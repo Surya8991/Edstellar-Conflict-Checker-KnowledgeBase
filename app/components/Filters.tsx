@@ -7,7 +7,7 @@
  * colour dots, and a single "Clear all".
  */
 import type { ReactNode } from "react";
-import { Search, X } from "lucide-react";
+import { ChevronDown, Search, X } from "lucide-react";
 
 /** Card wrapper for a filter toolbar. */
 export function FilterBar({ children, className = "" }: { children: ReactNode; className?: string }) {
@@ -105,6 +105,71 @@ export function FilterChip({
         </span>
       )}
     </button>
+  );
+}
+
+/** One option of a FilterSelect. `value` is what onChange receives. */
+export interface FilterSelectOption {
+  value: string;
+  label: string;
+  count?: number;
+}
+
+/**
+ * Labelled dropdown filter - the chip-group's sibling for dimensions with MANY
+ * options (6+), where chips would wrap into a wall. Same visual language as
+ * FilterChip: the trigger darkens when a non-default value is active.
+ * Option counts render as "label (n)".
+ */
+export function FilterSelect({
+  label,
+  value,
+  onChange,
+  options,
+  allLabel = "All",
+  defaultValue = "",
+  className = "",
+}: {
+  label: string;
+  /** Current value; equal to `defaultValue` means "no filter applied". */
+  value: string;
+  onChange: (v: string) => void;
+  options: FilterSelectOption[];
+  /** Label of the empty first row. Pass null for always-valued selects (e.g. Sort). */
+  allLabel?: string | null;
+  /** The "neutral" value - trigger stays light while on it. `""` for filters,
+   *  or the default sort key for sorts. */
+  defaultValue?: string;
+  className?: string;
+}) {
+  const active = value !== defaultValue;
+  return (
+    <label className={`inline-flex items-center gap-1.5 ${className}`}>
+      <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</span>
+      <span className="relative inline-flex">
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={`appearance-none rounded-full border py-1 pl-3 pr-7 text-xs font-medium capitalize transition focus:outline-none focus:ring-2 focus:ring-slate-900/10 ${
+            active
+              ? "border-slate-900 bg-slate-900 text-white shadow-sm"
+              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+          }`}
+        >
+          {allLabel != null && <option value="">{allLabel}</option>}
+          {options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+              {o.count != null ? ` (${o.count})` : ""}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          size={13}
+          className={`pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 ${active ? "text-white" : "text-slate-400"}`}
+        />
+      </span>
+    </label>
   );
 }
 

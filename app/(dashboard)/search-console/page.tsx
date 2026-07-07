@@ -12,6 +12,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { PageHeader, Card } from "@/app/components/ui";
+import { FilterSelect } from "@/app/components/Filters";
 import { countryName } from "@/lib/country";
 
 const RANGES = [
@@ -866,10 +867,13 @@ function IndexCoverageTab() {
             {[10,25,50,100].map((n) => <option key={n}>{n}</option>)}
           </select>
         </label>
-        <select value={type} onChange={(e) => setType(e.target.value)} className="rounded border border-slate-300 bg-white px-2 py-1 text-xs">
-          <option value="">all types</option>
-          <option>course</option><option>blog</option><option>category</option><option>subcategory</option><option>static</option>
-        </select>
+        <FilterSelect
+          label="Type"
+          value={type}
+          onChange={setType}
+          options={["course", "blog", "category", "subcategory", "static"].map((t) => ({ value: t, label: t }))}
+          allLabel="All types"
+        />
         <button onClick={run} disabled={loading} className="rounded-lg bg-slate-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-50">
           {loading ? "Inspecting…" : "Run inspection"}
         </button>

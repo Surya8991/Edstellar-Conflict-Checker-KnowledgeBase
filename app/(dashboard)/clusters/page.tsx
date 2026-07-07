@@ -2,13 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  PageHeader, Card, TypeChip, TYPE_COLORS,
+  PageHeader, Card, TypeChip,
   INTENT_STYLE, ACTION_STYLE, pathOf,
   type Intent, type ClusterAction,
 } from "@/app/components/ui";
 import { Pagination } from "@/app/components/Pagination";
 import {
-  FilterBar, FilterRow, SearchBox, FilterGroup, FilterChip, ClearFiltersButton, ToggleChip, dotColor,
+  FilterBar, FilterRow, SearchBox, FilterGroup, FilterChip, FilterSelect, ClearFiltersButton, ToggleChip, dotColor,
 } from "@/app/components/Filters";
 
 interface GscWindow {
@@ -242,21 +242,16 @@ export default function ClustersPage() {
                   />
                 ))}
             </FilterGroup>
-            <FilterGroup label="Type">
-              <FilterChip label="All" active={!typeFilter} onClick={() => setTypeFilter("")} />
-              {contentTypes
-                .filter((ct) => (typeCounts.map.get(ct) ?? 0) > 0)
-                .map((ct) => (
-                  <FilterChip
-                    key={ct}
-                    label={ct.replace("-", " ")}
-                    count={typeCounts.map.get(ct) ?? 0}
-                    active={typeFilter === ct}
-                    dotClass={dotColor(TYPE_COLORS[ct] ?? "bg-slate-100")}
-                    onClick={() => setTypeFilter(typeFilter === ct ? "" : ct)}
-                  />
-                ))}
-            </FilterGroup>
+            <FilterRow>
+              <FilterSelect
+                label="Type"
+                value={typeFilter}
+                onChange={setTypeFilter}
+                options={contentTypes
+                  .filter((ct) => (typeCounts.map.get(ct) ?? 0) > 0)
+                  .map((ct) => ({ value: ct, label: ct.replace("-", " "), count: typeCounts.map.get(ct) ?? 0 }))}
+              />
+            </FilterRow>
           </FilterBar>
         )}
 

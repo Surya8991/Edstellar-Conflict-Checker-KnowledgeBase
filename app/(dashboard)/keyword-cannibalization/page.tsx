@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { PageHeader, Card, TypeChip, TYPE_COLORS } from "@/app/components/ui";
+import { PageHeader, Card, TypeChip } from "@/app/components/ui";
 import { Pagination } from "@/app/components/Pagination";
 import {
   FilterBar,
@@ -10,6 +10,7 @@ import {
   SearchBox,
   FilterGroup,
   FilterChip,
+  FilterSelect,
   ClearFiltersButton,
   dotColor,
 } from "@/app/components/Filters";
@@ -440,33 +441,25 @@ function Inner() {
                 ))}
             </FilterGroup>
 
-            <FilterGroup label="Type">
-              <FilterChip label="All" active={!typeFilter} onClick={() => setTypeFilter(null)} />
-              {Object.entries(typeCounts)
-                .filter(([t, n]) => n > 0 || typeFilter === t)
-                .sort((a, b) => b[1] - a[1])
-                .map(([t, n]) => (
-                  <FilterChip
-                    key={t}
-                    label={t.replace("-", " ")}
-                    count={n}
-                    active={typeFilter === t}
-                    dotClass={dotColor(TYPE_COLORS[t] ?? "bg-slate-100")}
-                    onClick={() => setTypeFilter(typeFilter === t ? null : t)}
-                  />
-                ))}
-            </FilterGroup>
-
-            <FilterGroup label="Sort">
-              {SORTS.map((s) => (
-                <FilterChip
-                  key={s.key}
-                  label={s.label}
-                  active={sortBy === s.key}
-                  onClick={() => setSortBy(s.key)}
-                />
-              ))}
-            </FilterGroup>
+            <FilterRow>
+              <FilterSelect
+                label="Type"
+                value={typeFilter ?? ""}
+                onChange={(v) => setTypeFilter(v || null)}
+                options={Object.entries(typeCounts)
+                  .filter(([t, n]) => n > 0 || typeFilter === t)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([t, n]) => ({ value: t, label: t.replace("-", " "), count: n }))}
+              />
+              <FilterSelect
+                label="Sort"
+                value={sortBy}
+                onChange={(v) => setSortBy(v as SortKey)}
+                options={SORTS.map((s) => ({ value: s.key, label: s.label }))}
+                allLabel={null}
+                defaultValue="severity"
+              />
+            </FilterRow>
 
             <FilterGroup label="Max gap">
               <FilterChip label="Any" active={maxGap == null} onClick={() => setMaxGap(null)} />
