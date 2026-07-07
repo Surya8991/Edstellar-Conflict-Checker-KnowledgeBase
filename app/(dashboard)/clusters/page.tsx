@@ -333,15 +333,8 @@ function ClusterCard({ g, showIntent }: { g: GroupSummary; showIntent: boolean }
                   <span className="ml-1 text-[10px] font-normal text-slate-400">match</span>
                 </span>
               )}
-              {m.sharedTerms.length > 0 && (
-                <span className="flex flex-wrap justify-end gap-1" title="Distinctive topic tokens shared with the pillar">
-                  {m.sharedTerms.slice(0, 4).map((term) => (
-                    <span key={term} className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-500">
-                      {term}
-                    </span>
-                  ))}
-                </span>
-              )}
+              {/* Shared topic tokens are kept in the API response (backend
+                  evidence) but intentionally NOT rendered for users. */}
             </div>
           </li>
         ))}
