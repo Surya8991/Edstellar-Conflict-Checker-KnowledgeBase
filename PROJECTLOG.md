@@ -2337,6 +2337,26 @@ Files touched as planned: `drizzle/0010_excluded_series_type.sql`,
 `.../matches/route.ts`, `app/(dashboard)/settings/page.tsx`,
 `app/(dashboard)/clusters/page.tsx`, `app/api/groups/route.ts`. 78/78 tests.
 
+### 17R. Settings promoted + project settings (cluster tuning, GSC refresh)
+
+- **Settings → top-level nav** (out of Additional Tools).
+- **Leadership Training Companies [Country]** added to the URL exclusions
+  (pattern `leadership-training-companies-`, 3 pages); also added to the
+  `drizzle/0009` seed. Excluded-URL total is now 98.
+- **`app_settings` key-value table** (`drizzle/0011`, `lib/app-settings.ts`) for
+  editable project knobs, read with fallback to `lib/thresholds.ts` defaults.
+  - **Content Clusters tuning** card: `topic overlap` / `body floor` /
+    `merge max size`. `/api/settings/app` (GET/PATCH); `/api/groups` resolves
+    these (query params still override) and they're part of the route cache key.
+    Verified end-to-end: overlap 0.16 → 265 clusters, 0.30 → 156.
+  - **Search Console data** card: shows `gsc_metrics` last-refreshed and a
+    "Refresh now" button → `POST /api/settings/gsc-refresh` runs
+    `snapshotGscMetrics` (GET returns the timestamp).
+
+Build + typecheck clean; APIs + cluster-tuning effect verified live. (The dev
+preview tab hung during the browser check - a tooling issue; SSR HTML + the API
+checks confirm the pages render.)
+
 ### 17I. Deferred (tracked, not this pass)
 
 - **GSC query-overlap edges - the gold-standard upgrade** (17F #1–2): once

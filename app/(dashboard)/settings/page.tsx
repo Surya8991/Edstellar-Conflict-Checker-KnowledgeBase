@@ -31,6 +31,11 @@ export default function SettingsPage() {
   const [matchPage, setMatchPage] = useState(1);
   const [matchPageSize, setMatchPageSize] = useState(25);
 
+  // Cluster tuning + GSC data.
+  const [cluster, setCluster] = useState<{ topicOverlap: number; bodyFloor: number; mergeMaxSize: number } | null>(null);
+  const [gscLast, setGscLast] = useState<string | null | undefined>(undefined);
+  const [gscRefreshing, setGscRefreshing] = useState(false);
+
   async function loadItems() {
     try {
       const res = await fetch("/api/settings/exclusions");
@@ -52,7 +57,58 @@ export default function SettingsPage() {
       toast.error((e as Error).message);
     }
   }
-  useEffect(() => { loadItems(); loadMatches(1, matchPageSize); /* eslint-disable-next-line */ }, []);
+  async function loadCluster() {
+    try {
+      const res = await fetch("/api/settings/app");
+      const data = await res.json();
+      if (res.ok) setCluster(data.cluster);
+    } catch { /* ignore */ }
+  }
+  async function loadGscLast() {
+    try {
+      const res = await fetch("/api/settings/gsc-refresh");
+      const data = await res.json();
+      if (res.ok) setGscLast(data.lastRefreshed ?? null);
+    } catch { setGscLast(null); }
+  }
+  useEffect(() => {
+    loadItems(); loadMatches(1, matchPageSize); loadCluster(); loadGscLast();
+    /* eslint-disable-next-line */
+  }, []);
+
+  async function saveCluster(next: { topicOverlap: number; bodyFloor: number; mergeMaxSize: number }) {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/settings/app", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(next),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Save failed");
+      setCluster(data.cluster);
+      toast.success("Cluster settings saved. Rescan Content Clusters to apply.");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function refreshGsc() {
+    setGscRefreshing(true);
+    try {
+      const res = await fetch("/api/settings/gsc-refresh", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Refresh failed");
+      toast.success(`GSC refreshed: ${data.pageRows} page rows, ${data.queryRows} query rows.`);
+      await loadGscLast();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setGscRefreshing(false);
+    }
+  }
 
   async function refresh() {
     await Promise.all([loadItems(), loadMatches(matchPage, matchPageSize)]);
@@ -126,6 +182,34 @@ export default function SettingsPage() {
       <div className="max-w-4xl space-y-4 p-8">
         {error && <Card className="border-red-200 bg-red-50 text-sm text-red-700">{error}</Card>}
 
+        {/* Content Clusters tuning */}
+        {cluster && <ClusterTuningCard cluster={cluster} saving={saving} onSave={saveCluster} />}
+
+        {/* Search Console data */}
+        <Card>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900">Search Console data</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Per-page GSC metrics (1/3/6-month totals + top queries) powering the Content Clusters panel.
+                {" "}
+                Last refreshed:{" "}
+                <strong className="text-slate-700">
+                  {gscLast === undefined ? "…" : gscLast ? new Date(gscLast).toLocaleString() : "never"}
+                </strong>
+                . Refreshes automatically once a day.
+              </p>
+            </div>
+            <button
+              onClick={refreshGsc}
+              disabled={gscRefreshing}
+              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {gscRefreshing ? "Refreshing…" : "Refresh now"}
+            </button>
+          </div>
+        </Card>
+
         {/* URL / blog-series exclusions */}
         <ExclusionSection
           title="Excluded blog series (by URL)"
@@ -196,6 +280,68 @@ export default function SettingsPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+function ClusterTuningCard({
+  cluster, saving, onSave,
+}: {
+  cluster: { topicOverlap: number; bodyFloor: number; mergeMaxSize: number };
+  saving: boolean;
+  onSave: (v: { topicOverlap: number; bodyFloor: number; mergeMaxSize: number }) => void;
+}) {
+  const [overlap, setOverlap] = useState(String(cluster.topicOverlap));
+  const [floor, setFloor] = useState(String(cluster.bodyFloor));
+  const [maxSize, setMaxSize] = useState(String(cluster.mergeMaxSize));
+  const dirty =
+    Number(overlap) !== cluster.topicOverlap ||
+    Number(floor) !== cluster.bodyFloor ||
+    Number(maxSize) !== cluster.mergeMaxSize;
+  return (
+    <Card>
+      <h2 className="text-sm font-semibold text-slate-900">Content Clusters tuning</h2>
+      <p className="mt-1 text-xs text-slate-500">
+        How aggressively pages are grouped. Save, then hit &ldquo;Rescan&rdquo; on Content Clusters to apply.
+      </p>
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <NumField label="Topic overlap" hint="Higher = stricter grouping (0.05-0.95)" value={overlap} onChange={setOverlap} step="0.01" />
+        <NumField label="Body floor" hint="Min content similarity to the pillar (0.3-0.98)" value={floor} onChange={setFloor} step="0.01" />
+        <NumField label="Merge max size" hint="Same-type clusters bigger than this get 'differentiate', not 'merge' (2-50)" value={maxSize} onChange={setMaxSize} step="1" />
+      </div>
+      <div className="mt-3">
+        <button
+          onClick={() => onSave({ topicOverlap: Number(overlap), bodyFloor: Number(floor), mergeMaxSize: Number(maxSize) })}
+          disabled={saving || !dirty}
+          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+        >
+          Save
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+function NumField({
+  label, hint, value, onChange, step,
+}: {
+  label: string;
+  hint: string;
+  value: string;
+  onChange: (v: string) => void;
+  step: string;
+}) {
+  return (
+    <label className="block">
+      <span className="text-xs font-medium text-slate-700">{label}</span>
+      <input
+        type="number"
+        step={step}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm tabular-nums outline-none focus:border-slate-900"
+      />
+      <span className="mt-0.5 block text-[10px] text-slate-400">{hint}</span>
+    </label>
   );
 }
 

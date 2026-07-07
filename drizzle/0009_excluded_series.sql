@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS excluded_series (
 INSERT INTO excluded_series (name, patterns)
 SELECT v.name, v.patterns FROM (VALUES
   ('In-Demand Skills', ARRAY['skills-in-demand-in-', 'in-demand-skills', 'most-in-demand']),
-  ('Corporate Training Companies in [Country]', ARRAY['corporate-training-companies-'])
+  ('Corporate Training Companies in [Country]', ARRAY['corporate-training-companies-']),
+  ('Leadership Training Companies [Country]', ARRAY['leadership-training-companies-'])
 ) AS v(name, patterns)
 WHERE NOT EXISTS (SELECT 1 FROM excluded_series);

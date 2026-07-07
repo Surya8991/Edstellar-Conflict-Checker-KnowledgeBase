@@ -154,6 +154,13 @@ export const excludedSeries = pgTable("excluded_series", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+/** Editable key-value app settings (cluster tuning, etc.), managed at /settings. */
+export const appSettings = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 /** Precomputed near-duplicate page pairs across the corpus. */
 export const catalogConflicts = pgTable(
   "catalog_conflicts",

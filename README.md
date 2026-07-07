@@ -50,7 +50,7 @@ npm run dev        # http://localhost:3000
 
 ## Features by page
 
-Top-level nav: Edstellar Database (the `/corpus` page), Conflict Checker, Content Clusters, Search Console (an expandable parent - each GSC report is its own sub-page at `/search-console?section=<slug>`: Overview, Cannibalization, Striking Distance, CTR Opportunity, Movers, Untapped, Catalog Gap, Stale Pages, Index Coverage). Dashboard, Manager View, Competitors, Bulk Check, Content Audit, Internal Links, Funnel Strategy, Settings, and Catalog Conflicts live under the collapsible **Additional Tools** section of the sidebar. Score History is hidden from the sidebar as of Session 13 (the `/history` page and all dashboard links to it still work).
+Top-level nav: Edstellar Database (the `/corpus` page), Conflict Checker, Content Clusters, Settings, Search Console (an expandable parent - each GSC report is its own sub-page at `/search-console?section=<slug>`: Overview, Cannibalization, Striking Distance, CTR Opportunity, Movers, Untapped, Catalog Gap, Stale Pages, Index Coverage). Dashboard, Manager View, Competitors, Bulk Check, Content Audit, Internal Links, Funnel Strategy, and Catalog Conflicts live under the collapsible **Additional Tools** section of the sidebar. Score History is hidden from the sidebar as of Session 13 (the `/history` page and all dashboard links to it still work).
 
 | Route | What it does |
 |---|---|
@@ -66,7 +66,7 @@ Top-level nav: Edstellar Database (the `/corpus` page), Conflict Checker, Conten
 | `/audit` | Content Audit - per-page health scan (meta, links, duplicates, images, staleness). |
 | `/internal-links` | Suggests existing pages a draft should link to. |
 | `/strategy` | Funnel Strategy. |
-| `/settings` | Manage the blog-series **exclusion list** (`excluded_series` table). Excluded series are hidden from Content Clusters + Conflict Checker matches, but kept in the Edstellar Database and GSC. |
+| `/settings` | Project settings: **Content Clusters tuning** (overlap / body floor / merge-max, `app_settings` table), **Search Console** last-refreshed + Refresh button, and the **exclusion lists** (`excluded_series`: URL patterns hide pages from Clusters + Conflict Checker matches; keyword patterns hide GSC queries). Excluded pages stay in the Edstellar Database + GSC. |
 | `/catalog-conflicts` | Precomputed near-duplicate pairs across the catalogue. Build with `npm run catalog-conflicts`. Hidden from the sidebar as of Session 11 (still reachable directly); Content Clusters is the actively-maintained equivalent. |
 
 ## AI providers

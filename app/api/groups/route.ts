@@ -7,7 +7,8 @@ import { fetchGscForUrls } from "@/lib/gsc-cluster-metrics";
 import { getExclusions, isExcludedUrl } from "@/lib/exclusions";
 import { classifyIntent, type Intent } from "@/lib/intent";
 import { pageAuthority, pickWinner, groupAction, type AuthorityInput } from "@/lib/resolution";
-import { THRESHOLDS } from "@/lib/thresholds";
+import { THRESHOLDS, type Thresholds } from "@/lib/thresholds";
+import { getAppSettings, numSetting, SETTING_KEYS } from "@/lib/app-settings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -69,7 +70,17 @@ const GROUPS_CACHE_TTL = 5 * 60 * 1000;
 export async function GET(request: NextRequest) {
   try {
     const p = new URL(request.url).searchParams;
-    const t = THRESHOLDS;
+    // Cluster tuning is editable in Settings (app_settings), falling back to the
+    // thresholds.ts defaults. Query params still override for experimentation.
+    const settings = await getAppSettings();
+    const t: Thresholds = {
+      ...THRESHOLDS,
+      topicOverlap: numSetting(settings, SETTING_KEYS.topicOverlap, THRESHOLDS.topicOverlap, 0.05, 0.95),
+      topicBodyFloor: numSetting(settings, SETTING_KEYS.bodyFloor, THRESHOLDS.topicBodyFloor, 0.3, 0.98),
+      groupMergeMaxSize: Math.round(
+        numSetting(settings, SETTING_KEYS.mergeMaxSize, THRESHOLDS.groupMergeMaxSize, 2, 50),
+      ),
+    };
     const overrideOverlap = Number(p.get("overlap"));
     const overlap =
       Number.isFinite(overrideOverlap) && overrideOverlap > 0
@@ -86,7 +97,7 @@ export async function GET(request: NextRequest) {
     // Exclusions affect the result (URL filter + GSC query filter), so they're
     // part of the cache key.
     const { url: exclusions, query: queryExclusions } = await getExclusions();
-    const cacheKey = `${overlap}|${floor}|${minSize}|${limit}|${exclusions.join(",")}|${queryExclusions.join(",")}`;
+    const cacheKey = `${overlap}|${floor}|${t.groupMergeMaxSize}|${minSize}|${limit}|${exclusions.join(",")}|${queryExclusions.join(",")}`;
     if (
       !p.get("fresh") &&
       groupsCache &&

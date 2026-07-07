@@ -31,6 +31,7 @@ const NAV: { href: string; label: string; icon: any }[] = [
   { href: "/corpus",             label: "Edstellar Database", icon: Database },
   { href: "/conflict-checker",   label: "Conflict Checker",  icon: ScanSearch },
   { href: "/clusters",           label: "Content Clusters",  icon: Boxes },
+  { href: "/settings",           label: "Settings",          icon: Settings },
   // Score History hidden for now (Session 13 - same pattern as Catalog
   // Conflicts). The /history page + /api routes still exist and dashboard
   // links to /history keep working; uncomment to restore the nav link.
@@ -64,7 +65,6 @@ const ADDITIONAL_NAV: { href: string; label: string; icon: any }[] = [
   { href: "/audit",              label: "Content Audit",     icon: ClipboardCheck },
   { href: "/internal-links",     label: "Internal Links",    icon: Link2 },
   { href: "/strategy",           label: "Funnel Strategy",   icon: Compass },
-  { href: "/settings",           label: "Settings",          icon: Settings },
 ];
 
 export default function Sidebar({ user, signOutSlot }: { user?: SidebarUser | null; signOutSlot?: React.ReactNode }) {
