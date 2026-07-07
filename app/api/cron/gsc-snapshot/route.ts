@@ -39,6 +39,11 @@ const STALE_CLICKS_THRESHOLD = 5;
 export async function GET(request: NextRequest) {
   const unauth = requireCronAuth(request);
   if (unauth) return unauth;
+  // Per-job wall-clock, surfaced in the response + logs so the 300s budget is
+  // verifiable from the Vercel cron dashboard (§18N). `elapsed()` is ms since start.
+  const started = Date.now();
+  const elapsed = () => Date.now() - started;
+  const timings: Record<string, number> = {};
   try {
     const client = await getAuthorizedClient();
     if (!client) throw new Error("Not connected to GSC.");
@@ -162,6 +167,7 @@ export async function GET(request: NextRequest) {
       [STALE_CLICKS_THRESHOLD, STALE_LASTMOD_DAYS, staleReason],
     )) as { id: number; is_stale: boolean }[];
     const staleCount = staleResult.filter((r) => r.is_stale).length;
+    timings.jobs1to3_ms = elapsed();
 
     // --- Job 4: per-page 1m/3m/6m full-month totals + top-5 queries into
     //     gsc_metrics (powers the Content Clusters GSC panel, §17O). Isolated so
@@ -173,6 +179,7 @@ export async function GET(request: NextRequest) {
       gscMetrics = { error: (e as Error).message };
       log.error("gsc_metrics snapshot failed", { error: (e as Error).message });
     }
+    timings.job4_gsc_metrics_ms = elapsed();
 
     // --- Job 5: keyword-cannibalization conflicts (PROJECTLOG §18). Isolated so
     //     a failure here never affects the jobs above.
@@ -183,6 +190,7 @@ export async function GET(request: NextRequest) {
       cannibalization = { error: (e as Error).message };
       log.error("keyword_conflicts snapshot failed", { error: (e as Error).message });
     }
+    timings.job5_cannibalization_ms = elapsed();
 
     // --- Job 6: HTTP-status refresh (§18M) - whole corpus daily by default.
     //     LAST + isolated so a slow HEAD sweep can never cost us the snapshots
@@ -199,12 +207,15 @@ export async function GET(request: NextRequest) {
       httpStatus = { error: (e as Error).message };
       log.error("http_status refresh failed", { error: (e as Error).message });
     }
+    timings.job6_http_status_ms = elapsed();
+    timings.total_ms = elapsed();
 
     log.info("gsc snapshot complete", {
       date: yesterday,
       clicks: day?.clicks ?? 0,
       pages_synced: pagesSynced,
       stale_count: staleCount,
+      timings,
     });
     return NextResponse.json({
       date: yesterday,
@@ -215,6 +226,7 @@ export async function GET(request: NextRequest) {
       gsc_metrics: gscMetrics,
       cannibalization,
       http_status: httpStatus,
+      timings,
     });
   } catch (e) {
     log.error("gsc snapshot failed", { error: (e as Error).message });

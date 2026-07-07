@@ -2890,3 +2890,19 @@ Completed N · Ignored N) is visible at a glance and still filters.
 Typecheck clean; 11 lib tests (added `isBrokenStatus`). Live-verified: status
 chips show live counts, bulk-set 2 conflicts → "ignored" persisted via the batch
 endpoint, zero console errors on a fresh server.
+
+### 18N. gsc-snapshot cron: whole-corpus status daily + timing verified <300s
+
+Raised the daily HTTP-status refresh to cover the **whole corpus every day**
+(`CRON_HTTP_STATUS_DAILY_LIMIT` 600 → 100000 ≈ all; probe concurrency
+`CRON_HTTP_STATUS_CONCURRENCY` 24). Measured the added cost against the live
+corpus: a full HEAD sweep of **2,464 URLs took 58.7s** at concurrency 24 (all
+2xx, 0 broken). With the documented Job 5 (~132s) that's ~191s of heavy work, so
+the 6-job cron sits ~210–240s - under the 300s budget with headroom. Job 6 is
+LAST + isolated with 200-row batched writes, so even a bad-network overrun is
+non-fatal (prior jobs already committed, partial writes persist, the rest is
+picked up next day). Added **per-job timing** to the cron (`timings.{jobs1to3,
+job4_gsc_metrics, job5_cannibalization, job6_http_status, total}_ms` in the JSON
+response + `log.info`) so each production run's budget is verifiable from the
+Vercel cron dashboard. Corpus HTTP-status health at audit: 2,461/2,464 audited,
+0 currently broken, 3 never-audited.
