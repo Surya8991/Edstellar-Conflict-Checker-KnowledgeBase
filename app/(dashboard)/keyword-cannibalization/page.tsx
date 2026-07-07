@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader, Card, TypeChip } from "@/app/components/ui";
 import { Pagination } from "@/app/components/Pagination";
@@ -14,7 +14,7 @@ import {
   ClearFiltersButton,
   dotColor,
 } from "@/app/components/Filters";
-import { Star, Download, RefreshCw, ExternalLink, ArrowRight } from "lucide-react";
+import { Star, Download, RefreshCw, ExternalLink, ArrowRight, ChevronDown, StickyNote } from "lucide-react";
 
 // ── types (mirror /api/cannibalization + /api/groups) ──────────────────────
 type Severity = "high" | "medium" | "low";
@@ -148,6 +148,23 @@ function sortGroups(list: CGroup[], key: SortKey): CGroup[] {
   return a;
 }
 
+// ── per-conflict status + notes (persisted via /api/cannibalization/annotation) ─
+type ConflictStatus = "pending" | "in-progress" | "completed" | "ignored";
+type Anno = { status: ConflictStatus; note: string };
+const NOTE_MAX = 300;
+const STATUS_OPTS: { value: ConflictStatus; label: string; dot: string }[] = [
+  { value: "pending", label: "Pending", dot: "bg-slate-400" },
+  { value: "in-progress", label: "In progress", dot: "bg-amber-400" },
+  { value: "completed", label: "Completed", dot: "bg-emerald-500" },
+  { value: "ignored", label: "Ignored", dot: "bg-slate-300" },
+];
+const statusMeta = (s: ConflictStatus) => STATUS_OPTS.find((o) => o.value === s) ?? STATUS_OPTS[0];
+
+/** Clicks going to the non-primary (cannibal) pages - recoverable by consolidating. */
+function atRiskClicks(g: CGroup): number {
+  return g.pages.filter((p) => p.role === "cannibal").reduce((s, p) => s + p.clicks, 0);
+}
+
 function downloadCsv(filename: string, headers: string[], rows: (string | number)[][]) {
   const esc = (v: string | number) => {
     const s = String(v);
@@ -192,6 +209,22 @@ function Inner() {
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [maxGap, setMaxGap] = useState<number | null>(null); // hide groups whose page spread exceeds this
   const [sortBy, setSortBy] = useState<SortKey>("severity");
+  const [statusFilter, setStatusFilter] = useState<ConflictStatus | "">("");
+  // Per-conflict status + notes, keyed by query. Loaded once, updated optimistically.
+  const [annos, setAnnos] = useState<Record<string, Anno>>({});
+  const statusOf = useCallback((g: CGroup): ConflictStatus => annos[g.query]?.status ?? "pending", [annos]);
+  const saveAnno = useCallback((query: string, patch: Partial<Anno>) => {
+    setAnnos((prev) => {
+      const cur = prev[query] ?? { status: "pending" as ConflictStatus, note: "" };
+      const next: Anno = { ...cur, ...patch };
+      fetch("/api/cannibalization/annotation", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query, status: next.status, note: next.note }),
+      }).catch(() => {});
+      return { ...prev, [query]: next };
+    });
+  }, []);
 
   // Tabs 1-3: pre-computed keyword conflicts.
   useEffect(() => {
@@ -210,6 +243,20 @@ function Inner() {
       })
       .catch((e) => alive && setError(String(e)))
       .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Per-conflict annotations (status + notes).
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/cannibalization/annotation")
+      .then((r) => r.json())
+      .then((d) => {
+        if (alive && d.annotations) setAnnos(d.annotations);
+      })
+      .catch(() => {});
     return () => {
       alive = false;
     };
@@ -298,6 +345,21 @@ function Inner() {
     return c;
   }, [rows, matchesSearch, sevFilter, actionFilter]);
 
+  // Status counts respect the other active filters + search + gap window.
+  const statusCounts = useMemo(() => {
+    const c: Record<ConflictStatus, number> = { pending: 0, "in-progress": 0, completed: 0, ignored: 0 };
+    for (const g of rows)
+      if (
+        matchesSearch(g) &&
+        withinGap(g) &&
+        (!sevFilter || g.severity === sevFilter) &&
+        (!actionFilter || g.action === actionFilter) &&
+        (!typeFilter || hasType(g, typeFilter))
+      )
+        c[statusOf(g)]++;
+    return c;
+  }, [rows, matchesSearch, withinGap, sevFilter, actionFilter, typeFilter, statusOf]);
+
   const filtered = useMemo(
     () =>
       sortGroups(
@@ -307,11 +369,12 @@ function Inner() {
             withinGap(g) &&
             (!sevFilter || g.severity === sevFilter) &&
             (!actionFilter || g.action === actionFilter) &&
-            (!typeFilter || hasType(g, typeFilter)),
+            (!typeFilter || hasType(g, typeFilter)) &&
+            (!statusFilter || statusOf(g) === statusFilter),
         ),
         sortBy,
       ),
-    [rows, matchesSearch, withinGap, sevFilter, actionFilter, typeFilter, sortBy],
+    [rows, matchesSearch, withinGap, sevFilter, actionFilter, typeFilter, statusFilter, statusOf, sortBy],
   );
   const mergeFiltered = useMemo(() => {
     const s = search.trim().toLowerCase();
@@ -319,22 +382,24 @@ function Inner() {
     return merge.filter((c) => c.label.toLowerCase().includes(s) || c.members.some((m) => m.url.toLowerCase().includes(s)));
   }, [merge, search]);
 
-  const hasFilter = !!(search.trim() || sevFilter || actionFilter || typeFilter || maxGap != null);
+  const hasFilter = !!(search.trim() || sevFilter || actionFilter || typeFilter || maxGap != null || statusFilter);
   function clearFilters() {
     setSearch("");
     setSevFilter(null);
     setActionFilter(null);
     setTypeFilter(null);
     setMaxGap(null);
+    setStatusFilter("");
   }
 
   // Reset page on tab/filter/sort change; drop pill filters when switching tabs.
-  useEffect(() => setPage(1), [tab, search, sevFilter, actionFilter, typeFilter, maxGap, sortBy]);
+  useEffect(() => setPage(1), [tab, search, sevFilter, actionFilter, typeFilter, maxGap, statusFilter, sortBy]);
   useEffect(() => {
     setSevFilter(null);
     setActionFilter(null);
     setTypeFilter(null);
     setMaxGap(null);
+    setStatusFilter("");
     setSortBy("severity");
   }, [tab]);
 
@@ -459,6 +524,12 @@ function Inner() {
                 allLabel={null}
                 defaultValue="severity"
               />
+              <FilterSelect
+                label="Status"
+                value={statusFilter}
+                onChange={(v) => setStatusFilter(v as ConflictStatus | "")}
+                options={STATUS_OPTS.map((s) => ({ value: s.value, label: s.label, count: statusCounts[s.value] }))}
+              />
             </FilterRow>
 
             <FilterGroup label="Max gap">
@@ -509,10 +580,12 @@ function Inner() {
               onClick={() =>
                 downloadCsv(
                   `cannibalization-${tab}.csv`,
-                  ["query", "severity", "action", "page", "role", "type", "position", "impressions", "clicks"],
+                  ["query", "status", "note", "severity", "action", "page", "role", "type", "position", "impressions", "ctr", "clicks"],
                   filtered.flatMap((g) =>
                     g.pages.map((p) => [
                       g.query,
+                      annos[g.query]?.status ?? "pending",
+                      annos[g.query]?.note ?? "",
                       g.severity,
                       g.action,
                       p.page,
@@ -520,6 +593,7 @@ function Inner() {
                       p.contentType ?? "",
                       p.position,
                       p.impressions,
+                      (p.ctr * 100).toFixed(1) + "%",
                       p.clicks,
                     ]),
                   ),
@@ -533,7 +607,7 @@ function Inner() {
 
           <div className="space-y-3">
             {paged.map((g) => (
-              <ConflictCard key={g.query} g={g} />
+              <ConflictCard key={g.query} g={g} anno={annos[g.query]} onSave={saveAnno} />
             ))}
           </div>
 
@@ -557,8 +631,18 @@ function Inner() {
   );
 }
 
-function ConflictCard({ g }: { g: CGroup }) {
+function ConflictCard({ g, anno, onSave }: { g: CGroup; anno?: Anno; onSave: (query: string, patch: Partial<Anno>) => void }) {
   const action = ACTION_STYLE[g.action] ?? ACTION_STYLE.differentiate;
+  const status = anno?.status ?? "pending";
+  const savedNote = anno?.note ?? "";
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [draft, setDraft] = useState(savedNote);
+  // Re-sync the draft if the saved note changes underneath us (e.g. initial load).
+  useEffect(() => setDraft(savedNote), [savedNote]);
+  const dirty = draft !== savedNote;
+  const atRisk = atRiskClicks(g);
+  const sm = statusMeta(status);
+
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -578,11 +662,34 @@ function ConflictCard({ g }: { g: CGroup }) {
               </span>
             )}{" "}
             · best pos {g.bestPosition.toFixed(1)}
+            {atRisk > 0 && (
+              <span title="Clicks currently going to the non-primary (cannibal) pages - recoverable by consolidating">
+                {" "}· <span className="font-medium text-slate-600">{atRisk.toLocaleString()} clicks at risk</span>
+              </span>
+            )}
           </div>
         </div>
-        <span title={action.hint} className={`shrink-0 cursor-help rounded-md px-2 py-1 text-xs font-medium ${action.cls}`}>
-          {action.label}
-        </span>
+        <div className="flex shrink-0 items-center gap-2">
+          {/* Per-conflict workflow status (persisted) */}
+          <span className="relative inline-flex" title="Set this conflict's status">
+            <span className={`pointer-events-none absolute left-2 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full ${sm.dot}`} />
+            <select
+              value={status}
+              onChange={(e) => onSave(g.query, { status: e.target.value as ConflictStatus })}
+              className="appearance-none rounded-md border border-slate-200 bg-white py-1 pl-5 pr-6 text-xs font-medium text-slate-600 transition hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+            >
+              {STATUS_OPTS.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown size={12} className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          </span>
+          <span title={action.hint} className={`cursor-help rounded-md px-2 py-1 text-xs font-medium ${action.cls}`}>
+            {action.label}
+          </span>
+        </div>
       </div>
 
       <table className="mt-3 w-full text-sm">
@@ -613,6 +720,9 @@ function ConflictCard({ g }: { g: CGroup }) {
               <td className="whitespace-nowrap py-1.5 pr-3 text-right align-top text-xs text-slate-500 tabular-nums">
                 {p.impressions.toLocaleString()} impr
               </td>
+              <td className="whitespace-nowrap py-1.5 pr-3 text-right align-top text-xs text-slate-500 tabular-nums">
+                {(p.ctr * 100).toFixed(1)}% ctr
+              </td>
               <td className="whitespace-nowrap py-1.5 text-right align-top text-xs text-slate-500 tabular-nums">
                 {p.clicks.toLocaleString()} clicks
               </td>
@@ -621,7 +731,15 @@ function ConflictCard({ g }: { g: CGroup }) {
         </tbody>
       </table>
 
-      <div className="mt-2 flex justify-end">
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <button
+          onClick={() => setNoteOpen((o) => !o)}
+          className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800"
+        >
+          <StickyNote size={12} />
+          {savedNote ? "Note" : "Add note"}
+          {savedNote && !noteOpen && <span className="ml-1 max-w-[240px] truncate text-slate-400">— {savedNote}</span>}
+        </button>
         <a
           href={`/conflict-checker?url=${encodeURIComponent(g.primaryPage)}`}
           className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800"
@@ -629,6 +747,31 @@ function ConflictCard({ g }: { g: CGroup }) {
           Analyze primary in Conflict Checker <ExternalLink size={11} />
         </a>
       </div>
+
+      {noteOpen && (
+        <div className="mt-2">
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value.slice(0, NOTE_MAX))}
+            maxLength={NOTE_MAX}
+            rows={3}
+            placeholder="Add a note for this conflict (max 300 characters)…"
+            className="w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700 placeholder:text-slate-400 focus:border-slate-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-900/5"
+          />
+          <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400">
+            <span className="tabular-nums">
+              {draft.length}/{NOTE_MAX}
+            </span>
+            <button
+              disabled={!dirty}
+              onClick={() => onSave(g.query, { note: draft })}
+              className="rounded-md bg-slate-900 px-2.5 py-1 text-[11px] font-medium text-white transition hover:bg-slate-800 disabled:opacity-40"
+            >
+              Save note
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

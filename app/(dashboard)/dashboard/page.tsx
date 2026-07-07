@@ -147,7 +147,7 @@ export default async function DashboardHome() {
     attention.push({
       tone: "danger",
       text: `${stats.highRiskChecks7d} check${stats.highRiskChecks7d === 1 ? "" : "s"} scored ≥80 in the last 7 days - review before publishing`,
-      href: "/history",
+      href: "/conflict-checker",
     });
   }
   if (stats.brokenLinks > 0) {
@@ -232,14 +232,12 @@ export default async function DashboardHome() {
           <Stat
             label="Checks run"
             value={stats.checks.toLocaleString()}
-            href="/history"
           />
           <Stat
             label="High-risk last 7d"
             value={stats.highRiskChecks7d.toLocaleString()}
             hint="score ≥ 80"
             accent={stats.highRiskChecks7d > 0 ? "danger" : "ok"}
-            href="/history"
           />
           {/* Catalog Conflicts hidden for now (Session 11 - will be revisited).
               Uncomment to restore the stat tile.
@@ -271,13 +269,11 @@ export default async function DashboardHome() {
                 value={stats.blocked90d.toLocaleString()}
                 hint="merged · redirected · discarded"
                 accent="ok"
-                href="/history"
               />
               <Stat
                 label="Published"
                 value={stats.published90d.toLocaleString()}
                 hint="conflict check passed"
-                href="/history"
               />
               <Stat
                 label="Stale"
@@ -300,9 +296,6 @@ export default async function DashboardHome() {
             <Card className="p-0">
               <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
                 <h2 className="text-sm font-semibold text-slate-900">Recent checks</h2>
-                <Link href="/history" className="text-xs text-slate-500 hover:text-slate-700 hover:underline">
-                  View all →
-                </Link>
               </div>
               {stats.recentChecks.length === 0 ? (
                 <div className="px-5 py-6 text-sm text-slate-500">

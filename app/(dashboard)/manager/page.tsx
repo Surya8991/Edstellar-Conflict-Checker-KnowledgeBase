@@ -185,7 +185,7 @@ export default async function ManagerPage() {
                 const total = s.outcomes.reduce((a, o) => a + o.n, 0);
                 return s.outcomes.map((o) => {
                   const w = total > 0 ? Math.round((o.n / total) * 100) : 0;
-                  // Real, settable outcomes (OutcomeSelect on /history):
+                  // Real, settable outcomes (via POST /api/check/outcome):
                   // published / merged / redirected / discarded, plus the
                   // synthetic 'open' bucket for unresolved checks. No writer
                   // path ever sets 'blocked' or 'modified' - don't color-code
@@ -273,8 +273,7 @@ export default async function ManagerPage() {
         </div>
 
         <div className="text-xs text-slate-400">
-          Want a different cut? <Link href="/history" className="underline">Score History</Link> has the full run log;{" "}
-          <Link href="/" className="underline">Dashboard</Link> has corpus-wide health.
+          Want a different cut? <Link href="/" className="underline">Dashboard</Link> has corpus-wide health.
         </div>
       </div>
     </div>

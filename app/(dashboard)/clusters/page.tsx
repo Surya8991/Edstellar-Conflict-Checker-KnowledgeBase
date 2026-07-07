@@ -438,9 +438,11 @@ function GscBlock({ gsc }: { gsc: PageGsc | null }) {
         </table>
       </div>
 
-      {/* Top queries (last full month) */}
+      {/* Top queries (last full month). Cap the width so the metric columns
+          sit next to the (usually short) query text instead of being pushed to
+          the far right edge of a full-width, stretched table. */}
       {gsc.topQueries.length > 0 && (
-        <div className="min-w-0 flex-1 overflow-hidden rounded-lg border border-slate-200">
+        <div className="min-w-0 flex-1 overflow-hidden rounded-lg border border-slate-200 lg:max-w-xl">
           <table className="w-full border-collapse text-[10px]">
             <thead>
               <tr className="bg-slate-50 text-[8px] uppercase tracking-wider text-slate-400">

@@ -4,7 +4,7 @@
 > and how the system fits together. Update this file with every meaningful
 > change.
 
-**Last updated:** 2026-07-07 (Session 14 - §18E–I: Keyword Cannibalization promoted to a top-level tool + 4-tab upgrade, full keyword coverage, post-exclusion re-classification, sort + gap-window filters, "money page" wording removed from the UI while the SEO signal survives backend-only as `intentMismatch`, and a project-wide filter-format policy - chips ≤5 options / `FilterSelect` dropdown for 6+ / native selects for run params). 2026-07-06 (Session 13 - Content Clusters rewritten to topic-token leader clustering; §17K-N follow-ups: member-common labels, wider coverage, programmatic blog-series grouping (lib/series.ts), filter/UI rework; template-noise fix shared into the Conflict Checker; ingest/redirect durability fixes; checker UX incl. collapsible panels + sidebar cleanups)
+**Last updated:** 2026-07-07 (Session 14 - §18E–K: Keyword Cannibalization promoted to a top-level tool + 4-tab upgrade, full keyword coverage, post-exclusion re-classification, sort + gap-window filters, "money page" wording removed from the UI while the SEO signal survives backend-only as `intentMismatch`, a project-wide filter-format policy - chips ≤5 options / `FilterSelect` dropdown for 6+ / native selects for run params, per-conflict status + notes persisted in `conflict_annotations`, CTR + clicks-at-risk surfaced, and the Score History page removed). 2026-07-06 (Session 13 - Content Clusters rewritten to topic-token leader clustering; §17K-N follow-ups: member-common labels, wider coverage, programmatic blog-series grouping (lib/series.ts), filter/UI rework; template-noise fix shared into the Conflict Checker; ingest/redirect durability fixes; checker UX incl. collapsible panels + sidebar cleanups)
 **Repo:** https://github.com/Layruss98266/Edstellar-Conflict-Checker-KnowledgeBase
 **Prod:** https://edstellar-conflict-checker-knowledg.vercel.app/
 
@@ -2776,3 +2776,65 @@ whichever format is most suited." Applied one consistent policy project-wide:
   Typecheck clean; live-verified on all pages
   (Type=course 293/1184, Category=Training & Development 171/2,464, History
   block-80+ 33 → 3), zero console errors.
+
+### 18J. Per-conflict status + notes, at-risk/CTR data, Score History removed, misc UI
+
+A batch of user requests on the Keyword Cannibalization page + cleanup.
+
+**Per-conflict status + notes (persisted).** Each conflict card now has:
+- A **status dropdown** - `Pending` (default) / `In progress` / `Completed` /
+  `Ignored`, with a colour dot. Also a **Status filter** in the filter bar
+  (`FilterSelect`, contextual counts).
+- A **collapsible note** (button toggles a textarea, **max 300 characters**, live
+  counter, explicit Save). Shows a truncated preview inline when collapsed.
+- Persistence: new `conflict_annotations` table (`drizzle/0014`,
+  `lib/db/schema.ts` `conflictAnnotations`) keyed by `query` (unique) so notes
+  survive re-snapshots. New route `app/api/cannibalization/annotation` -
+  GET returns `{ [query]: {status, note} }`, POST upserts one (validates status
+  ∈ the 4, clamps note to 300). Loaded once on mount, updated optimistically.
+  Status + note are also added to the CSV export.
+
+**More data surfaced (no new external calls, no migration).** A research pass
+found gsc data already in hand but unshown. Shipped the two zero-risk wins:
+- **CTR per page** - already in the API payload, now a column in each page row.
+- **Clicks at risk** - sum of the non-primary (cannibal) pages' clicks, shown in
+  the card header ("N clicks at risk"), the concrete recoverable-traffic number.
+  (Deferred, documented for later: per-page 1/3/6-month position/click trend and
+  top-3 driving queries from `gsc_metrics`; position variance would need a column.)
+
+**Score History removed (Session 13 had only hidden it).** Deleted
+`app/(dashboard)/history/page.tsx` + `app/api/check/history/route.ts`, and every
+`/history` link (dashboard Stat tiles + "View all", the high-risk attention item
+now points to `/conflict-checker`, the manager-view footer link). `OutcomeSelect`
+went with the page; **`/api/check/outcome` is kept** (still writable via webhook,
+and the dashboard "Editorial outcomes" + Manager View still read existing outcome
+data). README + Sidebar comment updated.
+
+**Misc UI.** The floating **Project log** pill moved from top-right (it overlapped
+the page header's Rescan button) to **bottom-left**, clearing the sidebar on
+desktop (`lg:left-[16rem]`). The **Content Clusters GSC "top queries" table** was
+stretching full-width (`flex-1`), pushing the metric columns far from the short
+query text - capped at `lg:max-w-xl` so they sit together.
+
+Typecheck clean; migration `0014` applied to Neon. Live-verified: status→DB
+round-trip (`completed` + note persisted and survived reload), Status filter
+(1 completed of 1184), CTR + at-risk render, `/history` and `/api/check/history`
+both 404, zero console errors on a fresh server.
+
+### 18K. Cannibalization 4-tab logic - reference (research, no code change)
+
+For future work, the exact per-tab row-selection logic (all client-side over one
+pre-computed set, except tab 4):
+- **Nearer avg position** - `groups.filter(g => g.positionGap <= nearGap)`
+  (`nearGap` = 10). The genuine act-now cannibalization (Google swapping close pages).
+- **No position limit** - all groups, no extra filter (superset).
+- **Course / other-page conflicts** - `groups.filter(g => g.crossType)` (pages
+  span ≥2 content types).
+- **Blogs to merge** - a DIFFERENT source: `/api/groups` (Content Clusters,
+  content-based) filtered to `action ∈ {merge, consolidate}` + all members `blog`
+  + size ≥ 2. Not keyword-based.
+Tabs 1-3 read the pre-computed `keyword_conflicts` table via `/api/cannibalization`,
+which re-classifies each group from the surviving (post-exclusion) pages at read
+time (§18G). Data already stored per page: clicks/impr/ctr/position/role/type.
+Available-but-unshown (in `gsc_metrics`, keyed by page): 1/3/6-month
+clicks/impr/position windows + top-5 queries per page - the next data to surface.

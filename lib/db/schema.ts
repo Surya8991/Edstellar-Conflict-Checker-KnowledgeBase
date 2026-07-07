@@ -168,6 +168,17 @@ export const keywordConflicts = pgTable(
   (t) => [index("keyword_conflicts_range_sev_idx").on(t.rangeLabel, t.severity)],
 );
 
+/** Per-conflict editorial annotations for Keyword Cannibalization: a workflow
+ *  status + a short free-text note, keyed by the conflict's `query` so they
+ *  survive re-snapshots of `keyword_conflicts` (§18J). */
+export const conflictAnnotations = pgTable("conflict_annotations", {
+  id: serial("id").primaryKey(),
+  query: text("query").notNull().unique(),
+  status: text("status").notNull().default("pending"),
+  note: text("note").notNull().default(""),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 /** Editable exclusion list: blog series hidden from Clusters + Conflict Checker
  *  (not the corpus/Database, not GSC). Managed from /settings. */
 export const excludedSeries = pgTable("excluded_series", {

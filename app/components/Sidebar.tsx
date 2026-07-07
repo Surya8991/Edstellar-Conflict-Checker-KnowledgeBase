@@ -33,10 +33,9 @@ const NAV: { href: string; label: string; icon: any }[] = [
   { href: "/conflict-checker",   label: "Conflict Checker",  icon: ScanSearch },
   { href: "/clusters",           label: "Content Clusters",  icon: Boxes },
   // Settings is rendered below the Search Console block (see the render).
-  // Score History hidden for now (Session 13 - same pattern as Catalog
-  // Conflicts). The /history page + /api routes still exist and dashboard
-  // links to /history keep working; uncomment to restore the nav link.
-  // { href: "/history",            label: "Score History",     icon: History },
+  // Score History (the /history page + /api/check/history) was removed in
+  // Session 14 - the dashboard shows recent checks inline; outcome data still
+  // powers the Manager View and dashboard "Editorial outcomes" tiles.
   // Search Console is rendered separately below as an expandable parent with a
   // sub-section per GSC report (?section=<slug>).
 ];
