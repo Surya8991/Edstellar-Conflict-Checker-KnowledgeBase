@@ -24,7 +24,8 @@ This repo is a **single Next.js 16 app deployed to Vercel** plus a domain knowle
 | [`VERCEL_GITHUB_GUIDE.md`](../VERCEL_GITHUB_GUIDE.md) | Plain-English deploy + update walkthrough - what to do in GitHub and Vercel. |
 | [`.env.example`](../.env.example) | Every env var the app reads, with comments. |
 | [`.nvmrc`](../.nvmrc) | Node version pin (22). |
-| [`vercel.json`](../vercel.json) | Cron schedules for `/api/cron/*`. |
+| [`vercel.json`](../vercel.json) | Cron schedules for `/api/cron/*` (except Link Audit - see below). |
+| [`.github/workflows/`](../.github/workflows/) | GitHub Actions crons that intentionally don't run via `vercel.json` (currently: `link-audit.yml`, daily 301/308/404/410 auto-exclude). Needs `APP_BASE_URL` + `CRON_SECRET` as GitHub repo secrets. |
 
 ## Where to start
 

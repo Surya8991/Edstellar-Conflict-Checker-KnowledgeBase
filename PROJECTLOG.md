@@ -4,7 +4,7 @@
 > and how the system fits together. Update this file with every meaningful
 > change.
 
-**Last updated:** 2026-07-07 (Session 14 - §18E–K: Keyword Cannibalization promoted to a top-level tool + 4-tab upgrade, full keyword coverage, post-exclusion re-classification, sort + gap-window filters, "money page" wording removed from the UI while the SEO signal survives backend-only as `intentMismatch`, a project-wide filter-format policy - chips ≤5 options / `FilterSelect` dropdown for 6+ / native selects for run params, per-conflict status + notes persisted in `conflict_annotations`, CTR + clicks-at-risk surfaced, and the Score History page removed). 2026-07-06 (Session 13 - Content Clusters rewritten to topic-token leader clustering; §17K-N follow-ups: member-common labels, wider coverage, programmatic blog-series grouping (lib/series.ts), filter/UI rework; template-noise fix shared into the Conflict Checker; ingest/redirect durability fixes; checker UX incl. collapsible panels + sidebar cleanups)
+**Last updated:** 2026-07-08 (Session 18 - §22: Help dialog coverage swept - added missing `/settings`, `/keyword-cannibalization`, `/strategy` entries, fixed the stale `/` → `/dashboard` and removed the dead `/history` entry; every doc mentioning crons/exclusions now also covers Link Audit). 2026-07-08 (Session 17 - §21: Link Audit - daily 301/308/404/410 probe → auto-exclude via `excluded_series`, scheduled with GitHub Actions instead of `vercel.json`, plus a manual "Run now" trigger on `/settings`). 2026-07-07 (Session 16 - §20: fixed every critical/high/medium finding from the §19 audit - commercial-risk framing removed from Keyword Cannibalization, request-race guards across 4 pages, silent-error surfacing, filter-convention fixes, constant-time API-key comparisons). 2026-07-07 (Session 14 - §18E–K: Keyword Cannibalization promoted to a top-level tool + 4-tab upgrade, full keyword coverage, post-exclusion re-classification, sort + gap-window filters, "money page" wording removed from the UI while the SEO signal survives backend-only as `intentMismatch`, a project-wide filter-format policy - chips ≤5 options / `FilterSelect` dropdown for 6+ / native selects for run params, per-conflict status + notes persisted in `conflict_annotations`, CTR + clicks-at-risk surfaced, and the Score History page removed). 2026-07-06 (Session 13 - Content Clusters rewritten to topic-token leader clustering; §17K-N follow-ups: member-common labels, wider coverage, programmatic blog-series grouping (lib/series.ts), filter/UI rework; template-noise fix shared into the Conflict Checker; ingest/redirect durability fixes; checker UX incl. collapsible panels + sidebar cleanups)
 **Repo:** https://github.com/Layruss98266/Edstellar-Conflict-Checker-KnowledgeBase
 **Prod:** https://edstellar-conflict-checker-knowledg.vercel.app/
 
@@ -36,6 +36,7 @@
 - [19. Session 15 - Full project audit + scoped non-"Additional Tools" audit](#19-session-15---full-project-audit--scoped-non-additional-tools-audit-2026-07-07)
 - [20. Session 16 - §19 critical/high/medium fixes shipped](#20-session-16---19-criticalhighmedium-fixes-shipped-2026-07-07)
 - [21. Session 17 - Link Audit: daily 301/404/permanent-move auto-exclude](#21-session-17---link-audit-daily-301404permanent-move-auto-exclude-2026-07-08)
+- [22. Session 18 - Help dialog coverage + doc sweep for Link Audit](#22-session-18---help-dialog-coverage--doc-sweep-for-link-audit-2026-07-08)
 
 *(Note: there is no "§5" - a section by that number existed early on and was
 later removed/merged during reorganization; a handful of older entries below
@@ -3246,3 +3247,70 @@ permanent-redirect/dead-status sets don't overlap). GitHub Actions workflow
 YAML validated by parsing it (`js-yaml`) to confirm structure; the actual
 scheduled/dispatched run itself can only be exercised once pushed with the two
 repo secrets configured - not done in this session.
+
+**Deployment confirmed:** Vercel build for this commit succeeded (checked via
+the GitHub commit-status API against the Vercel GitHub App integration).
+
+## 22. Session 18 - Help dialog coverage + doc sweep for Link Audit (2026-07-08)
+
+Follow-up to §21: swept every doc reference for the new feature, and audited
+the in-app Help dialog (`lib/help-content.ts` - the floating "Help" button's
+per-route content, matched by `usePathname()`) for coverage gaps while in there.
+
+### 22A. Help dialog - 3 missing entries added, 2 stale ones fixed
+
+The Help panel silently renders nothing (`HelpButton` returns null) when a
+route has no `HELP` entry - so these gaps meant Settings, Keyword
+Cannibalization, and Funnel Strategy never had a Help button at all.
+
+- **Added `/settings`, `/keyword-cannibalization`, `/strategy`** - full
+  `{what, howToUse, readingIt, troubleshoot}` entries, written from each
+  page's actual UI copy (not generic filler). `/settings` documents the new
+  Link Audit card; `/keyword-cannibalization`'s troubleshoot section is
+  careful to distinguish its OWN dead-page filter (`pages.http_status`, §18L)
+  from the exclusion-list mechanism Link Audit writes to - they're separate
+  systems and conflating them in the copy would have misled whoever reads it
+  next time a page won't disappear from one view or the other.
+- **Fixed `HELP["/"]`** - stale ever since the Dashboard moved to `/dashboard`
+  and `/` became a bare `redirect("/corpus")`. The Help button could never
+  actually show this content (the browser's pathname changes before the
+  client ever renders with `pathname === "/"`), so the entry was 100% dead
+  code. Renamed the key to `/dashboard`, where the content is accurate today.
+- **Removed `HELP["/history"]`** - the Score History page was deleted in
+  §18J; this entry described a route that returns nothing.
+- Added a Link Audit cross-reference to `/clusters` and `/conflict-checker`'s
+  existing troubleshoot sections ("a page vanished / never shows up as a
+  match" → check the exclusion list at `/settings`), since both of those
+  pages' matches ARE affected by it (unlike Keyword Cannibalization).
+
+### 22B. Doc sweep
+
+Every doc that mentions cron schedules or the exclusion system now also
+mentions Link Audit / the GitHub Actions workflow, so nothing describes the
+project as having "three crons" or omits where a fourth one actually runs:
+
+- **README.md** - crons list + routes table.
+- **AGENTS.md** - already covered in §21's own commit; cross-checked here.
+- **SETUP_GUIDE.md** - new "Production hardening" step for the two required
+  GitHub repo secrets.
+- **VERCEL_GITHUB_GUIDE.md** - new "A fourth cron lives outside Vercel"
+  subsection (§3) explaining it won't appear in Vercel's Cron Jobs tab, plus
+  two new rows in the "Useful UI corners" / "When to ask for help" tables
+  pointing at GitHub's Actions tab instead.
+- **PRE_PUSH_CHECKLIST.md** - the cron-count checklist item now also covers
+  GitHub Actions workflows; added `/api/cron/link-audit` to the Session-6
+  smoke-test's 401-without-bearer-secret loop.
+- **docs/data-sources.md** - new cron-routes table row.
+- **docs/repo-overview.md** - new top-level-layout row for `.github/workflows/`.
+- **docs/glossary.md** - new "Exclusion" and "Link Audit" terms.
+
+Two unrelated stale-doc issues were noticed in passing and flagged as
+separate follow-up tasks rather than fixed here (out of scope for a Link
+Audit doc sweep): `app/(dashboard)/strategy/page.tsx`'s funnel-stage SQL is
+missing the same newer content types §19C already fixed in
+`lib/score-bands.ts`, and `docs/data-sources.md` still lists the archived
+`npm run cluster` script (removed in §16B) as if it were runnable.
+
+**Verification:** `npm run typecheck` clean after the `lib/help-content.ts`
+changes; no test suite impact (help content isn't covered by `lib/*.test.ts`,
+consistent with every other UI-copy file in this repo).

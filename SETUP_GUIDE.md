@@ -164,6 +164,7 @@ Required before exposing the app publicly:
 6. `BRAND_TERMS` - comma-separated brand/keyword terms the checker treats as house terms (default `edstellar,edstellar.com`).
 7. `CONFLICT_MIN_SIMILARITY` (optional) - override the 0.50 cosine floor for surfaced matches. Session 6 audit (H11) raised the default from 0.30; lower this if your team finds the new floor too aggressive. Range 0–1.
 8. **Apply the schema migration**: from your laptop with the prod `DATABASE_URL`, run `npm run db:setup` once. Session 6 added `drizzle/0005_check_match_enrichment.sql` (additive, idempotent - safe to re-run).
+9. **GitHub repo secrets for Link Audit** - the daily 301/404/permanent-move exclusion cron runs via `.github/workflows/link-audit.yml`, not `vercel.json`. Add `APP_BASE_URL` and `CRON_SECRET` as **GitHub repo secrets** (Settings → Secrets and variables → Actions) with the same values as steps 1 and 4 above, or it'll fail every scheduled run. A manual "Run now" button also lives on `/settings` if you need it sooner.
 
 ---
 

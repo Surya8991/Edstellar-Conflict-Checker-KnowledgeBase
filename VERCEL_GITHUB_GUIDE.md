@@ -135,6 +135,19 @@ Vercel → your project → **Settings → Domains** → add `conflict-checker.e
 
 If you want to stay on Hobby, edit `vercel.json` to drop one of the weekly crons (e.g. remove `/api/cron/audit-links` and run it manually with `npm run audit:links` when you need it).
 
+### A fourth cron lives outside Vercel
+
+`/api/cron/link-audit` (daily 9:00 AM IST - probes the corpus for 301/308/404/410 and auto-excludes them from Content Clusters + Conflict Checker) is scheduled by **[`.github/workflows/link-audit.yml`](.github/workflows/link-audit.yml)** via GitHub Actions, not `vercel.json` - so it doesn't count against the Hobby/Pro cron limits above and **won't show up in Vercel's Cron Jobs tab**. Check its runs under the repo's **Actions** tab on GitHub instead.
+
+It needs two **GitHub repo secrets** (Settings → Secrets and variables → Actions on GitHub - a completely different place from Vercel's env vars):
+
+| Secret | Value |
+|---|---|
+| `APP_BASE_URL` | Same as the Vercel env var, e.g. `https://edstellar-conflict-checker-knowledg.vercel.app` |
+| `CRON_SECRET` | Must match the `CRON_SECRET` env var set on Vercel |
+
+Without them the workflow fails immediately with a clear error rather than silently no-opping. There's also a manual "Run now" button on `/settings` if you need it before the next scheduled run.
+
 ---
 
 ## 4. Updating prod (day-to-day)
@@ -247,10 +260,11 @@ Vercel → project → **Cron Jobs** tab shows scheduled runs + invocation logs.
 | See runtime function errors | Vercel → project → **Logs** (live tail) |
 | Re-trigger a build without code change | Vercel → project → **Deployments** → ⋯ on latest → **Redeploy** |
 | Change an env var | Vercel → project → **Settings → Environment Variables** → edit → **Redeploy** to pick it up |
-| Run a cron manually now | Vercel → project → **Cron Jobs** tab → ⋯ on the row → **Run now** |
+| Run a cron manually now | Vercel → project → **Cron Jobs** tab → ⋯ on the row → **Run now** (except Link Audit - see below) |
 | See who pushed what | GitHub → repo → **Commits** tab |
 | Find a file fast in GitHub | Press `t` while on the repo page |
 | See PR comments inline | GitHub → PR → **Files changed** tab |
+| See Link Audit's runs / re-run it manually | GitHub → repo → **Actions** tab → **Link Audit** workflow → **Run workflow** (it's NOT in Vercel's Cron Jobs tab - it runs on GitHub, see §3) |
 
 ---
 
@@ -258,7 +272,7 @@ Vercel → project → **Cron Jobs** tab shows scheduled runs + invocation logs.
 
 - Build failed and the log message doesn't make obvious sense → screenshot the error + paste into a chat.
 - A feature works locally but breaks in prod → almost always an env var is missing in Vercel. Check **Settings → Environment Variables**.
-- A scheduled cron silently stopped → check Vercel **Cron Jobs** tab + the function's recent logs.
+- A scheduled cron silently stopped → check Vercel **Cron Jobs** tab + the function's recent logs. For Link Audit specifically, check GitHub's **Actions** tab instead (it's a GitHub Actions workflow, not a Vercel cron) - a red ✗ usually means the `APP_BASE_URL` / `CRON_SECRET` repo secrets are missing or stale.
 - You're about to do `git push --force` to `main` → don't. Ask.
 
 ---

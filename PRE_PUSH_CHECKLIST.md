@@ -35,7 +35,7 @@ A stale doc is worse than no doc. If your change touched any of these, update ac
 |---|---|
 | Public API (route signatures, response shapes) | [`README.md`](README.md) "How it works" + relevant `docs/*.md` |
 | Env vars added/renamed/removed | [`.env.example`](.env.example) + [`SETUP_GUIDE.md`](SETUP_GUIDE.md) + [`VERCEL_GITHUB_GUIDE.md`](VERCEL_GITHUB_GUIDE.md) |
-| Cron schedule / cron count | [`vercel.json`](vercel.json) + `VERCEL_GITHUB_GUIDE.{md,html}` §3 |
+| Cron schedule / cron count | [`vercel.json`](vercel.json) (or `.github/workflows/*.yml` for GitHub Actions crons) + `VERCEL_GITHUB_GUIDE.{md,html}` §3 |
 | New dependency | `package.json` + `package-lock.json` committed, no `npm install` only-on-disk |
 | New script in `scripts/` | README repo-layout block + `docs/data-sources.md` |
 | Schema (`drizzle/*.sql` or `lib/db/schema.ts`) | Migration file numbered correctly + `docs/data-sources.md` storage table |
@@ -47,7 +47,7 @@ A stale doc is worse than no doc. If your change touched any of these, update ac
 - [ ] Any new runtime `readFileSync(...)` with a dynamic path (e.g. `join(process.cwd(), …)`) → the file's directory must be in `outputFileTracingIncludes['/*']`.
 - [ ] Any new route hitting an external API (LLM, GSC, Serper) has explicit `export const maxDuration = N` and `export const runtime = "nodejs"`.
 - [ ] Any new env var is documented in `.env.example` AND you've added it to Vercel → Settings → Environment Variables for **Production** (and likely Preview + Development).
-- [ ] Any new cron entry in `vercel.json` doesn't push the total above the plan limit (Hobby = 2 crons, daily; Pro = unlimited).
+- [ ] Any new cron entry in `vercel.json` doesn't push the total above the plan limit (Hobby = 2 crons, daily; Pro = unlimited) - or schedule it via a GitHub Actions workflow under `.github/workflows/` instead, which doesn't count against Vercel's limit but needs `APP_BASE_URL` + `CRON_SECRET` set as **GitHub repo secrets** (see the Link Audit workflow for the pattern).
 
 ## 5. GitHub will be happy
 
@@ -108,7 +108,7 @@ Quick paste-this-in-terminal:
 BASE=https://edstellar-conflict-checker-knowledg.vercel.app
 
 # 1. Cron routes must 401 without the bearer secret
-for path in /api/cron/reingest /api/cron/audit-links /api/cron/gsc-snapshot; do
+for path in /api/cron/reingest /api/cron/audit-links /api/cron/gsc-snapshot /api/cron/link-audit; do
   printf '%-40s ' "$path"; curl -sS -o /dev/null -w "HTTP %{http_code}\n" "$BASE$path"
 done
 

@@ -21,7 +21,12 @@ export interface HelpEntry {
 }
 
 export const HELP: Record<string, HelpEntry> = {
-  "/": {
+  // "/" itself has no entry - it's a server-side redirect straight to
+  // /corpus (the Edstellar Database), so the Help panel never actually
+  // renders for that pathname. This content used to live under "/" back
+  // when it WAS the dashboard; it moved to /dashboard and this key moved
+  // with it - don't re-add a "/" key, it'll be dead the same way.
+  "/dashboard": {
     title: "Dashboard",
     what:
       "Single-screen view of everything the team should care about today: high-risk drafts, broken links, thin pages, and recent checks.",
@@ -90,6 +95,7 @@ export const HELP: Record<string, HelpEntry> = {
       { problem: "Top match's body is mostly nav/footer junk", fix: "The page might have unusual class names the extractor's noise selectors miss. Add the selector to lib/extract.ts NOISE_SELECTORS and re-ingest." },
       { problem: "Rate-limited (429) even though I'm a real user", fix: "The default limit is 60 checks/minute per IP. If your team shares an office IP this can trip; ask an admin to set WEBHOOK_API_KEY and use that path instead." },
       { problem: "Net-new content suggestions returns 'No angles' or weird text", fix: "Hit Re-run - the LLM occasionally returns invalid JSON. If it persists, GROQ_API_KEY may have rate-limited; check status.groq.com." },
+      { problem: "A page I know exists never shows up as a match", fix: "Check the exclusion list at /settings - a URL pattern (manual, or auto-added by the daily Link Audit for a 301/404 page) hides it from matches here. The page still exists in the Database and Search Console." },
     ],
   },
 
@@ -116,7 +122,7 @@ export const HELP: Record<string, HelpEntry> = {
       { problem: "Page says 'No clusters found'", fix: "No topic had two or more pages clear the overlap + body-floor bar. Results are cached ~5 min; hit 'Rescan' to force a fresh live scan." },
       { problem: "Two pages I know are on the same topic aren't grouped", fix: "Their distinctive-token overlap is below the bar, or one fails the body-content floor vs the pillar. Two pages that only share template words ('corporate training') are deliberately NOT grouped - that was the old mega-cluster bug." },
       { problem: "A blog series is split across several clusters", fix: "Series are matched by URL template in lib/series.ts. If a family isn't collapsing, its slug pattern isn't covered yet - add it there." },
-      { problem: "A page I expected to see is missing entirely", fix: "It may be marked as a redirect/canonicalized-away/dead by the redirect-detection scan (`is_stale`) - those never appear in clusters, by design." },
+      { problem: "A page I expected to see is missing entirely", fix: "It may be marked as a redirect/canonicalized-away/dead by the redirect-detection scan (`is_stale`) - those never appear in clusters, by design. It could also be on the exclusion list at /settings - the daily Link Audit auto-adds 301/404 pages there (self-healing, it'll come back once fixed), or someone added it manually." },
     ],
   },
 
@@ -192,25 +198,10 @@ export const HELP: Record<string, HelpEntry> = {
     ],
   },
 
-  "/history": {
-    title: "Score History",
-    what:
-      "Timeline view of every conflict check the team has run. Track score regressions and mark editorial outcomes.",
-    howToUse: [
-      "Search the left list by URL/topic to find a check.",
-      "Click an entry to see its trend line + the latest matches that triggered the score.",
-      "Use the dropdown next to each historical score to mark the outcome: published / merged / redirected / discarded.",
-      "Outcomes feed the dashboard's 'Caught / Published last 90 days' tiles - leadership reporting comes from here.",
-    ],
-    readingIt: [
-      "If the same URL has been checked multiple times, the trend chart shows whether your edits are reducing the conflict score (good) or accidentally increasing it (bad).",
-      "ScorePill colour: red ≥80, orange ≥60, amber ≥35, green <35.",
-    ],
-    troubleshoot: [
-      { problem: "My outcome doesn't save", fix: "Check the network tab for the /api/check/outcome request. If WEBHOOK_API_KEY is set, this endpoint needs the X-API-Key header - open a ticket." },
-      { problem: "List is empty even though I've run checks", fix: "Checks only persist when DATABASE_URL is set AND the persist call succeeded. Recent rate-limit denials don't persist." },
-    ],
-  },
+  // "/history" was removed here on purpose (§18J - the Score History page +
+  // /api/check/history were deleted; don't re-add a help entry for a page
+  // that no longer exists). Outcome-marking now happens inline elsewhere
+  // (dashboard "Editorial outcomes", Manager View); /api/check/outcome remains.
 
   "/manager": {
     title: "Manager View",
@@ -311,6 +302,73 @@ export const HELP: Record<string, HelpEntry> = {
     troubleshoot: [
       { problem: "Row has 'not embedded' label", fix: "The embedder failed on that URL - usually a 404 / timeout / very short body. Re-ingest with --force." },
       { problem: "Counts in the tiles don't sum to total", fix: "They will once the home page (single static row) is included. The 'All' tile is authoritative." },
+    ],
+  },
+
+  "/keyword-cannibalization": {
+    title: "Keyword Cannibalization",
+    what:
+      "Queries where 2+ Edstellar pages compete for the same search, sourced from the last 3 full months of Search Console data. Each conflict gets a severity, a primary (keep) page, and a rule-based action.",
+    howToUse: [
+      "Pick a tab: 'Nearer avg position' (the two pages are close enough that Google keeps swapping them - act now), 'No position limit' (every query 2+ pages rank for, however far apart), 'Course / other-page conflicts' (a different content type outranking a course), or 'Blogs to merge' (near-duplicate blogs to consolidate - sourced from Content Clusters, not keywords).",
+      "Use the search box plus the severity / action / status chips and type / sort dropdowns to scope the list.",
+      "Click a conflict card to see every page competing for that query, with clicks/impressions/CTR/position per page.",
+      "Set a status (pending / in-progress / completed / ignored) and an optional note per conflict. Select several with the checkboxes to bulk-set a status at once.",
+      "Hit 'Rescan' to force a fresh snapshot - it otherwise refreshes automatically once a day.",
+    ],
+    readingIt: [
+      "Severity (high/medium/low) weighs how close the ranking gap is and how much value is at stake, not just raw similarity.",
+      "'Blogs to merge' reads from the SAME engine as Content Clusters (`/api/groups`), filtered to same-type blog clusters flagged merge/consolidate - it's content-based, not query-based, so it can surface pairs the other 3 tabs never would.",
+      "Dead pages (404/410, or removed from the corpus) are dropped from every conflict automatically, re-checked every time you view the page - a group under 2 live pages disappears entirely.",
+    ],
+    troubleshoot: [
+      { problem: "Page says 'Not computed yet'", fix: "Hit 'Rescan', or trigger it from /settings → Keyword Cannibalization data → 'Rescan now'." },
+      { problem: "A page I know 404s still shows up in a conflict", fix: "Dead-page filtering depends on `pages.http_status` being fresh - it's refreshed daily by a cron, but if a page just broke it may take up to a day to drop out. This is separate from the exclusion list on /settings (Link Audit) - that only affects Content Clusters + Conflict Checker, not this page." },
+      { problem: "My status/note change doesn't seem to save", fix: "Check for a toast error in the corner - a failed save now surfaces one instead of failing silently. Retry; if it keeps failing, DATABASE_URL may be unreachable." },
+    ],
+  },
+
+  "/strategy": {
+    title: "Funnel Strategy",
+    what:
+      "TOFU / MOFU / BOFU (awareness / consideration / conversion) content coverage across the catalogue, by course type and category. Surfaces clusters that have conversion pages but no awareness or consideration content feeding them.",
+    howToUse: [
+      "Read the site-wide funnel mix at the top for the overall shape.",
+      "Scan 'By course type' for lopsided course types (e.g. heavy BOFU, thin TOFU).",
+      "Scroll the cluster table and look at the 'Gaps' column - any cluster missing a stage is flagged there.",
+    ],
+    readingIt: [
+      "Stage mapping: blog/topic = TOFU, category/subcategory = MOFU, course/mentor = BOFU. Pages with no content_type, or a newer type outside this list (managed-training, platform, consulting, templates, location, excellence-program, static), aren't counted in the funnel mix.",
+      "A heavy BOFU skew with little TOFU/MOFU usually means awareness traffic is starved for that cluster - that's the gap to write content against, not a data error.",
+      "'Clicks 28d' next to each cluster row is a rough sizing signal for which gaps are worth prioritizing first.",
+    ],
+    troubleshoot: [
+      { problem: "Page says 'Database not reachable'", fix: "DATABASE_URL is missing or the DB is unreachable. Same underlying check as every other data-backed page." },
+      { problem: "A course type I know exists isn't in the 'By course type' table", fix: "That table only includes pages with a non-null course_type. Static/category-only pages won't appear there (they still count in the site-wide rollup if their content_type maps to a stage)." },
+    ],
+  },
+
+  "/settings": {
+    title: "Settings",
+    what:
+      "Project-wide configuration: Content Clusters tuning, manual triggers for the three daily data refreshes (Search Console, Keyword Cannibalization, Link Audit), sitemap sync, and the exclusion lists that hide pages/queries from Content Clusters + Conflict Checker.",
+    howToUse: [
+      "Content Clusters tuning: adjust Topic overlap / Body floor / Merge max size, hit Save, then Rescan on /clusters to apply - saving here doesn't retroactively update an already-cached scan.",
+      "Search Console data / Keyword Cannibalization data / Link Audit: each card shows when it last ran and has a 'Run now' / 'Rescan now' button. All three also run automatically on a schedule, so manual runs are for 'I need this updated right now', not routine upkeep.",
+      "Sitemap sync: check first to see how many live sitemap URLs are missing from the Database, then sync to add them.",
+      "Exclusion lists: add a name + one or more patterns (a slug substring or a full URL for the URL list; a keyword substring for the query list), pick the type, Save. Toggle a row's checkbox to enable/disable it without deleting it, or edit its patterns inline.",
+      "'Currently excluded URLs' shows exactly which live pages the URL patterns match right now - use 'Remove' on any of them to re-include just that one page (it moves to 'Manually re-included pages' below, and stays re-included even if it still matches a pattern).",
+    ],
+    readingIt: [
+      "URL-type patterns hide matching pages from Content Clusters + Conflict Checker matches ONLY - the page still appears in the Edstellar Database and in Search Console.",
+      "Query-type patterns hide matching GSC keywords from the Content Clusters top-queries panel only.",
+      "The row named 'Auto: dead/redirected pages (link audit)' is managed automatically by the daily Link Audit - its patterns get fully replaced on every run (self-healing: a page that starts resolving 200 again drops back out on its own). Don't hand-edit its patterns; disable the whole row instead if you want to pause auto-exclusion.",
+    ],
+    troubleshoot: [
+      { problem: "Content Clusters tuning changes don't seem to take effect", fix: "Hit Rescan on /clusters after saving here - Content Clusters caches its scan for ~5 minutes and tuning only applies to the NEXT scan." },
+      { problem: "A page I excluded still shows up somewhere", fix: "Exclusions only affect Content Clusters + Conflict Checker matches. The page is expected to still appear in the Edstellar Database, Search Console, and Keyword Cannibalization (that page hides dead pages via a different mechanism - see its own Help entry)." },
+      { problem: "'Last run' for Search Console / Cannibalization / Link Audit never updates", fix: "Click 'Run now' / 'Rescan now' to trigger it immediately. If it errors, check DATABASE_URL is set and reachable; Search Console additionally needs a connected Google account." },
+      { problem: "The Link Audit GitHub Actions cron never seems to run", fix: "It's scheduled via .github/workflows/link-audit.yml, not this app - it needs APP_BASE_URL and CRON_SECRET set as GitHub repo secrets (Settings → Secrets and variables → Actions on GitHub, not this Settings page). Use the 'Run now' button here in the meantime." },
     ],
   },
 };

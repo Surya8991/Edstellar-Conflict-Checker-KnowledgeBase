@@ -61,6 +61,7 @@ The pgvector index on `pages.embedding` is HNSW with `vector_cosine_ops`.
 | `/api/cron/reingest` | Recrawl + re-embed changed pages. | Daily (configured in `vercel.json`). |
 | `/api/cron/gsc-snapshot` | Snapshot GSC metrics to DB. | Daily. |
 | `/api/cron/audit-links` | Internal-link audit run. | Weekly. |
+| `/api/cron/link-audit` | Probe the corpus for 301/308/404/410 → auto-exclude from Content Clusters + Conflict Checker (`lib/link-audit.ts`). | Daily, 9:00 AM IST - scheduled via **GitHub Actions** (`.github/workflows/link-audit.yml`), NOT `vercel.json`. Manual trigger also on `/settings`. |
 
 ## Failure-mode policy
 

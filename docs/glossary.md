@@ -23,3 +23,5 @@ Terms used by the Conflict Checker and this knowledge base.
 | **Catalog conflict** | A precomputed near-duplicate pair across the corpus (no candidate involved). Produced by `npm run catalog-conflicts`. |
 | **GSC** | Google Search Console - clicks, impressions, CTR, position. Joined into the UI per page after OAuth connect. |
 | **Serper** | The SERP-data provider used for `/competitors` (`SERPER_API_KEY`). |
+| **Exclusion** | A URL or GSC-query pattern in `excluded_series` (managed at `/settings`) that hides matching pages from Content Clusters + Conflict Checker, or matching queries from the Clusters top-queries panel. Doesn't remove anything from the corpus or GSC. |
+| **Link Audit** | The daily job (`lib/link-audit.ts`, `/api/cron/link-audit`) that probes the corpus for 301/308 ("permanent move") and 404/410 pages and auto-populates one exclusion entry with them - self-healing, so a page that starts resolving 200 again drops back out on its own. Scheduled via GitHub Actions (`.github/workflows/link-audit.yml`), not `vercel.json`. |
