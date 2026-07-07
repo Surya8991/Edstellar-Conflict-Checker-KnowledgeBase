@@ -4,7 +4,7 @@
 > and how the system fits together. Update this file with every meaningful
 > change.
 
-**Last updated:** 2026-07-06 (Session 13 - Content Clusters rewritten from body-embedding connected-components to topic-token leader clustering; template-noise fix shared into the Conflict Checker; ingest/redirect durability fixes; checker UX + sidebar cleanups)
+**Last updated:** 2026-07-06 (Session 13 - Content Clusters rewritten to topic-token leader clustering; §17K-N follow-ups: member-common labels, wider coverage, programmatic blog-series grouping (lib/series.ts), filter/UI rework; template-noise fix shared into the Conflict Checker; ingest/redirect durability fixes; checker UX incl. collapsible panels + sidebar cleanups)
 **Repo:** https://github.com/Layruss98266/Edstellar-Conflict-Checker-KnowledgeBase
 **Prod:** https://edstellar-conflict-checker-knowledg.vercel.app/
 

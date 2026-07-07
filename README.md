@@ -1,6 +1,6 @@
 # Edstellar Conflict Checker
 
-Detect content conflicts (duplication / SEO cannibalization) **before** publishing a blog, course, or page - with a 0–100% conflict score, a per-signal breakdown (title / H1 / URL / body), a rule-based search-intent label, and a deterministic suggested resolution + winner per match. Similar corpus pages are also grouped (connected components of the near-duplicate scan). Google Search Console analytics and competitor research live on their own pages (`/search-console`, `/competitors`).
+Detect content conflicts (duplication / SEO cannibalization) **before** publishing a blog, course, or page - with a 0–100% conflict score, a per-signal breakdown (title / H1 / URL / body), a rule-based search-intent label, and a deterministic suggested resolution + winner per match. Similar corpus pages are also grouped by TOPIC across the whole corpus (Content Clusters). Google Search Console analytics and competitor research live on their own pages (`/search-console`, `/competitors`).
 
 Built with **Next.js 16** (App Router) + **Neon Postgres / pgvector**.
 
@@ -56,7 +56,7 @@ Top-level nav: Dashboard, Conflict Checker, Content Clusters, Search Console, Co
 |---|---|
 | `/` | Dashboard - today's signals, needs-attention queue, recent activity. |
 | `/conflict-checker` | The headline tool - URL/topic → summary → scored matches, per-signal breakdown, and a suggested resolution + winner per match. |
-| `/clusters` | Content Clusters - live, corpus-wide grouping by TOPIC across content types (distinctive-token clustering; template words auto-learned & dropped) with a suggested action + winner per cluster. |
+| `/clusters` | Content Clusters - live, corpus-wide grouping by TOPIC across content types (distinctive-token clustering; template words auto-learned & dropped) with a suggested action + winner per cluster. Programmatic blog series (training-companies, roles-responsibilities, in-demand-skills, …) are grouped by URL template via `lib/series.ts`. Result is cached ~5 min (Rescan forces fresh). |
 | `/bulk-check` | Run the Conflict Checker on up to 100 URLs/topics at once; export as CSV. Under Additional Tools. |
 | `/history` | Score History - timeline of every check run, with editorial outcome tracking. Hidden from the sidebar as of Session 13 (reachable directly + via dashboard links). |
 | `/search-console` | GSC clicks/impressions/CTR/position, 24h–12m, with a trend chart. Click **Connect Google** to authorize. |
@@ -139,7 +139,7 @@ The audit below surfaced four things that need attention **before** the first pr
 │   ├── extract-taxonomy.py    ← rebuild data/taxonomy/*.json from Hub HTML
 │   ├── test-embed.ts          ← embed smoke test
 │   └── archive/               ← superseded scripts kept for reference only, not wired to package.json
-│       └── cluster-kmeans.ts  ← old k-means clustering; superseded by lib/cluster.ts (connected components)
+│       └── cluster-kmeans.ts  ← old k-means clustering; superseded by lib/cluster.ts (topic-token leader clustering)
 ├── data/                      ← Sitemap + taxonomy JSON shipped with the repo
 ├── drizzle/                   ← SQL migrations
 ├── public/                    ← Static assets
