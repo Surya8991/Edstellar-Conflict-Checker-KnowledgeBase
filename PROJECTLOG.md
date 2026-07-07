@@ -4,7 +4,7 @@
 > and how the system fits together. Update this file with every meaningful
 > change.
 
-**Last updated:** 2026-07-07 (Session 14 PLAN - §18: Keyword Cannibalization promoted to a top-level tool + 4-tab upgrade). 2026-07-06 (Session 13 - Content Clusters rewritten to topic-token leader clustering; §17K-N follow-ups: member-common labels, wider coverage, programmatic blog-series grouping (lib/series.ts), filter/UI rework; template-noise fix shared into the Conflict Checker; ingest/redirect durability fixes; checker UX incl. collapsible panels + sidebar cleanups)
+**Last updated:** 2026-07-07 (Session 14 - §18E–I: Keyword Cannibalization promoted to a top-level tool + 4-tab upgrade, full keyword coverage, post-exclusion re-classification, sort + gap-window filters, "money page" wording removed from the UI while the SEO signal survives backend-only as `intentMismatch`, and a project-wide filter-format policy - chips ≤5 options / `FilterSelect` dropdown for 6+ / native selects for run params). 2026-07-06 (Session 13 - Content Clusters rewritten to topic-token leader clustering; §17K-N follow-ups: member-common labels, wider coverage, programmatic blog-series grouping (lib/series.ts), filter/UI rework; template-noise fix shared into the Conflict Checker; ingest/redirect durability fixes; checker UX incl. collapsible panels + sidebar cleanups)
 **Repo:** https://github.com/Layruss98266/Edstellar-Conflict-Checker-KnowledgeBase
 **Prod:** https://edstellar-conflict-checker-knowledg.vercel.app/
 
@@ -2706,3 +2706,73 @@ is correct. `sortConflicts` re-orders after re-classification. Verified live:
 "corporate training" → gap 33.6 / best 25.9 / differentiate, correctly OUT of the
 near tab (near 420 → 357); **0 best-position mismatches across all 1,184 groups**.
 Regression test added (`classifyGroup recomputes … post-exclusion`); 88/88 tests.
+
+### 18H. Sort + gap-window filters; "money page" wording removed from the UI (logic kept backend-only)
+
+Two user requests on the **Keyword Cannibalization** page.
+
+**(1) Sort control + Max-gap window filter.**
+- New **Sort** dropdown on every keyword tab: `severity` (default - keeps the API
+  order), `gap ↑` / `gap ↓` (positionGap), `clicks`, `impressions`,
+  `best pos` / `worst pos`. Pure client-side re-order of the filtered set.
+- New **Max gap** filter (chips `Any · ≤5 · ≤10 · ≤20`): hides any group whose
+  FULL page spread (leader → furthest page, `max(pos) - min(pos)`) exceeds the
+  window. The card's `gap` is only the top-2 difference, so cards with 3+ pages
+  now also show `· spread N.N` (the real sprawl) to make the filter legible - a
+  group like Blog 42 / Static 51 / Consulting 86 reads "gap 8.6 · spread 44" and
+  disappears at ≤10. Contextual counts (severity/action/type) and the conflict
+  total all respect the window; both reset on tab switch and clear via "Clear all".
+
+**(2) "Money page" is gone from the UI - the SEO signal survives backend-only.**
+User asked to remove the `⚠ money page losing` warning text and the
+`Protect the money page` action badge and never show that wording again, but to
+KEEP the underlying ranking logic under SEO-neutral names.
+- Removed user-facing: the `protect-commercial` action (dropped from the
+  `ConflictAction` union, `ACTION_STYLE`, and the Action filter chip), the
+  "money page losing" card text, and every "money page" phrase in code comments
+  (`COMMERCIAL_RANK` → `CONTENT_VALUE_RANK`). Cross-type groups now read as
+  `monitor` (near) or `differentiate` (far). The `monitor` hint was reworded to
+  drop the "commercial page winning" framing.
+- Kept backend-only: `classifyGroup` still computes `intentMismatch` (a
+  higher-funnel page outranking the conversion page). It still forces
+  `severity = high` and still keeps the conversion page as `primaryPage`, so the
+  ranking + advice stay SEO-correct (never 301 across intents) - but it is
+  **never rendered as a label** and is **excluded from the `/api/cannibalization`
+  payload**. Policy: never surface commercial/revenue framing ("money page",
+  "protect commercial", …) in any frontend label, badge, hint, or CSV export -
+  compute such signals backend-only with neutral SEO names.
+- **DB:** dropped the now-unused `commercial_at_risk` column
+  (`drizzle/0013_drop_commercial_at_risk.sql`, applied to Neon via
+  `npm run db:setup`). Removed from the `keyword_conflicts` DDL, the snapshot
+  INSERT, `lib/db/schema.ts`, and the API SELECT. Stored `protect-commercial`
+  rows are harmless - the API re-classifies every group at read time (§18G), so
+  they surface as monitor/differentiate.
+- Tests updated (the cross-type test now asserts `intentMismatch`/`high`/`monitor`
+  instead of the old action). Typecheck clean, 82/82 project tests pass. Verified
+  live: no "money page" text anywhere, Action filter = Consolidate/Differentiate/
+  Monitor only, Type=course filters 1184 → 293, Max gap ≤10 all spreads ≤10.
+
+### 18I. Filter format policy - right-size every filter (chips vs dropdown vs native)
+
+User: "make all the filters across the project as dropdowns, chips, range or
+whichever format is most suited." Applied one consistent policy project-wide:
+
+- **2–5 enumerable options → `FilterChip` groups** (colour dots + counts at a
+  glance). **6+ options → the new `FilterSelect` dropdown.** **Run parameters**
+  (search depth, concurrency, sample size, page size, the outcome recorder) stay
+  native `<select>` - they're form inputs, not filters.
+- New **`FilterSelect`** in `app/components/Filters.tsx`: a labelled pill dropdown
+  matching `FilterChip`'s visual language (darkens when a non-default value is
+  active), optional `(n)` counts, and an `allLabel={null}` + `defaultValue` mode
+  for always-valued selects like Sort.
+- Conversions: **Keyword Cannibalization** Type (10+) and Sort (7) → FilterSelect;
+  **Content Clusters** Type (11) → FilterSelect; **Edstellar Database** the 20-chip
+  Top-categories wall → a Category FilterSelect (now offers ALL top categories, not
+  just the first 20); **Score History** score-band native select → 4 colour-dotted
+  chips; **Conflict Checker** 2-option sort select → toggle chips; **Search Console**
+  Index-Coverage type select → FilterSelect. Severity/Action/Max-gap stay chips.
+- Policy for new filters: follow this split and use the shared `Filters.tsx`
+  primitives - don't hand-roll buttons or raw selects for filtering.
+  Typecheck clean; live-verified on all pages
+  (Type=course 293/1184, Category=Training & Development 171/2,464, History
+  block-80+ 33 → 3), zero console errors.
