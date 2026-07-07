@@ -42,6 +42,7 @@ export async function ensureKeywordConflictsTable(): Promise<void> {
       page_count         integer NOT NULL DEFAULT 0,
       position_gap       real,
       best_position      real,
+      position_variance  real,
       cross_type         boolean NOT NULL DEFAULT false,
       branded            boolean NOT NULL DEFAULT false,
       severity           text NOT NULL DEFAULT 'low',
@@ -52,6 +53,33 @@ export async function ensureKeywordConflictsTable(): Promise<void> {
     )`);
   await sql.query(
     `CREATE INDEX IF NOT EXISTS keyword_conflicts_range_sev_idx ON keyword_conflicts (range_label, severity)`,
+  );
+  await sql.query(
+    `ALTER TABLE keyword_conflicts ADD COLUMN IF NOT EXISTS position_variance real`,
+  );
+}
+
+/** Idempotent - mirrors drizzle/0016. One row per (query, snapshot_date) so the
+ *  cannibalization trend can be charted over time. */
+export async function ensureKeywordConflictsHistoryTable(): Promise<void> {
+  const sql = neon(process.env.DATABASE_URL!);
+  await sql.query(`
+    CREATE TABLE IF NOT EXISTS keyword_conflicts_history (
+      id                serial PRIMARY KEY,
+      site_url          text,
+      query             text NOT NULL,
+      snapshot_date     date NOT NULL,
+      severity          text,
+      total_clicks      integer,
+      total_impressions integer,
+      position_gap      real,
+      best_position     real,
+      page_count        integer,
+      computed_at       timestamp DEFAULT now(),
+      UNIQUE (query, snapshot_date)
+    )`);
+  await sql.query(
+    `CREATE INDEX IF NOT EXISTS keyword_conflicts_history_query_date_idx ON keyword_conflicts_history (query, snapshot_date)`,
   );
 }
 
@@ -130,13 +158,13 @@ export async function snapshotKeywordConflicts(): Promise<{
     await sql.query(
       `INSERT INTO keyword_conflicts
          (site_url, query, range_label, total_clicks, total_impressions, page_count,
-          position_gap, best_position, cross_type, branded,
+          position_gap, best_position, position_variance, cross_type, branded,
           severity, primary_page, recommended_action, pages, computed_at)
-       SELECT $1, q, $2, tc, ti, pc, pg, bp, ct, br, sev, pp, act, pj::jsonb, now()
+       SELECT $1, q, $2, tc, ti, pc, pg, bp, pv, ct, br, sev, pp, act, pj::jsonb, now()
        FROM unnest(
-         $3::text[], $4::int[], $5::int[], $6::int[], $7::real[], $8::real[],
-         $9::bool[], $10::bool[], $11::text[], $12::text[], $13::text[], $14::text[]
-       ) AS t(q, tc, ti, pc, pg, bp, ct, br, sev, pp, act, pj)`,
+         $3::text[], $4::int[], $5::int[], $6::int[], $7::real[], $8::real[], $9::real[],
+         $10::bool[], $11::bool[], $12::text[], $13::text[], $14::text[], $15::text[]
+       ) AS t(q, tc, ti, pc, pg, bp, pv, ct, br, sev, pp, act, pj)`,
       [
         siteUrl,
         RANGE_LABEL,
@@ -146,12 +174,48 @@ export async function snapshotKeywordConflicts(): Promise<{
         groups.map((g) => g.pageCount),
         groups.map((g) => g.positionGap),
         groups.map((g) => g.bestPosition),
+        groups.map((g) => g.positionVariance),
         groups.map((g) => g.crossType),
         groups.map((g) => g.branded),
         groups.map((g) => g.severity),
         groups.map((g) => g.primaryPage),
         groups.map((g) => g.action),
         groups.map((g) => JSON.stringify(g.pages)),
+      ],
+    );
+  }
+
+  // 5. Trend history: one UPSERT per group for TODAY (idempotent re-runs update
+  //    the same day's row). Single bulk UNNEST insert - neon-http is stateless,
+  //    no per-row loops. snapshot_date is derived in Postgres (CURRENT_DATE).
+  await ensureKeywordConflictsHistoryTable();
+  if (groups.length) {
+    await sql.query(
+      `INSERT INTO keyword_conflicts_history
+         (site_url, query, snapshot_date, severity, total_clicks, total_impressions,
+          position_gap, best_position, page_count, computed_at)
+       SELECT $1, q, CURRENT_DATE, sev, tc, ti, pg, bp, pc, now()
+       FROM unnest(
+         $2::text[], $3::text[], $4::int[], $5::int[], $6::real[], $7::real[], $8::int[]
+       ) AS t(q, sev, tc, ti, pg, bp, pc)
+       ON CONFLICT (query, snapshot_date) DO UPDATE SET
+         site_url = EXCLUDED.site_url,
+         severity = EXCLUDED.severity,
+         total_clicks = EXCLUDED.total_clicks,
+         total_impressions = EXCLUDED.total_impressions,
+         position_gap = EXCLUDED.position_gap,
+         best_position = EXCLUDED.best_position,
+         page_count = EXCLUDED.page_count,
+         computed_at = now()`,
+      [
+        siteUrl,
+        groups.map((g) => g.query),
+        groups.map((g) => g.severity),
+        groups.map((g) => g.totalClicks),
+        groups.map((g) => g.totalImpressions),
+        groups.map((g) => g.positionGap),
+        groups.map((g) => g.bestPosition),
+        groups.map((g) => g.pageCount),
       ],
     );
   }

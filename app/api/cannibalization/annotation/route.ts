@@ -31,6 +31,22 @@ async function ensureTable() {
     )`);
 }
 
+/** Append-only audit trail of annotation changes (§18J, drizzle/0018). */
+async function ensureHistoryTable() {
+  const sql = neon(process.env.DATABASE_URL!);
+  await sql.query(`
+    CREATE TABLE IF NOT EXISTS conflict_annotation_history (
+      id         serial PRIMARY KEY,
+      query      text NOT NULL,
+      status     text,
+      note       text,
+      changed_at timestamp DEFAULT now()
+    )`);
+  await sql.query(
+    `CREATE INDEX IF NOT EXISTS conflict_annotation_history_query_idx ON conflict_annotation_history (query, changed_at)`,
+  );
+}
+
 export async function GET() {
   try {
     if (!process.env.DATABASE_URL) return NextResponse.json({ annotations: {} });
@@ -51,6 +67,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const sql = neon(process.env.DATABASE_URL);
     await ensureTable();
+    await ensureHistoryTable();
 
     // Bulk: set one status on many conflicts, leaving each note untouched.
     if (Array.isArray(body.queries)) {
@@ -61,6 +78,12 @@ export async function POST(req: NextRequest) {
         `INSERT INTO conflict_annotations (query, status, updated_at)
          SELECT unnest($1::text[]), $2, now()
          ON CONFLICT (query) DO UPDATE SET status = EXCLUDED.status, updated_at = now()`,
+        [queries, body.status],
+      );
+      // Audit trail: one history row per affected query (single bulk UNNEST).
+      await sql.query(
+        `INSERT INTO conflict_annotation_history (query, status, note, changed_at)
+         SELECT unnest($1::text[]), $2, NULL, now()`,
         [queries, body.status],
       );
       return NextResponse.json({ ok: true, updated: queries.length, status: body.status });
@@ -75,6 +98,10 @@ export async function POST(req: NextRequest) {
       `INSERT INTO conflict_annotations (query, status, note, updated_at)
        VALUES ($1, $2, $3, now())
        ON CONFLICT (query) DO UPDATE SET status = EXCLUDED.status, note = EXCLUDED.note, updated_at = now()`,
+      [query, status, note],
+    );
+    await sql.query(
+      `INSERT INTO conflict_annotation_history (query, status, note, changed_at) VALUES ($1, $2, $3, now())`,
       [query, status, note],
     );
     return NextResponse.json({ ok: true, query, status, note });

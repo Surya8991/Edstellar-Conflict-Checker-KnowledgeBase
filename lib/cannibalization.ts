@@ -57,6 +57,9 @@ export interface ConflictGroup {
   pageCount: number;
   bestPosition: number;
   positionGap: number; // gap between the top-2 pages' avg positions
+  /** Impression-weighted variance of the competing pages' positions - how much
+   *  the group's rankings swing. Higher = more volatile SERP (Google undecided). */
+  positionVariance: number;
   crossType: boolean;
   branded: boolean;
   /** Backend-only SEO signal: the conversion-intent page is being outranked by a
@@ -257,6 +260,18 @@ export function classifyGroup(
   const bestPosition = pages[0].position;
   const positionGap = pages[1].position - pages[0].position;
 
+  // Impression-weighted variance of the pages' positions (SERP volatility). A
+  // stable group (all pages at similar positions) → ~0; a spread group → larger.
+  const totalImprForVar = pages.reduce((s, p) => s + p.impressions, 0);
+  const meanPos =
+    totalImprForVar > 0
+      ? pages.reduce((s, p) => s + p.position * p.impressions, 0) / totalImprForVar
+      : pages.reduce((s, p) => s + p.position, 0) / pages.length;
+  const positionVariance =
+    totalImprForVar > 0
+      ? round2(pages.reduce((s, p) => s + p.impressions * (p.position - meanPos) ** 2, 0) / totalImprForVar)
+      : 0;
+
   const crossType = new Set(pages.map((p) => p.contentType ?? "unknown")).size >= 2;
   const branded = isBrandedQuery(query, opts.brandTerms);
   const maxCommercial = Math.max(...pages.map((p) => commercialRank(p.contentType)));
@@ -301,6 +316,7 @@ export function classifyGroup(
     pageCount: scored.length,
     bestPosition: round2(bestPosition),
     positionGap: round2(positionGap),
+    positionVariance,
     crossType,
     branded,
     intentMismatch,

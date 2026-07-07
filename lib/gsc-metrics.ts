@@ -14,6 +14,7 @@ const WINDOWS = [
   { label: "1m", n: 1 },
   { label: "3m", n: 3 },
   { label: "6m", n: 6 },
+  { label: "12m", n: 12 },
 ] as const;
 /** Top queries are taken over the last full calendar month (§17Q). */
 const TOPQ_MONTHS = 1;
@@ -103,7 +104,7 @@ export async function snapshotGscMetrics(): Promise<{ pageRows: number; queryRow
   await ensureGscMetricsIndex();
   await sql.query(`DELETE FROM gsc_metrics WHERE site_url = $1 AND range_label = ANY($2::text[])`, [
     siteUrl,
-    ["1m", "3m", "6m", "q"],
+    ["1m", "3m", "6m", "12m", "q"],
   ]);
 
   if (pageRows.length) {

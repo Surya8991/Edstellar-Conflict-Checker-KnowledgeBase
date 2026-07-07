@@ -21,6 +21,7 @@ export interface PageGsc {
   m1: GscWindow | null;
   m3: GscWindow | null;
   m6: GscWindow | null;
+  m12: GscWindow | null;
   topQueries: GscQuery[];
 }
 
@@ -58,7 +59,7 @@ export async function fetchGscForUrls(urls: string[]): Promise<Map<string, PageG
   const get = (page: string): PageGsc => {
     let g = out.get(page);
     if (!g) {
-      g = { m1: null, m3: null, m6: null, topQueries: [] };
+      g = { m1: null, m3: null, m6: null, m12: null, topQueries: [] };
       out.set(page, g);
     }
     return g;
@@ -76,6 +77,7 @@ export async function fetchGscForUrls(urls: string[]): Promise<Map<string, PageG
     } else if (r.range_label === "1m") g.m1 = win(r);
     else if (r.range_label === "3m") g.m3 = win(r);
     else if (r.range_label === "6m") g.m6 = win(r);
+    else if (r.range_label === "12m") g.m12 = win(r);
   }
 
   // Drop excluded keyword queries (Settings, §17Q), then keep the 5 best per

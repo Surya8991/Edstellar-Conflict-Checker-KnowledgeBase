@@ -10,6 +10,7 @@ import {
   jsonb,
   index,
   uniqueIndex,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 
 // Embedding dimension. Local model (bge-small-en-v1.5) = 384.
@@ -52,6 +53,11 @@ export const pages = pgTable(
     imagesNoAlt: integer("images_no_alt"),
     isStale: boolean("is_stale").default(false),
     staleReason: text("stale_reason"),
+    // Added in 0002_audit.sql - content-audit + topic-clustering columns that
+    // existed in the DB but were missing from the TS schema.
+    httpStatus: integer("http_status"),
+    lastAuditedAt: timestamp("last_audited_at"),
+    clusterId: integer("cluster_id"),
   },
   (t) => [
     uniqueIndex("pages_url_idx").on(t.url),
@@ -157,6 +163,8 @@ export const keywordConflicts = pgTable(
     pageCount: integer("page_count").notNull().default(0),
     positionGap: real("position_gap"),
     bestPosition: real("best_position"),
+    // Impression-weighted SERP volatility (0017_keyword_conflicts_variance.sql).
+    positionVariance: real("position_variance"),
     crossType: boolean("cross_type").notNull().default(false),
     branded: boolean("branded").notNull().default(false),
     severity: text("severity").notNull().default("low"),
@@ -166,6 +174,30 @@ export const keywordConflicts = pgTable(
     computedAt: timestamp("computed_at").defaultNow(),
   },
   (t) => [index("keyword_conflicts_range_sev_idx").on(t.rangeLabel, t.severity)],
+);
+
+/** Daily trend history for keyword cannibalization: one row per
+ *  (query, snapshot_date). Written by lib/cannibalization-snapshot.ts after the
+ *  main keyword_conflicts refresh (drizzle/0016). */
+export const keywordConflictsHistory = pgTable(
+  "keyword_conflicts_history",
+  {
+    id: serial("id").primaryKey(),
+    siteUrl: text("site_url"),
+    query: text("query").notNull(),
+    snapshotDate: text("snapshot_date").notNull(), // DATE column; read as ISO string
+    severity: text("severity"),
+    totalClicks: integer("total_clicks"),
+    totalImpressions: integer("total_impressions"),
+    positionGap: real("position_gap"),
+    bestPosition: real("best_position"),
+    pageCount: integer("page_count"),
+    computedAt: timestamp("computed_at").defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("keyword_conflicts_history_query_date_uq").on(t.query, t.snapshotDate),
+    index("keyword_conflicts_history_query_date_idx").on(t.query, t.snapshotDate),
+  ],
 );
 
 /** Per-conflict editorial annotations for Keyword Cannibalization: a workflow
@@ -178,6 +210,67 @@ export const conflictAnnotations = pgTable("conflict_annotations", {
   note: text("note").notNull().default(""),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+/** Append-only audit trail of conflict-annotation changes (§18J, drizzle/0018).
+ *  One row per status/note change (single or bulk). */
+export const conflictAnnotationHistory = pgTable(
+  "conflict_annotation_history",
+  {
+    id: serial("id").primaryKey(),
+    query: text("query").notNull(),
+    status: text("status"),
+    note: text("note"),
+    changedAt: timestamp("changed_at").defaultNow(),
+  },
+  (t) => [index("conflict_annotation_history_query_idx").on(t.query, t.changedAt)],
+);
+
+/** Topic clusters persisted from the live /api/groups scan (drizzle/0002 +
+ *  0019). One row per cluster; pages.cluster_id links member pages in. */
+export const clusters = pgTable("clusters", {
+  id: serial("id").primaryKey(),
+  label: text("label"),
+  size: integer("size"),
+  action: text("action"),
+  winnerUrl: text("winner_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+  computedAt: timestamp("computed_at").defaultNow(),
+});
+
+/** Rolled-up daily GSC totals (drizzle/0002_audit.sql) - stored so arbitrary
+ *  windows can be compared after the fact (the live cache uses gsc_metrics). */
+export const gscDailyTotals = pgTable(
+  "gsc_daily_totals",
+  {
+    id: serial("id").primaryKey(),
+    siteUrl: text("site_url"),
+    date: text("date"),
+    clicks: real("clicks"),
+    impressions: real("impressions"),
+    ctr: real("ctr"),
+    position: real("position"),
+    brandedClicks: real("branded_clicks"),
+    brandedImpressions: real("branded_impressions"),
+    fetchedAt: timestamp("fetched_at").defaultNow(),
+  },
+  (t) => [uniqueIndex("gsc_daily_totals_idx").on(t.siteUrl, t.date)],
+);
+
+/** Sliding-window rate limit counters (drizzle/0003_rate_limits.sql). One row
+ *  per (ip, route). */
+export const rateLimits = pgTable(
+  "rate_limits",
+  {
+    ip: text("ip").notNull(),
+    route: text("route").notNull(),
+    count: integer("count").notNull().default(0),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.ip, t.route] }),
+    index("rate_limits_window_idx").on(t.windowStart),
+  ],
+);
 
 /** Editable exclusion list: blog series hidden from Clusters + Conflict Checker
  *  (not the corpus/Database, not GSC). Managed from /settings. */
@@ -290,3 +383,10 @@ export type Draft = typeof drafts.$inferSelect;
 export type NewDraft = typeof drafts.$inferInsert;
 export type PregeneratedDraft = typeof pregeneratedDrafts.$inferSelect;
 export type NewPregeneratedDraft = typeof pregeneratedDrafts.$inferInsert;
+export type KeywordConflict = typeof keywordConflicts.$inferSelect;
+export type KeywordConflictHistory = typeof keywordConflictsHistory.$inferSelect;
+export type ConflictAnnotation = typeof conflictAnnotations.$inferSelect;
+export type ConflictAnnotationHistory = typeof conflictAnnotationHistory.$inferSelect;
+export type Cluster = typeof clusters.$inferSelect;
+export type GscDailyTotal = typeof gscDailyTotals.$inferSelect;
+export type RateLimit = typeof rateLimits.$inferSelect;

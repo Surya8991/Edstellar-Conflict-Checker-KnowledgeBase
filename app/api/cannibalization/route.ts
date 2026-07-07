@@ -81,6 +81,7 @@ export async function GET(_req: NextRequest) {
         totalImpressions: g.totalImpressions,
         pageCount: g.pageCount,
         positionGap: g.positionGap,
+        positionVariance: g.positionVariance,
         bestPosition: g.bestPosition,
         crossType: g.crossType,
         severity: g.severity,

@@ -136,6 +136,46 @@ test("classifyGroup recomputes gap/action from the pages given (post-exclusion)"
   assert.equal(after.pageCount, 2);
 });
 
+test("positionVariance: stable group ~0, spread group larger", () => {
+  const cp = (page: string, position: number, impressions = 100): ConflictPage => ({
+    page,
+    contentType: "blog",
+    clicks: 0,
+    impressions,
+    ctr: 0,
+    position,
+    role: "cannibal",
+  });
+  // Stable: both pages at position 5 → zero variance.
+  const stable = classifyGroup(
+    "stable q",
+    [cp("https://s.com/a", 5), cp("https://s.com/b", 5)],
+    { nearGap: 10, brandTerms: [] },
+  );
+  assert.equal(stable.positionVariance, 0);
+
+  // Spread: positions 2 and 40 (equal impressions) → mean 21, variance 361.
+  const spread = classifyGroup(
+    "spread q",
+    [cp("https://s.com/a", 2), cp("https://s.com/b", 40)],
+    { nearGap: 10, brandTerms: [] },
+  );
+  assert.equal(spread.positionVariance, 361);
+  assert.ok(spread.positionVariance > stable.positionVariance);
+
+  // Impression-weighted: the high-impression page pulls the mean toward it, so
+  // variance is smaller than the unweighted case would give.
+  const weighted = classifyGroup(
+    "weighted q",
+    [cp("https://s.com/a", 2, 900), cp("https://s.com/b", 40, 100)],
+    { nearGap: 10, brandTerms: [] },
+  );
+  // mean = (2*900 + 40*100)/1000 = 5.8
+  // var  = (900*(2-5.8)^2 + 100*(40-5.8)^2)/1000 = (12996 + 116964)/1000 = 129.96
+  assert.equal(weighted.positionVariance, 129.96);
+  assert.ok(weighted.positionVariance < spread.positionVariance);
+});
+
 test("far-apart same-type pages → differentiate", () => {
   const rows = [
     row("project management", "https://s.com/blog/pm-guide", 12, 400, 3),

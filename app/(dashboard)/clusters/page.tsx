@@ -26,6 +26,7 @@ interface PageGsc {
   m1: GscWindow | null;
   m3: GscWindow | null;
   m6: GscWindow | null;
+  m12: GscWindow | null;
   topQueries: GscQuery[];
 }
 interface GroupMember {
@@ -392,7 +393,7 @@ function ClusterCard({ g, showIntent, showGsc }: { g: GroupSummary; showIntent: 
 
 /** GSC per-member panel: a period-metrics table + a top-queries table. */
 function GscBlock({ gsc }: { gsc: PageGsc | null }) {
-  const hasData = gsc && (gsc.m1 || gsc.m3 || gsc.m6 || gsc.topQueries.length > 0);
+  const hasData = gsc && (gsc.m1 || gsc.m3 || gsc.m6 || gsc.m12 || gsc.topQueries.length > 0);
   if (!hasData) {
     return <div className="mt-1.5 text-[10px] text-slate-300">no GSC data for this page</div>;
   }
@@ -400,6 +401,7 @@ function GscBlock({ gsc }: { gsc: PageGsc | null }) {
     ["1 month", gsc.m1],
     ["3 months", gsc.m3],
     ["6 months", gsc.m6],
+    ["12 months", gsc.m12],
   ];
   const th = "px-2 py-1 text-right font-semibold";
   const td = "px-2 py-0.5 text-right tabular-nums text-slate-700";

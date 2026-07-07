@@ -15,6 +15,7 @@ import {
   dotColor,
 } from "@/app/components/Filters";
 import { Star, Download, RefreshCw, ExternalLink, ArrowRight, ChevronDown, StickyNote } from "lucide-react";
+import AssistantTab from "./AssistantTab";
 
 // ── types (mirror /api/cannibalization + /api/groups) ──────────────────────
 type Severity = "high" | "medium" | "low";
@@ -63,6 +64,11 @@ const TABS = [
     slug: "merge-blogs",
     label: "Blogs to merge",
     desc: "Same content or intent blogs that need to be merged - near-duplicate blogs to consolidate into one and 301. Content-based, not keyword-based.",
+  },
+  {
+    slug: "assistant",
+    label: "AI Assistant",
+    desc: "Paste a batch of URLs or keywords - the assistant finds every cannibalization conflict they're in (across all tabs) and Groq explains what to do.",
   },
 ] as const;
 type TabSlug = (typeof TABS)[number]["slug"];
@@ -323,6 +329,7 @@ function Inner() {
     "all-keywords": groups.length,
     "cross-type": crossType.length,
     "merge-blogs": merge.length,
+    assistant: 0,
   };
   const rows = tab === "near-position" ? near : tab === "all-keywords" ? groups : tab === "cross-type" ? crossType : [];
 
@@ -476,16 +483,19 @@ function Inner() {
             }`}
           >
             {t.label}
-            <span className={`ml-1.5 tabular-nums ${tab === t.slug ? "text-slate-300" : "text-slate-400"}`}>
-              {counts[t.slug]}
-            </span>
+            {t.slug !== "assistant" && (
+              <span className={`ml-1.5 tabular-nums ${tab === t.slug ? "text-slate-300" : "text-slate-400"}`}>
+                {counts[t.slug]}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
       <p className="mb-3 text-xs text-slate-500">{activeTab.desc}</p>
 
-      {/* filters */}
+      {/* filters (hidden on the AI Assistant tab, which has its own input) */}
+      {tab !== "assistant" && (
       <FilterBar className="mb-4">
         <FilterRow>
           <SearchBox
@@ -579,14 +589,17 @@ function Inner() {
           </>
         )}
       </FilterBar>
+      )}
 
-      {error && (
+      {error && tab !== "assistant" && (
         <Card>
           <p className="text-sm text-red-600">{error}</p>
         </Card>
       )}
 
-      {tab === "merge-blogs" ? (
+      {tab === "assistant" ? (
+        <AssistantTab />
+      ) : tab === "merge-blogs" ? (
         <MergeTab clusters={mergeFiltered} loading={mergeLoading} />
       ) : loading ? (
         <Card>

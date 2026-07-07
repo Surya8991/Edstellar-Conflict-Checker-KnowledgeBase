@@ -263,6 +263,48 @@ export async function GET(request: NextRequest) {
 
     groups.sort((a, b) => b.size - a.size || a.label.localeCompare(b.label));
 
+    // Persist cluster membership (best-effort). Only runs on a fresh compute
+    // (cache hits return early above), so it never adds latency to a cache hit.
+    // A failure here must NOT break the response - wrap in try/catch. Uses
+    // explicit ordinal ids + bulk UNNEST writes (neon-http is stateless - no
+    // transaction, but this is a rebuild, not an incremental patch).
+    try {
+      const clusterIds = groups.map((_, i) => i + 1);
+      const memberUrlsFlat: string[] = [];
+      const memberClusterIds: number[] = [];
+      groups.forEach((g, i) => {
+        for (const m of g.members) {
+          memberUrlsFlat.push(m.url);
+          memberClusterIds.push(i + 1);
+        }
+      });
+      await client.query(`UPDATE pages SET cluster_id = NULL WHERE cluster_id IS NOT NULL`);
+      await client.query(`DELETE FROM clusters`);
+      if (clusterIds.length) {
+        await client.query(
+          `INSERT INTO clusters (id, label, action, winner_url, size, computed_at)
+           SELECT id, label, action, winner, size, now()
+           FROM unnest($1::int[], $2::text[], $3::text[], $4::text[], $5::int[])
+             AS t(id, label, action, winner, size)`,
+          [
+            clusterIds,
+            groups.map((g) => g.label),
+            groups.map((g) => g.action),
+            groups.map((g) => g.winnerUrl),
+            groups.map((g) => g.size),
+          ],
+        );
+        await client.query(
+          `UPDATE pages SET cluster_id = m.cid
+           FROM unnest($1::text[], $2::int[]) AS m(url, cid)
+           WHERE pages.url = m.url`,
+          [memberUrlsFlat, memberClusterIds],
+        );
+      }
+    } catch {
+      // Persistence is best-effort - never fail the response over it.
+    }
+
     // Browsable sample of unique-topic pages (capped) so "N unique-topic pages"
     // isn't a dead-end stat.
     const singletons = singletonUrls.slice(0, SINGLETON_CAP).map((url) => ({
