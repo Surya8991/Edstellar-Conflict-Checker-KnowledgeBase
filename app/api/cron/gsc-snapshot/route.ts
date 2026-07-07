@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { neon } from "@neondatabase/serverless";
 import { google } from "googleapis";
 import { getAuthorizedClient, resolveSiteUrl } from "@/lib/gsc";
+import { snapshotGscMetrics } from "@/lib/gsc-metrics";
 import { log } from "@/lib/logger";
 import { requireCronAuth } from "@/lib/cron-auth";
 
@@ -148,6 +149,17 @@ export async function GET(request: NextRequest) {
     )) as { id: number; is_stale: boolean }[];
     const staleCount = staleResult.filter((r) => r.is_stale).length;
 
+    // --- Job 4: per-page 1m/3m/6m full-month totals + top-5 queries into
+    //     gsc_metrics (powers the Content Clusters GSC panel, §17O). Isolated so
+    //     a failure here never loses the daily snapshot above.
+    let gscMetrics: { pageRows: number; queryRows: number } | { error: string };
+    try {
+      gscMetrics = await snapshotGscMetrics();
+    } catch (e) {
+      gscMetrics = { error: (e as Error).message };
+      log.error("gsc_metrics snapshot failed", { error: (e as Error).message });
+    }
+
     log.info("gsc snapshot complete", {
       date: yesterday,
       clicks: day?.clicks ?? 0,
@@ -160,6 +172,7 @@ export async function GET(request: NextRequest) {
       branded_clicks: bc,
       pages_synced: pagesSynced,
       stale_count: staleCount,
+      gsc_metrics: gscMetrics,
     });
   } catch (e) {
     log.error("gsc snapshot failed", { error: (e as Error).message });

@@ -2238,6 +2238,40 @@ overall 1,050 -> **1,093 clustered pages** across 268 clusters, and Work Culture
 went from 6 singletons to a real cluster. `lib/series.ts` + `series.test.ts`
 (70/70 tests), build clean.
 
+### 17O. GSC wired into Content Clusters (per-page metrics + top queries)
+
+Each clustered page now carries Google Search Console data behind a "show GSC"
+toggle: **last 1/3/6 FULL calendar months** clicks / impressions / position, plus
+its **top-5 queries**. (Earlier notes said GSC was "0 rows / not connected" - that
+was stale: 3 `gsc_connections` exist and per-page 28d data was already syncing;
+`gsc_metrics` was just never populated.)
+
+Architecture - **pre-store, not live** (2,458 members would blow GSC quota on
+page load):
+- `lib/gsc.resolveFullMonths(n)` - completed-calendar-month windows (excludes the
+  partial current month; UTC).
+- `lib/gsc-metrics.snapshotGscMetrics()` - a handful of BULK GSC calls: 3
+  `["page"]` calls (1m/3m/6m) for per-page totals + a paginated `["page","query"]`
+  call grouped to top-5 per page. Full-refresh upsert into `gsc_metrics`
+  (`range_label` = `1m|3m|6m|q`). Runs as **Job 4 of the daily gsc-snapshot cron**
+  (isolated in try/catch so it can't break the existing snapshot) and via
+  `npm run gsc-metrics` for a manual refresh. Live populate: **19,644 page rows +
+  6,374 query rows**.
+- `lib/gsc-cluster-metrics.fetchGscForUrls(urls)` - one batched
+  `WHERE page = ANY($1)` read; degrades to an empty map if the table isn't
+  populated. `/api/groups` attaches a `gsc` object per member (covered by the
+  route's 5-min cache).
+- UI: a compact per-member block (1m/3m/6m clicks·impr·pos, "n/a" for empty
+  windows, top-query chips) behind the "show GSC" checkbox (off by default, like
+  "show intent"). Index: `drizzle/0008_gsc_metrics_page_idx.sql` (also created
+  idempotently by the snapshot).
+
+Verified live (read-only + browser): 1,089 of 1,093 clustered members have data;
+e.g. skills-in-demand-in-finland = 1m 648 / 3m 2,077 / 6m 3,183 clicks, top
+queries finland / финляндия / finlande / … The 4 without data are zero-impression
+pages (real, not a bug). Needs `GSC_SITE_URL` set (it's in Vercel prod env; pass
+it inline for a local run). 73/73 tests, build clean.
+
 ### 17I. Deferred (tracked, not this pass)
 
 - **GSC query-overlap edges - the gold-standard upgrade** (17F #1–2): once

@@ -56,7 +56,7 @@ Top-level nav: Dashboard, Conflict Checker, Content Clusters, Search Console, Co
 |---|---|
 | `/` | Dashboard - today's signals, needs-attention queue, recent activity. |
 | `/conflict-checker` | The headline tool - URL/topic → summary → scored matches, per-signal breakdown, and a suggested resolution + winner per match. |
-| `/clusters` | Content Clusters - live, corpus-wide grouping by TOPIC across content types (distinctive-token clustering; template words auto-learned & dropped) with a suggested action + winner per cluster. Programmatic blog series (training-companies, roles-responsibilities, in-demand-skills, …) are grouped by URL template via `lib/series.ts`. Result is cached ~5 min (Rescan forces fresh). |
+| `/clusters` | Content Clusters - live, corpus-wide grouping by TOPIC across content types (distinctive-token clustering; template words auto-learned & dropped) with a suggested action + winner per cluster. Programmatic blog series (training-companies, roles-responsibilities, in-demand-skills, …) are grouped by URL template via `lib/series.ts`. Per-member GSC metrics (1/3/6 full months + top-5 queries, behind a "show GSC" toggle) come from `gsc_metrics`, populated by `npm run gsc-metrics` / the daily cron. Result is cached ~5 min (Rescan forces fresh). |
 | `/bulk-check` | Run the Conflict Checker on up to 100 URLs/topics at once; export as CSV. Under Additional Tools. |
 | `/history` | Score History - timeline of every check run, with editorial outcome tracking. Hidden from the sidebar as of Session 13 (reachable directly + via dashboard links). |
 | `/search-console` | GSC clicks/impressions/CTR/position, 24h–12m, with a trend chart. Click **Connect Google** to authorize. |
@@ -135,6 +135,7 @@ The audit below surfaced four things that need attention **before** the first pr
 │   ├── reclassify-home.ts     ← one-off: home page → static content_type
 │   ├── verify-corpus.ts       ← post-ingest sanity report (counts + spot-check)
 │   ├── pregen-drafts.ts       ← local, $0 draft pre-generation for the AI Draft cache
+│   ├── gsc-metrics-snapshot.ts ← populate gsc_metrics (1/3/6-month page totals + top queries) for the Clusters GSC panel
 │   ├── draft-worker.ts        ← legacy local-CLI draft worker (Batch 11-14)
 │   ├── extract-taxonomy.py    ← rebuild data/taxonomy/*.json from Hub HTML
 │   ├── test-embed.ts          ← embed smoke test

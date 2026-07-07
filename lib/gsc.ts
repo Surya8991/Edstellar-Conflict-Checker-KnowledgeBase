@@ -116,6 +116,24 @@ export function resolveRange(
   return { startDate: fmt(start), endDate: fmt(end) };
 }
 
+/**
+ * The last `n` COMPLETE calendar months (Content Clusters GSC, PROJECTLOG §17O).
+ * e.g. run in mid-July with n=3 → April 1 .. June 30. The current month is
+ * excluded because it's partial (and GSC has a ~2-3 day lag anyway). UTC to
+ * avoid TZ drift on the month boundary.
+ */
+export function resolveFullMonths(
+  n: number,
+  today = new Date(),
+): { startDate: string; endDate: string } {
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  // Day 0 of the current month = the last day of the previous (complete) month.
+  const end = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 0));
+  // First day of the month (n-1) months before `end`'s month.
+  const start = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() - (n - 1), 1));
+  return { startDate: fmt(start), endDate: fmt(end) };
+}
+
 export interface GscQueryOptions {
   range: RangeKey;
   dimensions?: ("query" | "page" | "date" | "country" | "device")[];

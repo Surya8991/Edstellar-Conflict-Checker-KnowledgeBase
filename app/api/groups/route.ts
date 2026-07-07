@@ -3,6 +3,7 @@ import { neon } from "@neondatabase/serverless";
 import { neonRows } from "@/lib/db";
 import { clusterByTopic, type ClusterPage } from "@/lib/cluster";
 import { SERIES } from "@/lib/series";
+import { fetchGscForUrls } from "@/lib/gsc-cluster-metrics";
 import { classifyIntent, type Intent } from "@/lib/intent";
 import { pageAuthority, pickWinner, groupAction, type AuthorityInput } from "@/lib/resolution";
 import { THRESHOLDS } from "@/lib/thresholds";
@@ -145,6 +146,12 @@ export async function GET(request: NextRequest) {
       for (const r of sims) bodyMap.set(bkey(r.seed_url, r.member_url), Number(r.sim));
     }
 
+    // 3b. GSC metrics (1m/3m/6m full-month totals + top-5 queries) for every
+    //     clustered page, in one batched DB read (populated by the gsc-snapshot
+    //     cron). Empty map when GSC isn't populated yet - degrades to no panel.
+    const allMemberUrls = pass1.clusters.flatMap((c) => c.members.map((m) => m.url));
+    const gscMap = await fetchGscForUrls(allMemberUrls);
+
     // 4. Apply the body floor: demote members below it (vs their seed) to
     //    singletons; a cluster that drops under minSize dissolves entirely.
     let groupedPages = 0;
@@ -212,6 +219,7 @@ export async function GET(request: NextRequest) {
             authority: Number(pageAuthority(authorities[i]).toFixed(4)),
             isWinner: m.url === winner.url,
             isSeed: m.url === c.seedUrl,
+            gsc: gscMap.get(m.url) ?? null,
           }))
           .sort(
             (a, b) =>

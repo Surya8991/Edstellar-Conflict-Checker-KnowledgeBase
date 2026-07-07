@@ -7,11 +7,30 @@ import {
   type Intent, type ClusterAction,
 } from "@/app/components/ui";
 
+interface GscWindow {
+  clicks: number;
+  impressions: number;
+  position: number;
+}
+interface GscQuery {
+  query: string;
+  clicks: number;
+  impressions: number;
+  position: number;
+}
+interface PageGsc {
+  m1: GscWindow | null;
+  m3: GscWindow | null;
+  m6: GscWindow | null;
+  topQueries: GscQuery[];
+}
 interface GroupMember {
   url: string;
   title: string | null;
   type: string | null;
   intent: Intent;
+  /** GSC full-month totals + top-5 queries (null until the snapshot runs). */
+  gsc?: PageGsc | null;
   /** IDF-weighted distinctive-topic-token overlap with the cluster seed. */
   matchSim: number;
   /** Body cosine vs the seed (null for the seed itself). */
@@ -60,6 +79,8 @@ export default function ClustersPage() {
   // Search intent is hidden by default (clusters are about topic, not intent);
   // opt in with the checkbox to surface the per-member intent badge.
   const [showIntent, setShowIntent] = useState(false);
+  // GSC metrics (1m/3m/6m + top queries) per member, off by default.
+  const [showGsc, setShowGsc] = useState(false);
 
   // `fresh` bypasses the server-side scan cache (the Rescan button).
   async function load(fresh = false) {
@@ -183,6 +204,10 @@ export default function ClustersPage() {
                 <input type="checkbox" checked={showIntent} onChange={(e) => setShowIntent(e.target.checked)} />
                 show intent
               </label>
+              <label className="flex items-center gap-1.5 text-xs text-slate-600">
+                <input type="checkbox" checked={showGsc} onChange={(e) => setShowGsc(e.target.checked)} />
+                show GSC
+              </label>
               {(actionFilter || typeFilter || q) && (
                 <button
                   type="button"
@@ -204,7 +229,7 @@ export default function ClustersPage() {
 
         {filtered && filtered.length > 0 && (
           <div className="space-y-2.5">
-            {filtered.map((g, i) => <ClusterCard key={`${g.seedUrl}#${i}`} g={g} showIntent={showIntent} />)}
+            {filtered.map((g, i) => <ClusterCard key={`${g.seedUrl}#${i}`} g={g} showIntent={showIntent} showGsc={showGsc} />)}
           </div>
         )}
         {filtered && filtered.length === 0 && !loading && (
@@ -251,7 +276,7 @@ function FilterPill({ label, active, onClick }: { label: string; active: boolean
   );
 }
 
-function ClusterCard({ g, showIntent }: { g: GroupSummary; showIntent: boolean }) {
+function ClusterCard({ g, showIntent, showGsc }: { g: GroupSummary; showIntent: boolean; showGsc: boolean }) {
   const [open, setOpen] = useState(false);
   const style = ACTION_STYLE[g.action] ?? ACTION_STYLE.differentiate;
   const shown = open ? g.members : g.members.slice(0, 4);
@@ -320,6 +345,7 @@ function ClusterCard({ g, showIntent }: { g: GroupSummary; showIntent: boolean }
                 {m.type && <TypeChip type={m.type} size="xs" />}
                 <span className="truncate">{m.url}</span>
               </div>
+              {showGsc && <GscBlock gsc={m.gsc ?? null} />}
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1">
               {g.isSeries ? null : m.isSeed ? (
@@ -346,6 +372,53 @@ function ClusterCard({ g, showIntent }: { g: GroupSummary; showIntent: boolean }
           </li>
         )}
       </ul>
+    </div>
+  );
+}
+
+function GscWin({ label, w }: { label: string; w: GscWindow | null }) {
+  return (
+    <span className="whitespace-nowrap">
+      <span className="font-semibold text-slate-500">{label}</span>{" "}
+      {w ? (
+        <>
+          <span className="text-slate-700">{w.clicks.toLocaleString()}</span> clicks ·{" "}
+          <span className="text-slate-700">{w.impressions.toLocaleString()}</span> impr · pos{" "}
+          <span className="text-slate-700">{w.position}</span>
+        </>
+      ) : (
+        <span className="text-slate-300">n/a</span>
+      )}
+    </span>
+  );
+}
+
+function GscBlock({ gsc }: { gsc: PageGsc | null }) {
+  const hasData = gsc && (gsc.m1 || gsc.m3 || gsc.m6 || gsc.topQueries.length > 0);
+  if (!hasData) {
+    return <div className="mt-1.5 text-[10px] text-slate-300">no GSC data for this page</div>;
+  }
+  return (
+    <div className="mt-1.5 rounded-md border border-slate-100 bg-slate-50 px-2 py-1.5 text-[11px]">
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5 tabular-nums text-slate-500">
+        <GscWin label="1m" w={gsc.m1} />
+        <GscWin label="3m" w={gsc.m3} />
+        <GscWin label="6m" w={gsc.m6} />
+      </div>
+      {gsc.topQueries.length > 0 && (
+        <div className="mt-1 flex flex-wrap items-center gap-1">
+          <span className="text-[10px] uppercase tracking-wider text-slate-400">top queries</span>
+          {gsc.topQueries.map((query) => (
+            <span
+              key={query.query}
+              title={`${query.clicks} clicks · ${query.impressions} impr · pos ${query.position}`}
+              className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] text-slate-600"
+            >
+              {query.query}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -19,7 +19,8 @@
     "catalog-conflicts": "tsx scripts/catalog-conflicts.ts",
     "detect-redirects": "tsx scripts/detect-redirects.ts",
     "draft-worker": "tsx scripts/draft-worker.ts",
-    "pregen-drafts": "tsx scripts/pregen-drafts.ts"
+    "pregen-drafts": "tsx scripts/pregen-drafts.ts",
+    "gsc-metrics": "tsx scripts/gsc-metrics-snapshot.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",

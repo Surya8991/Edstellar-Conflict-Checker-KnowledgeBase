@@ -99,7 +99,7 @@ export const HELP: Record<string, HelpEntry> = {
       "Groups the WHOLE live corpus by TOPIC across content types - a category page, its blog, and its courses land in ONE cluster. Each cluster gets a topic label, a suggested action, and a winner (pillar) page. This is the corpus-wide view, versus the Conflict Checker's one-page-at-a-time view.",
     howToUse: [
       "The page auto-scans on load and caches the result for about 5 minutes; click 'Rescan' to force a fresh scan.",
-      "Filter with the labeled Action and Type rows, or the search box (matches the topic label, a title, or a URL). Tick 'show intent' to reveal each page's search-intent badge - it's hidden by default because clusters are about topic, not intent.",
+      "Filter with the labeled Action and Type rows, or the search box (matches the topic label, a title, or a URL). Tick 'show intent' for each page's search-intent badge, or 'show GSC' for its Search Console metrics - last 1/3/6 full months of clicks, impressions, and average position, plus its top-5 queries. Both are off by default.",
       "Click a cluster row to expand its members; each shows the page, the distinctive topic tokens it shares with the pillar, and its % content match. The ★ marks the suggested winner (the pillar page for a pillar cluster).",
       "Programmatic blog series - Training Companies, Roles & Responsibilities, In-Demand Skills, Games & Exercises, Digital Transformation, Work Culture - are grouped into one cluster by their URL template (they'd otherwise fragment) and carry a 'series' badge.",
       "Unique-topic pages (nothing else on the site shares their topic) are listed in a collapsible, searchable section at the bottom - browse it, it's an answer not a dead-end.",
