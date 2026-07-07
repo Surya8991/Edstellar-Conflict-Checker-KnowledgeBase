@@ -290,3 +290,31 @@ export function topicLabel(key: TopicKey, max = 3): string {
     key.unigrams.slice(0, max).join(" · ")
   );
 }
+
+/**
+ * Build a label from a frequency-RANKED list of terms (most common first),
+ * dropping numerals/filler and deduping overlaps. Used for cluster labels
+ * computed from what MEMBERS share, so a seed-only token (a country in a
+ * "skills in demand in {country}" series) doesn't dominate the label - the
+ * shared "demand skills" wins over the seed's "demand denmark".
+ */
+export function labelFromTerms(rankedTerms: string[], max = 3): string {
+  const used = new Set<string>();
+  const picked: string[] = [];
+  for (const term of rankedTerms) {
+    if (picked.length >= max) break;
+    const words = term.split(" ");
+    if (words.some((w) => isFillerToken(w))) continue;
+    if (words.every((w) => used.has(w))) continue;
+    picked.push(term);
+    words.forEach((w) => used.add(w));
+  }
+  // Drop a term whose words are a subset of another picked term ("companies"
+  // when "companies japan" is also picked -> keep only the more specific one),
+  // so labels don't read "companies · companies japan".
+  const final = picked.filter((term) => {
+    const w = term.split(" ");
+    return !picked.some((o) => o !== term && w.every((x) => o.split(" ").includes(x)));
+  });
+  return final.join(" · ");
+}

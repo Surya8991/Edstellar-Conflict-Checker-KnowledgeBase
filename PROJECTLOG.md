@@ -2172,6 +2172,35 @@ Acting on the blunt review of the Clusters page, fixed the substantive issues
 New knob in `lib/thresholds.ts`: `CONFLICT_GROUP_MERGE_MAX_SIZE` (4). All
 verified against the live corpus (read-only) + browser; 64/64 tests, build clean.
 
+### 17M. Cluster labels fixed (member-common) + wider coverage
+
+Two follow-ups after the UI rework:
+
+- **Labels were seed-derived, so a seed-only token dominated.** The
+  "skills in demand in {country}" ×51 series was labeled "demand denmark" - the
+  seed's country - even though the 51 members span 51 different countries. Fixed:
+  the cluster label is now built from the tokens MEMBERS SHARE (`clusterLabel`
+  tallies each member's shared-with-seed terms, keeps those above a frequency
+  floor of `max(2, ⌈size×0.3⌉)`, ranks by frequency, then drops filler/numerals
+  and dedupes via `labelFromTerms`). A seed-only country never reaches the floor,
+  so "demand denmark" -> "demand". Also dropped redundant subset terms
+  ("companies · companies japan" -> "companies japan"). Country names now appear
+  only on genuinely country-focused small clusters where ≥2 members share them.
+  Display-only - matching is unchanged.
+- **More clusters (loosened, measured).** With the §17K bigram fix the live
+  overlaps re-measured to true pair 0.274 / hardest false sibling (data-analytics)
+  0.103, leaving headroom below the old 0.18 bar. Lowered
+  `CONFLICT_TOPIC_OVERLAP` 0.18 -> **0.16** (still 0.057 above the false sibling;
+  all four acceptance checks still pass, big-data stays separate from
+  data-analytics and sales) and `CONFLICT_TOPIC_BODY_FLOOR` 0.70 -> **0.65**
+  (diminishing returns below 0.65 when swept). Combined live result: **260 -> 282
+  clusters, 910 -> 1,050 clustered pages** (1,548 -> 1,408 singletons), no
+  mega-cluster (largest is the 51-page single-topic "demand" blog series).
+  `/api/groups` gained `?overlap` / `?floor` / `?minSize` params for tuning.
+
+New: `labelFromTerms` + `clusterLabel`; knobs retuned in `lib/thresholds.ts`.
+65/65 tests, verified live (read-only) + browser.
+
 ### 17I. Deferred (tracked, not this pass)
 
 - **GSC query-overlap edges - the gold-standard upgrade** (17F #1–2): once

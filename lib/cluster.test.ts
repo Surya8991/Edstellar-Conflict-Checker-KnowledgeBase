@@ -116,7 +116,7 @@ test("cluster label and member evidence surface the shared topic tokens", () => 
   assert.match(bd.label, /big|data/);
   const blog = bd.members.find((m) => m.url === bigDataBlog.url)!;
   assert.ok(blog.sharedTerms.some((t) => /big|data/.test(t)));
-  assert.ok(blog.matchSim >= 0.18);
+  assert.ok(blog.matchSim >= 0.16);
 });
 
 // ── Body floor demotes a topic match with no body overlap ─────────────────

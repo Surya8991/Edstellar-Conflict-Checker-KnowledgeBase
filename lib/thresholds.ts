@@ -66,9 +66,10 @@ export interface Thresholds {
   topicDfCap: number;
   /** Content Clusters: IDF-weighted distinctive-token Jaccard a page needs vs a
    *  seed to join its cluster. Below this it becomes (or joins) another seed.
-   *  Calibrated live (PROJECTLOG §17J): true pair big-data-cat↔big-data-blog =
-   *  0.257, hardest false sibling big-data↔data-analytics = 0.046 → 0.18 sits
-   *  between with margin on both sides. */
+   *  Calibrated live (PROJECTLOG §17J/§17M): after the §17K bigram fix the true
+   *  pair big-data-cat↔big-data-blog = 0.274, hardest false sibling
+   *  big-data↔data-analytics = 0.103; 0.16 sits between (0.057 margin above the
+   *  false sibling) and clusters more of the corpus than the earlier 0.18. */
   topicOverlap: number;
   /** Content Clusters: minimum body cosine a member needs vs its seed - a topic
    *  match with near-zero body overlap is demoted to a singleton. */
@@ -93,8 +94,8 @@ export const THRESHOLDS: Thresholds = {
   groupSimCourseTitle:    envNum("CONFLICT_GROUP_SIM_COURSE_TITLE", 0.88),
   groupTitleJaccardCourse: envNum("CONFLICT_GROUP_TITLE_JACCARD_COURSE", 0.6),
   topicDfCap:             envNum("CONFLICT_TOPIC_DF_CAP", 0.05),
-  topicOverlap:           envNum("CONFLICT_TOPIC_OVERLAP", 0.18),
-  topicBodyFloor:         envNum("CONFLICT_TOPIC_BODY_FLOOR", 0.7),
+  topicOverlap:           envNum("CONFLICT_TOPIC_OVERLAP", 0.16),
+  topicBodyFloor:         envNum("CONFLICT_TOPIC_BODY_FLOOR", 0.65),
   groupMergeMaxSize:      envNum("CONFLICT_GROUP_MERGE_MAX_SIZE", 4),
   winner: {
     inbound:  envNum("CONFLICT_WINNER_INBOUND", 0.45),

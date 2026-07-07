@@ -18,6 +18,7 @@ import {
   topicOverlap,
   sharedTopicTerms,
   topicLabel,
+  labelFromTerms,
   type DfIndex,
   type SignalInput,
   type TopicKey,
@@ -185,7 +186,10 @@ export function clusterByTopic(
     if (s.members.length >= minSize) {
       clusters.push({
         seedUrl: s.page.url,
-        label: topicLabel(s.key) || "(untitled topic)",
+        // Label from what MEMBERS share, not the seed's own tokens - so a
+        // seed-only token (the country in a "skills in demand in {country}"
+        // series) can't dominate ("demand denmark" -> "demand skills").
+        label: clusterLabel(s.members) || topicLabel(s.key) || "(untitled topic)",
         members: s.members,
       });
     } else {
@@ -197,4 +201,29 @@ export function clusterByTopic(
   );
 
   return { clusters, singletons, corpusSize: pages.length, dfIndex };
+}
+
+/**
+ * Cluster label from the tokens members SHARE (not the seed's own key). Tally
+ * every member's shared-with-seed terms, keep those common to a meaningful
+ * share of the cluster, and rank by frequency - so "demand skills" (in all 27
+ * country pages) beats "demand denmark" (only the seed). A seed-only token
+ * never reaches the frequency floor, so it drops out of the label.
+ */
+function clusterLabel(members: ClusterMember[]): string {
+  const tally = new Map<string, number>();
+  for (const m of members) {
+    for (const term of m.sharedTerms) tally.set(term, (tally.get(term) ?? 0) + 1);
+  }
+  const minFreq = Math.max(2, Math.ceil(members.length * 0.3));
+  const ranked = [...tally.entries()]
+    .filter(([, f]) => f >= minFreq)
+    .sort(
+      (a, b) =>
+        b[1] - a[1] || // most common first
+        (b[0].includes(" ") ? 1 : 0) - (a[0].includes(" ") ? 1 : 0) || // bigrams first
+        b[0].length - a[0].length,
+    )
+    .map(([term]) => term);
+  return labelFromTerms(ranked);
 }

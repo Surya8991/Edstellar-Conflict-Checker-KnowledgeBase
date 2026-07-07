@@ -72,10 +72,15 @@ export async function GET(request: NextRequest) {
       Number.isFinite(overrideOverlap) && overrideOverlap > 0
         ? clamp(overrideOverlap, 0.1, 0.95)
         : t.topicOverlap;
+    const overrideFloor = Number(p.get("floor"));
+    const floor =
+      Number.isFinite(overrideFloor) && overrideFloor > 0
+        ? clamp(overrideFloor, 0.3, 0.95)
+        : t.topicBodyFloor;
     const minSize = Math.max(2, Number(p.get("minSize")) || 2);
     const limit = clamp(Number(p.get("limit")) || 100, 1, 500);
 
-    const cacheKey = `${overlap}|${minSize}|${limit}`;
+    const cacheKey = `${overlap}|${floor}|${minSize}|${limit}`;
     if (
       !p.get("fresh") &&
       groupsCache &&
@@ -138,7 +143,6 @@ export async function GET(request: NextRequest) {
 
     // 4. Apply the body floor: demote members below it (vs their seed) to
     //    singletons; a cluster that drops under minSize dissolves entirely.
-    const floor = t.topicBodyFloor;
     let groupedPages = 0;
     const singletonUrls: string[] = [...pass1.singletons];
 

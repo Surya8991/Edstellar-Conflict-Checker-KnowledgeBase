@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   tokenize, jaccard, slugTokens, slugOverlap, signalScores, buildDfIndex,
-  topicKey, topicLabel,
+  topicKey, topicLabel, labelFromTerms,
 } from "./signals";
 
 test("tokenize lowercases, strips punctuation + stopwords", () => {
@@ -119,4 +119,14 @@ test("topicLabel drops listicle filler/numerals and dedupes overlaps", () => {
   // Overlapping bigrams collapse - "demand skills" and "skills denmark" don't
   // both appear verbatim once their shared words are used.
   assert.ok(label.includes("demand") && label.includes("denmark"));
+});
+
+test("labelFromTerms keeps given order, drops filler, dedupes covered terms (§17M)", () => {
+  // Given a frequency-ranked list, the leading shared bigram wins and its
+  // constituent unigrams are deduped out; filler terms are dropped. (The
+  // seed-only country is excluded upstream by clusterLabel's frequency floor,
+  // so it never reaches here.)
+  const label = labelFromTerms(["demand skills", "demand", "skills", "top demand"]);
+  assert.equal(label, "demand skills");
+  assert.ok(!/\btop\b/.test(label), "filler dropped");
 });
