@@ -2663,3 +2663,23 @@ filtered set; the merge-blogs tab honours the search box. Live-verified.
   the "8.9k" short form, per request; clicks too.
 - Tab labels/descriptions reworded to the user's four lines. `fmt`/`shortUrl`
   helpers removed (dead after the exact-number/full-URL switch).
+
+### 18F. Full keyword coverage + modern shared filter UI
+
+- **All keywords now checked (was NOT before).** The snapshot capped the GSC
+  `["query","page"]` pull at `MAX_ROWS = 100000` rows - and GSC returns them
+  clicks-DESC, so ~66% of the data (the lower-click tail, where pure-impression
+  cannibalization hides) was silently dropped. Raised the cap to a safety-only
+  1,000,000 and the loop now runs until GSC returns a short page, so every row is
+  pulled. `snapshotKeywordConflicts` returns `{distinctQueries, capHit}` and the
+  script prints coverage + warns if the bound is ever hit. Re-ran on prod:
+  **294,002 query×page rows covering 238,182 distinct keywords → 1,572 conflict
+  groups** (was 724 under the cap - real conflicts were being missed). ~132s, well
+  under the cron's 300s budget.
+- **Modern, shared filter UI across sections.** New `app/components/Filters.tsx`:
+  `FilterBar` (card), `FilterRow`, `SearchBox` (icon + clear), `FilterGroup`
+  (labelled), `FilterChip` (colour dot + count badge, filled when active),
+  `ToggleChip`, `ClearFiltersButton`, `dotColor()`. Applied to **Keyword
+  Cannibalization** and **Content Clusters** (both dropped their bespoke
+  `FilterPill`/`FilterRow`), and the **Edstellar Database** search field. One look
+  and one behaviour everywhere; live-verified on all three, no console errors.

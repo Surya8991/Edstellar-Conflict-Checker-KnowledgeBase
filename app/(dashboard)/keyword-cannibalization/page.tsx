@@ -4,7 +4,16 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader, Card, TypeChip, TYPE_COLORS } from "@/app/components/ui";
 import { Pagination } from "@/app/components/Pagination";
-import { Star, Download, RefreshCw, ExternalLink, ArrowRight, Search, X } from "lucide-react";
+import {
+  FilterBar,
+  FilterRow,
+  SearchBox,
+  FilterGroup,
+  FilterChip,
+  ClearFiltersButton,
+  dotColor,
+} from "@/app/components/Filters";
+import { Star, Download, RefreshCw, ExternalLink, ArrowRight } from "lucide-react";
 
 // ── types (mirror /api/cannibalization + /api/groups) ──────────────────────
 type Severity = "high" | "medium" | "low";
@@ -323,76 +332,70 @@ function Inner() {
       <p className="mb-3 text-xs text-slate-500">{activeTab.desc}</p>
 
       {/* filters */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
+      <FilterBar className="mb-4">
+        <FilterRow>
+          <SearchBox
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={setSearch}
             placeholder="Search query or page URL…"
-            className="w-56 rounded-lg border border-slate-200 py-1.5 pl-8 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
+            className="w-full sm:w-72"
           />
-        </div>
+          {hasFilter && <ClearFiltersButton onClick={clearFilters} />}
+        </FilterRow>
 
         {tab !== "merge-blogs" && (
           <>
-            <span className="ml-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">Severity</span>
-            <FilterPill label="All" active={!sevFilter} onClick={() => setSevFilter(null)} />
-            {(["high", "medium", "low"] as Severity[])
-              .filter((s) => sevCounts[s] > 0 || sevFilter === s)
-              .map((s) => (
-                <FilterPill
-                  key={s}
-                  label={`${s[0].toUpperCase()}${s.slice(1)}`}
-                  count={sevCounts[s]}
-                  active={sevFilter === s}
-                  cls={SEV_STYLE[s]}
-                  onClick={() => setSevFilter(sevFilter === s ? null : s)}
-                />
-              ))}
+            <FilterGroup label="Severity">
+              <FilterChip label="All" active={!sevFilter} onClick={() => setSevFilter(null)} />
+              {(["high", "medium", "low"] as Severity[])
+                .filter((s) => sevCounts[s] > 0 || sevFilter === s)
+                .map((s) => (
+                  <FilterChip
+                    key={s}
+                    label={s}
+                    count={sevCounts[s]}
+                    active={sevFilter === s}
+                    dotClass={dotColor(SEV_STYLE[s])}
+                    onClick={() => setSevFilter(sevFilter === s ? null : s)}
+                  />
+                ))}
+            </FilterGroup>
 
-            <span className="ml-2 text-[11px] font-medium uppercase tracking-wide text-slate-400">Action</span>
-            <FilterPill label="All" active={!actionFilter} onClick={() => setActionFilter(null)} />
-            {Object.keys(ACTION_STYLE)
-              .filter((a) => (actionCounts[a] ?? 0) > 0 || actionFilter === a)
-              .map((a) => (
-                <FilterPill
-                  key={a}
-                  label={ACTION_STYLE[a].label}
-                  count={actionCounts[a] ?? 0}
-                  active={actionFilter === a}
-                  cls={ACTION_STYLE[a].cls}
-                  onClick={() => setActionFilter(actionFilter === a ? null : a)}
-                />
-              ))}
+            <FilterGroup label="Action">
+              <FilterChip label="All" active={!actionFilter} onClick={() => setActionFilter(null)} />
+              {Object.keys(ACTION_STYLE)
+                .filter((a) => (actionCounts[a] ?? 0) > 0 || actionFilter === a)
+                .map((a) => (
+                  <FilterChip
+                    key={a}
+                    label={ACTION_STYLE[a].label}
+                    count={actionCounts[a] ?? 0}
+                    active={actionFilter === a}
+                    dotClass={dotColor(ACTION_STYLE[a].cls)}
+                    onClick={() => setActionFilter(actionFilter === a ? null : a)}
+                  />
+                ))}
+            </FilterGroup>
 
-            <span className="ml-2 text-[11px] font-medium uppercase tracking-wide text-slate-400">Type</span>
-            <FilterPill label="All" active={!typeFilter} onClick={() => setTypeFilter(null)} />
-            {Object.entries(typeCounts)
-              .filter(([t, n]) => n > 0 || typeFilter === t)
-              .sort((a, b) => b[1] - a[1])
-              .map(([t, n]) => (
-                <FilterPill
-                  key={t}
-                  label={t.replace("-", " ")}
-                  count={n}
-                  active={typeFilter === t}
-                  cls={TYPE_COLORS[t] ?? "bg-slate-100 text-slate-600"}
-                  onClick={() => setTypeFilter(typeFilter === t ? null : t)}
-                />
-              ))}
+            <FilterGroup label="Type">
+              <FilterChip label="All" active={!typeFilter} onClick={() => setTypeFilter(null)} />
+              {Object.entries(typeCounts)
+                .filter(([t, n]) => n > 0 || typeFilter === t)
+                .sort((a, b) => b[1] - a[1])
+                .map(([t, n]) => (
+                  <FilterChip
+                    key={t}
+                    label={t.replace("-", " ")}
+                    count={n}
+                    active={typeFilter === t}
+                    dotClass={dotColor(TYPE_COLORS[t] ?? "bg-slate-100")}
+                    onClick={() => setTypeFilter(typeFilter === t ? null : t)}
+                  />
+                ))}
+            </FilterGroup>
           </>
         )}
-
-        {hasFilter && (
-          <button
-            onClick={clearFilters}
-            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-slate-500 hover:bg-slate-100"
-          >
-            <X size={12} /> Clear
-          </button>
-        )}
-      </div>
+      </FilterBar>
 
       {error && (
         <Card>
@@ -472,33 +475,6 @@ function Inner() {
       )}
       </div>
     </div>
-  );
-}
-
-function FilterPill({
-  label,
-  count,
-  active,
-  cls,
-  onClick,
-}: {
-  label: string;
-  count?: number;
-  active: boolean;
-  cls?: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition ${
-        active ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-      }`}
-    >
-      {!active && cls && <span className={`h-2 w-2 rounded-full ${cls.split(" ")[0]}`} />}
-      {label}
-      {count != null && <span className={active ? "text-slate-300" : "text-slate-400"}>{count}</span>}
-    </button>
   );
 }
 

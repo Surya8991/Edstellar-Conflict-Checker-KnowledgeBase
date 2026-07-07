@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  PageHeader, Card, TypeChip,
+  PageHeader, Card, TypeChip, TYPE_COLORS,
   INTENT_STYLE, ACTION_STYLE, pathOf,
   type Intent, type ClusterAction,
 } from "@/app/components/ui";
 import { Pagination } from "@/app/components/Pagination";
+import {
+  FilterBar, FilterRow, SearchBox, FilterGroup, FilterChip, ClearFiltersButton, ToggleChip, dotColor,
+} from "@/app/components/Filters";
 
 interface GscWindow {
   clicks: number;
@@ -210,59 +213,51 @@ export default function ClustersPage() {
 
         {/* Filter bar - labeled action / type groups, then controls. */}
         {groups && groups.length > 0 && (
-          <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <FilterRow label="Action">
-              <FilterPill label={`All ${actionCounts.total}`} active={!actionFilter} onClick={() => setActionFilter("")} />
+          <FilterBar>
+            <FilterRow>
+              <SearchBox
+                value={q}
+                onChange={setQ}
+                placeholder="Filter by topic, title, or URL…"
+                className="w-full sm:w-72"
+              />
+              <ToggleChip label="Show intent" checked={showIntent} onChange={setShowIntent} />
+              <ToggleChip label="Show GSC" checked={showGsc} onChange={setShowGsc} />
+              {(actionFilter || typeFilter || q) && (
+                <ClearFiltersButton onClick={() => { setActionFilter(""); setTypeFilter(""); setQ(""); }} />
+              )}
+            </FilterRow>
+            <FilterGroup label="Action">
+              <FilterChip label="All" count={actionCounts.total} active={!actionFilter} onClick={() => setActionFilter("")} />
               {actionTypes
                 .filter((a) => (actionCounts.map.get(a) ?? 0) > 0)
                 .map((a) => (
-                  <FilterPill
+                  <FilterChip
                     key={a}
-                    label={`${ACTION_STYLE[a]?.label ?? a} ${actionCounts.map.get(a) ?? 0}`}
+                    label={ACTION_STYLE[a]?.label ?? a}
+                    count={actionCounts.map.get(a) ?? 0}
                     active={actionFilter === a}
+                    dotClass={dotColor(ACTION_STYLE[a]?.cls)}
                     onClick={() => setActionFilter(actionFilter === a ? "" : a)}
                   />
                 ))}
-            </FilterRow>
-            <FilterRow label="Type">
-              <FilterPill label="All" active={!typeFilter} onClick={() => setTypeFilter("")} />
+            </FilterGroup>
+            <FilterGroup label="Type">
+              <FilterChip label="All" active={!typeFilter} onClick={() => setTypeFilter("")} />
               {contentTypes
                 .filter((ct) => (typeCounts.map.get(ct) ?? 0) > 0)
                 .map((ct) => (
-                  <FilterPill
+                  <FilterChip
                     key={ct}
-                    label={`${ct.replace("-", " ")} ${typeCounts.map.get(ct) ?? 0}`}
+                    label={ct.replace("-", " ")}
+                    count={typeCounts.map.get(ct) ?? 0}
                     active={typeFilter === ct}
+                    dotClass={dotColor(TYPE_COLORS[ct] ?? "bg-slate-100")}
                     onClick={() => setTypeFilter(typeFilter === ct ? "" : ct)}
                   />
                 ))}
-            </FilterRow>
-            <div className="flex flex-wrap items-center gap-3 pt-1">
-              <label className="flex items-center gap-1.5 text-xs text-slate-600">
-                <input type="checkbox" checked={showIntent} onChange={(e) => setShowIntent(e.target.checked)} />
-                show intent
-              </label>
-              <label className="flex items-center gap-1.5 text-xs text-slate-600">
-                <input type="checkbox" checked={showGsc} onChange={(e) => setShowGsc(e.target.checked)} />
-                show GSC
-              </label>
-              {(actionFilter || typeFilter || q) && (
-                <button
-                  type="button"
-                  onClick={() => { setActionFilter(""); setTypeFilter(""); setQ(""); }}
-                  className="text-xs text-slate-500 underline decoration-dotted hover:text-slate-700"
-                >
-                  clear filters
-                </button>
-              )}
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Filter by topic, title, or URL…"
-                className="ml-auto w-64 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs outline-none focus:border-slate-900"
-              />
-            </div>
-          </div>
+            </FilterGroup>
+          </FilterBar>
         )}
 
         {filtered && filtered.length > 0 && (
@@ -297,33 +292,6 @@ export default function ClustersPage() {
         )}
       </div>
     </div>
-  );
-}
-
-function FilterRow({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span className="mr-1 w-12 shrink-0 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-        {label}
-      </span>
-      {children}
-    </div>
-  );
-}
-
-function FilterPill({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-full border px-2.5 py-1 text-xs capitalize transition ${
-        active
-          ? "border-slate-900 bg-slate-900 text-white"
-          : "border-slate-300 bg-white text-slate-600 hover:border-slate-400"
-      }`}
-    >
-      {label}
-    </button>
   );
 }
 

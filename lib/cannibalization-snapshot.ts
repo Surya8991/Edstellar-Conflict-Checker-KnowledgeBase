@@ -15,7 +15,10 @@ import { buildConflicts, normalizeUrl, type RawRow } from "@/lib/cannibalization
 export const RANGE_LABEL = "3m";
 const RANGE_MONTHS = 3;
 const ROW_LIMIT = 25000; // GSC hard cap per call
-const MAX_ROWS = 100000; // paginate up to 4 pages of query×page
+// Safety bound only - the loop stops naturally when GSC returns a short page,
+// so EVERY query×page row in the window is pulled (all keywords checked, not
+// just the top-by-clicks). Raised from 100k so nothing is dropped.
+const MAX_ROWS = 1_000_000;
 
 interface GscRow {
   keys?: string[];
@@ -53,17 +56,26 @@ export async function ensureKeywordConflictsTable(): Promise<void> {
   );
 }
 
-export async function snapshotKeywordConflicts(): Promise<{ groups: number; rowsScanned: number }> {
+export async function snapshotKeywordConflicts(): Promise<{
+  groups: number;
+  rowsScanned: number;
+  distinctQueries: number;
+  capHit: boolean;
+}> {
   const client = await getAuthorizedClient();
   if (!client) throw new Error("Not connected to GSC.");
   const siteUrl = await resolveSiteUrl(client);
   const webmasters = google.webmasters({ version: "v3", auth: client });
   const sql = neon(process.env.DATABASE_URL!);
 
-  // 1. Paginated query×page pull.
+  // 1. Paginated query×page pull - loop until GSC returns a short page, so ALL
+  //    keywords in the window are covered (not just the top-by-clicks).
   const { startDate, endDate } = resolveFullMonths(RANGE_MONTHS);
   const raw: RawRow[] = [];
-  for (let startRow = 0; startRow < MAX_ROWS; startRow += ROW_LIMIT) {
+  const queries = new Set<string>();
+  let capHit = false;
+  let startRow = 0;
+  for (; startRow < MAX_ROWS; startRow += ROW_LIMIT) {
     const res = await webmasters.searchanalytics.query({
       siteUrl,
       requestBody: { startDate, endDate, dimensions: ["query", "page"], rowLimit: ROW_LIMIT, startRow },
@@ -73,6 +85,7 @@ export async function snapshotKeywordConflicts(): Promise<{ groups: number; rows
       const query = r.keys?.[0];
       const page = r.keys?.[1];
       if (!query || !page) continue;
+      queries.add(query);
       raw.push({
         query,
         page,
@@ -82,7 +95,8 @@ export async function snapshotKeywordConflicts(): Promise<{ groups: number; rows
         position: Number((r.position ?? 0).toFixed(2)),
       });
     }
-    if (rows.length < ROW_LIMIT) break;
+    if (rows.length < ROW_LIMIT) break; // last (short) page → exhausted
+    if (startRow + ROW_LIMIT >= MAX_ROWS) capHit = true; // hit the safety bound
   }
 
   // 2. page URL → content_type (normalized keys so GSC variants line up).
@@ -144,5 +158,5 @@ export async function snapshotKeywordConflicts(): Promise<{ groups: number; rows
     );
   }
 
-  return { groups: groups.length, rowsScanned: raw.length };
+  return { groups: groups.length, rowsScanned: raw.length, distinctQueries: queries.size, capHit };
 }

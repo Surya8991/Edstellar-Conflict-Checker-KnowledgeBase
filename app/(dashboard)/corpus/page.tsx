@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { PageHeader, Card, TYPE_COLORS } from "@/app/components/ui";
 import { Pagination as SharedPagination } from "@/app/components/Pagination";
+import { SearchBox } from "@/app/components/Filters";
 import { sameUrl } from "@/lib/url";
 
 interface PageRow {
@@ -246,12 +247,7 @@ export default function CorpusPage() {
           onSubmit={(e) => { e.preventDefault(); setPage(1); load(1); }}
           className="flex flex-wrap gap-2"
         >
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search title or URL…"
-            className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm outline-none focus:border-slate-900"
-          />
+          <SearchBox value={q} onChange={setQ} placeholder="Search title or URL…" className="min-w-[16rem] flex-1" />
           {tag && (
             <button
               type="button"
