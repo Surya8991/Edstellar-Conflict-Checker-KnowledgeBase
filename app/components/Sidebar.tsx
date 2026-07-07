@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
@@ -161,66 +161,68 @@ export default function Sidebar({ user, signOutSlot }: { user?: SidebarUser | nu
                 ? pathname === "/"
                 : pathname === href || pathname.startsWith(href + "/");
             return (
-              <Link
-                key={href}
-                href={href}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
-                  active
-                    ? "bg-slate-900 text-white"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                <Icon size={17} />
-                {label}
-              </Link>
+              <Fragment key={href}>
+                <Link
+                  href={href}
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
+                    active
+                      ? "bg-slate-900 text-white"
+                      : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  <Icon size={17} />
+                  {label}
+                </Link>
+                {/* Search Console renders directly below Edstellar Database. */}
+                {href === "/corpus" && (
+                  <div>
+                    <div className="flex items-center">
+                      <Link
+                        href="/search-console?section=overview"
+                        className={`flex flex-1 items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
+                          onSearchConsole ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+                        }`}
+                      >
+                        <LineChart size={17} />
+                        Search Console
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => setScOpen((v) => !v)}
+                        aria-label="Toggle Search Console sections"
+                        aria-expanded={scOpen}
+                        className="ml-1 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"
+                      >
+                        <ChevronDown size={14} className={`transition-transform ${scOpen ? "" : "-rotate-90"}`} />
+                      </button>
+                    </div>
+                    {scOpen && (
+                      <div className="mt-1 space-y-0.5 pl-8">
+                        {SEARCH_CONSOLE_SECTIONS.map((s) => {
+                          const secActive = onSearchConsole && activeSection === s.slug;
+                          return (
+                            <Link
+                              key={s.slug}
+                              href={`/search-console?section=${s.slug}`}
+                              className={`block rounded-lg px-3 py-1.5 text-[13px] transition ${
+                                secActive
+                                  ? "bg-slate-100 font-medium text-slate-900"
+                                  : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                              }`}
+                            >
+                              {s.label}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Fragment>
             );
           })}
 
-          {/* Search Console - expandable parent, one page per GSC report. */}
-          <div>
-            <div className="flex items-center">
-              <Link
-                href="/search-console?section=overview"
-                className={`flex flex-1 items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
-                  onSearchConsole ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                <LineChart size={17} />
-                Search Console
-              </Link>
-              <button
-                type="button"
-                onClick={() => setScOpen((v) => !v)}
-                aria-label="Toggle Search Console sections"
-                aria-expanded={scOpen}
-                className="ml-1 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"
-              >
-                <ChevronDown size={14} className={`transition-transform ${scOpen ? "" : "-rotate-90"}`} />
-              </button>
-            </div>
-            {scOpen && (
-              <div className="mt-1 space-y-0.5 pl-8">
-                {SEARCH_CONSOLE_SECTIONS.map((s) => {
-                  const active = onSearchConsole && activeSection === s.slug;
-                  return (
-                    <Link
-                      key={s.slug}
-                      href={`/search-console?section=${s.slug}`}
-                      className={`block rounded-lg px-3 py-1.5 text-[13px] transition ${
-                        active
-                          ? "bg-slate-100 font-medium text-slate-900"
-                          : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                      }`}
-                    >
-                      {s.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Settings - below the Search Console block. */}
+          {/* Settings. */}
           <Link
             href="/settings"
             className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${

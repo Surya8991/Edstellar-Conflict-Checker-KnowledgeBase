@@ -38,6 +38,11 @@ export default function SettingsPage() {
   const [gscLast, setGscLast] = useState<string | null | undefined>(undefined);
   const [gscRefreshing, setGscRefreshing] = useState(false);
 
+  // Sitemap sync.
+  const [sitemap, setSitemap] = useState<{ missingCount: number; byType: Record<string, number> } | null>(null);
+  const [sitemapChecking, setSitemapChecking] = useState(false);
+  const [sitemapSyncing, setSitemapSyncing] = useState(false);
+
   async function loadItems() {
     try {
       const res = await fetch("/api/settings/exclusions");
@@ -121,6 +126,34 @@ export default function SettingsPage() {
       toast.error((e as Error).message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function checkSitemap() {
+    setSitemapChecking(true);
+    try {
+      const res = await fetch("/api/settings/sitemap-sync");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Check failed");
+      setSitemap({ missingCount: data.missingCount ?? 0, byType: data.byType ?? {} });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSitemapChecking(false);
+    }
+  }
+  async function syncSitemap() {
+    setSitemapSyncing(true);
+    try {
+      const res = await fetch("/api/settings/sitemap-sync", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Sync failed");
+      toast.success(`Added ${data.added} page${data.added === 1 ? "" : "s"} to the database.`);
+      await checkSitemap();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSitemapSyncing(false);
     }
   }
 
@@ -236,6 +269,50 @@ export default function SettingsPage() {
             >
               {gscRefreshing ? "Refreshing…" : "Refresh now"}
             </button>
+          </div>
+        </Card>
+
+        {/* Sitemap sync */}
+        <Card>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-slate-900">Sitemap sync</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Find pages in the live sitemap that aren&apos;t in the Edstellar Database yet and add them with their detected type.
+                {sitemap && (
+                  <>
+                    {" "}
+                    <strong className="text-slate-700">{sitemap.missingCount.toLocaleString()}</strong> missing
+                    {sitemap.missingCount > 0 && Object.keys(sitemap.byType).length > 0 && (
+                      <span className="text-slate-400">
+                        {" "}({Object.entries(sitemap.byType).map(([t, n]) => `${n} ${t}`).join(", ")})
+                      </span>
+                    )}.
+                  </>
+                )}
+              </p>
+              <p className="mt-1 text-[11px] text-slate-400">
+                Added pages carry their type only - run <code className="rounded bg-slate-100 px-1">npm run ingest</code> to crawl + embed them so they enter Clusters/Checker.
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                onClick={checkSitemap}
+                disabled={sitemapChecking || sitemapSyncing}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {sitemapChecking ? "Checking…" : "Check sitemap"}
+              </button>
+              {sitemap && sitemap.missingCount > 0 && (
+                <button
+                  onClick={syncSitemap}
+                  disabled={sitemapSyncing}
+                  className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                >
+                  {sitemapSyncing ? "Adding…" : `Add ${sitemap.missingCount} page${sitemap.missingCount === 1 ? "" : "s"}`}
+                </button>
+              )}
+            </div>
           </div>
         </Card>
 

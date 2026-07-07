@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { neon } from "@neondatabase/serverless";
-import * as cheerio from "cheerio";
 import { isJunkUrl } from "@/lib/sitemap";
+import { fetchSitemapUrls } from "@/lib/sitemap-live";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,30 +26,6 @@ export const maxDuration = 60;
  * Cheap to run - one fetch + one DB query. No cron needed; it's a snapshot
  * computed on demand from the dashboard.
  */
-
-async function fetchSitemapUrls(rootHost: string): Promise<string[]> {
-  // Edstellar uses one sitemap index → fetch + recurse one level deep.
-  const out = new Set<string>();
-  const root = rootHost.replace(/\/+$/, "") + "/sitemap.xml";
-  const visit = async (sm: string): Promise<void> => {
-    const res = await fetch(sm, { headers: { accept: "application/xml,text/xml" } });
-    if (!res.ok) return;
-    const xml = await res.text();
-    const $ = cheerio.load(xml, { xmlMode: true });
-    const subs = $("sitemap > loc").map((_, el) => $(el).text().trim()).get();
-    if (subs.length) {
-      // sitemap index - recurse.
-      await Promise.all(subs.slice(0, 50).map(visit));
-      return;
-    }
-    $("url > loc").each((_, el) => {
-      const u = $(el).text().trim();
-      if (u) out.add(u);
-    });
-  };
-  await visit(root);
-  return [...out];
-}
 
 export async function GET(request: Request) {
   try {

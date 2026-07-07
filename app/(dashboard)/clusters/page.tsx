@@ -127,20 +127,43 @@ export default function ClustersPage() {
     [groups],
   );
 
+  // Search-only pre-filter (both pill groups + the list build on it).
+  const bySearch = useMemo(() => {
+    if (!groups) return [] as GroupSummary[];
+    const needle = q.trim().toLowerCase();
+    if (!needle) return groups;
+    return groups.filter(
+      (g) =>
+        g.label.toLowerCase().includes(needle) ||
+        g.members.some((m) => m.url.toLowerCase().includes(needle) || (m.title ?? "").toLowerCase().includes(needle)),
+    );
+  }, [groups, q]);
+
+  // Pill counts are CONTEXTUAL - each dimension counts against the OTHER active
+  // filters (+ search), so pills that would yield nothing are hidden.
+  const actionCounts = useMemo(() => {
+    const base = bySearch.filter((g) => !typeFilter || g.members.some((m) => m.type === typeFilter));
+    const map = new Map<string, number>();
+    for (const g of base) map.set(g.action, (map.get(g.action) ?? 0) + 1);
+    return { total: base.length, map };
+  }, [bySearch, typeFilter]);
+  const typeCounts = useMemo(() => {
+    const base = bySearch.filter((g) => !actionFilter || g.action === actionFilter);
+    const map = new Map<string, number>();
+    for (const g of base) {
+      for (const t of new Set(g.members.map((m) => m.type).filter(Boolean) as string[])) {
+        map.set(t, (map.get(t) ?? 0) + 1);
+      }
+    }
+    return { total: base.length, map };
+  }, [bySearch, actionFilter]);
+
   const filtered = useMemo(() => {
     if (!groups) return null;
-    const needle = q.trim().toLowerCase();
-    return groups
+    return bySearch
       .filter((g) => !actionFilter || g.action === actionFilter)
-      .filter((g) => !typeFilter || g.members.some((m) => m.type === typeFilter))
-      .filter((g) =>
-        !needle ||
-        g.label.toLowerCase().includes(needle) ||
-        g.members.some((m) =>
-          m.url.toLowerCase().includes(needle) || (m.title ?? "").toLowerCase().includes(needle),
-        ),
-      );
-  }, [groups, actionFilter, typeFilter, q]);
+      .filter((g) => !typeFilter || g.members.some((m) => m.type === typeFilter));
+  }, [groups, bySearch, actionFilter, typeFilter]);
 
   // Reset to page 1 whenever the filter set changes.
   useEffect(() => { setCPage(1); }, [actionFilter, typeFilter, q, groups]);
@@ -189,26 +212,30 @@ export default function ClustersPage() {
         {groups && groups.length > 0 && (
           <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
             <FilterRow label="Action">
-              <FilterPill label={`All ${groups.length}`} active={!actionFilter} onClick={() => setActionFilter("")} />
-              {actionTypes.map((a) => (
-                <FilterPill
-                  key={a}
-                  label={`${ACTION_STYLE[a]?.label ?? a} ${groups.filter((g) => g.action === a).length}`}
-                  active={actionFilter === a}
-                  onClick={() => setActionFilter(actionFilter === a ? "" : a)}
-                />
-              ))}
+              <FilterPill label={`All ${actionCounts.total}`} active={!actionFilter} onClick={() => setActionFilter("")} />
+              {actionTypes
+                .filter((a) => (actionCounts.map.get(a) ?? 0) > 0)
+                .map((a) => (
+                  <FilterPill
+                    key={a}
+                    label={`${ACTION_STYLE[a]?.label ?? a} ${actionCounts.map.get(a) ?? 0}`}
+                    active={actionFilter === a}
+                    onClick={() => setActionFilter(actionFilter === a ? "" : a)}
+                  />
+                ))}
             </FilterRow>
             <FilterRow label="Type">
               <FilterPill label="All" active={!typeFilter} onClick={() => setTypeFilter("")} />
-              {contentTypes.map((ct) => (
-                <FilterPill
-                  key={ct}
-                  label={`${ct.replace("-", " ")} ${groups.filter((g) => g.members.some((m) => m.type === ct)).length}`}
-                  active={typeFilter === ct}
-                  onClick={() => setTypeFilter(typeFilter === ct ? "" : ct)}
-                />
-              ))}
+              {contentTypes
+                .filter((ct) => (typeCounts.map.get(ct) ?? 0) > 0)
+                .map((ct) => (
+                  <FilterPill
+                    key={ct}
+                    label={`${ct.replace("-", " ")} ${typeCounts.map.get(ct) ?? 0}`}
+                    active={typeFilter === ct}
+                    onClick={() => setTypeFilter(typeFilter === ct ? "" : ct)}
+                  />
+                ))}
             </FilterRow>
             <div className="flex flex-wrap items-center gap-3 pt-1">
               <label className="flex items-center gap-1.5 text-xs text-slate-600">

@@ -2374,6 +2374,23 @@ re-included pages" section ("Exclude again").
 - Verified live: Remove drops the excluded count 98 → 97, "Exclude again" restores
   it. 79/79 tests, build clean.
 
+### 17T. Sidebar reorder, contextual cluster filters, sitemap sync
+
+- **Search Console moved directly below Edstellar Database** in the sidebar
+  (rendered inline after the `/corpus` item via a `Fragment`).
+- **Content Clusters filter pills are now contextual**: each action/type pill
+  counts against the OTHER active filters (+ search), and pills that would yield
+  0 are hidden. Fixes "a filter shows when there's no data under it" - e.g. with
+  the Category type selected, Consolidate/Differentiate (0 category clusters)
+  disappear and the counts drop to the category-only totals.
+- **Sitemap sync in Settings**: `/api/settings/sitemap-sync` GET previews how
+  many live-sitemap URLs are missing from `pages` (by type); POST inserts them
+  with their derived `content_type`/course_type/category/subcategory (type only,
+  no content/embedding - they enter Clusters/Checker on the next `npm run
+  ingest`). Reuses `lib/sitemap-live.fetchSitemapUrls` (extracted from
+  `/api/sitemap-drift`) + `tagUrl`. Verified live: 1 missing blog found + added,
+  re-check 0. 79/79 tests, build clean.
+
 ### 17I. Deferred (tracked, not this pass)
 
 - **GSC query-overlap edges - the gold-standard upgrade** (17F #1–2): once
