@@ -60,6 +60,7 @@ Top-level nav: Edstellar Database (the `/corpus` page), Search Console (an expan
 | `/bulk-check` | Run the Conflict Checker on up to 100 URLs/topics at once; export as CSV. Under Additional Tools. |
 | `/history` | Score History - timeline of every check run, with editorial outcome tracking. Hidden from the sidebar as of Session 13 (reachable directly + via dashboard links). |
 | `/search-console` | GSC clicks/impressions/CTR/position, 24h–12m, with a trend chart. Click **Connect Google** to authorize. |
+| `/keyword-cannibalization` | Queries where 2+ Edstellar pages compete, with severity, the page to keep (primary), and a rule-based action. 4 tabs: near-position / all / cross-type (course vs page) / blogs-to-merge. Reads the pre-computed `keyword_conflicts` table (`npm run cannibalization` or gsc-snapshot cron Job 5). Sits directly below Search Console. |
 | `/competitors` | SERP-based competitor research per topic (needs `SERPER_API_KEY`). Under Additional Tools. |
 | `/corpus` | **Edstellar Database** - browse/search the ingested pages; CSV export/import. Sits directly below Dashboard in the nav. |
 | `/manager` | Manager View - leadership-facing weekly KPIs and per-user activity. |

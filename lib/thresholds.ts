@@ -79,6 +79,18 @@ export interface Thresholds {
    *  content SERIES (country/role variants) and get "differentiate" - you don't
    *  301 twenty-seven distinct pages into one. */
   groupMergeMaxSize: number;
+  /** Keyword Cannibalization (PROJECTLOG §18): a conflict group's total
+   *  impressions must reach this to be worth surfacing. */
+  cannibalMinImpr: number;
+  /** Keyword Cannibalization: a single page needs at least this many impressions
+   *  to count as a real competitor for the query (drops ghost rankings). */
+  cannibalMinPageImpr: number;
+  /** Keyword Cannibalization: avg-position gap under which the top-2 pages are
+   *  "near" (actively swapping) - Tab 1's filter. */
+  cannibalNearGap: number;
+  /** Keyword Cannibalization: the best page must rank at least this well for a
+   *  group to qualify as "near" (both pages genuinely competing on page 1-2). */
+  cannibalMaxPos: number;
   /** Weights used to pick the surviving (canonical) page. */
   winner: WinnerWeights;
 }
@@ -97,6 +109,10 @@ export const THRESHOLDS: Thresholds = {
   topicOverlap:           envNum("CONFLICT_TOPIC_OVERLAP", 0.16),
   topicBodyFloor:         envNum("CONFLICT_TOPIC_BODY_FLOOR", 0.65),
   groupMergeMaxSize:      envNum("CONFLICT_GROUP_MERGE_MAX_SIZE", 4),
+  cannibalMinImpr:        envNum("CONFLICT_CANNIBAL_MIN_IMPR", 50),
+  cannibalMinPageImpr:    envNum("CONFLICT_CANNIBAL_MIN_PAGE_IMPR", 5),
+  cannibalNearGap:        envNum("CONFLICT_CANNIBAL_NEAR_GAP", 5),
+  cannibalMaxPos:         envNum("CONFLICT_CANNIBAL_MAX_POS", 20),
   winner: {
     inbound:  envNum("CONFLICT_WINNER_INBOUND", 0.45),
     depth:    envNum("CONFLICT_WINNER_DEPTH", 0.3),

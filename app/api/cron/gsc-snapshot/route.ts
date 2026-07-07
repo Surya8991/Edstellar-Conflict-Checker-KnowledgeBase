@@ -3,6 +3,7 @@ import { neon } from "@neondatabase/serverless";
 import { google } from "googleapis";
 import { getAuthorizedClient, resolveSiteUrl } from "@/lib/gsc";
 import { snapshotGscMetrics } from "@/lib/gsc-metrics";
+import { snapshotKeywordConflicts } from "@/lib/cannibalization-snapshot";
 import { log } from "@/lib/logger";
 import { requireCronAuth } from "@/lib/cron-auth";
 
@@ -160,6 +161,16 @@ export async function GET(request: NextRequest) {
       log.error("gsc_metrics snapshot failed", { error: (e as Error).message });
     }
 
+    // --- Job 5: keyword-cannibalization conflicts (PROJECTLOG §18). Isolated so
+    //     a failure here never affects the jobs above.
+    let cannibalization: { groups: number; rowsScanned: number } | { error: string };
+    try {
+      cannibalization = await snapshotKeywordConflicts();
+    } catch (e) {
+      cannibalization = { error: (e as Error).message };
+      log.error("keyword_conflicts snapshot failed", { error: (e as Error).message });
+    }
+
     log.info("gsc snapshot complete", {
       date: yesterday,
       clicks: day?.clicks ?? 0,
@@ -173,6 +184,7 @@ export async function GET(request: NextRequest) {
       pages_synced: pagesSynced,
       stale_count: staleCount,
       gsc_metrics: gscMetrics,
+      cannibalization,
     });
   } catch (e) {
     log.error("gsc snapshot failed", { error: (e as Error).message });

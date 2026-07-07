@@ -38,6 +38,11 @@ export default function SettingsPage() {
   const [gscLast, setGscLast] = useState<string | null | undefined>(undefined);
   const [gscRefreshing, setGscRefreshing] = useState(false);
 
+  // Keyword Cannibalization data.
+  const [canniLast, setCanniLast] = useState<string | null | undefined>(undefined);
+  const [canniGroups, setCanniGroups] = useState<number | null>(null);
+  const [canniRefreshing, setCanniRefreshing] = useState(false);
+
   // Sitemap sync.
   const [sitemap, setSitemap] = useState<{ missingCount: number; byType: Record<string, number> } | null>(null);
   const [sitemapChecking, setSitemapChecking] = useState(false);
@@ -105,8 +110,15 @@ export default function SettingsPage() {
       if (res.ok) setGscLast(data.lastRefreshed ?? null);
     } catch { setGscLast(null); }
   }
+  async function loadCanniLast() {
+    try {
+      const res = await fetch("/api/settings/cannibalization-refresh");
+      const data = await res.json();
+      if (res.ok) { setCanniLast(data.lastComputed ?? null); setCanniGroups(data.groups ?? 0); }
+    } catch { setCanniLast(null); }
+  }
   useEffect(() => {
-    loadItems(); loadMatches(1, matchPageSize); loadCluster(); loadGscLast();
+    loadItems(); loadMatches(1, matchPageSize); loadCluster(); loadGscLast(); loadCanniLast();
     /* eslint-disable-next-line */
   }, []);
 
@@ -169,6 +181,21 @@ export default function SettingsPage() {
       toast.error((e as Error).message);
     } finally {
       setGscRefreshing(false);
+    }
+  }
+
+  async function refreshCanni() {
+    setCanniRefreshing(true);
+    try {
+      const res = await fetch("/api/settings/cannibalization-refresh", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Refresh failed");
+      toast.success(`Keyword cannibalization: ${data.groups} conflict groups from ${data.rowsScanned} rows.`);
+      await loadCanniLast();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setCanniRefreshing(false);
     }
   }
 
@@ -268,6 +295,32 @@ export default function SettingsPage() {
               className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
               {gscRefreshing ? "Refreshing…" : "Refresh now"}
+            </button>
+          </div>
+        </Card>
+
+        {/* Keyword Cannibalization data */}
+        <Card>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900">Keyword Cannibalization data</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Pre-computed query→pages conflicts (last 3 full months of GSC) powering the Keyword Cannibalization tool.
+                {" "}
+                {canniGroups != null && <><strong className="text-slate-700">{canniGroups.toLocaleString()}</strong> conflict groups · </>}
+                Last computed:{" "}
+                <strong className="text-slate-700">
+                  {canniLast === undefined ? "…" : canniLast ? new Date(canniLast).toLocaleString() : "never"}
+                </strong>
+                . Refreshes automatically once a day.
+              </p>
+            </div>
+            <button
+              onClick={refreshCanni}
+              disabled={canniRefreshing}
+              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {canniRefreshing ? "Scanning…" : "Rescan now"}
             </button>
           </div>
         </Card>

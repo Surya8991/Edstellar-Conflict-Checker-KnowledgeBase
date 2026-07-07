@@ -35,7 +35,6 @@ function defaultCustomRange(): { startDate: string; endDate: string } {
 
 const TABS = [
   "Overview",
-  "Cannibalization",
   "Striking Distance",
   "CTR Opportunity",
   "Movers",
@@ -49,7 +48,6 @@ type Tab = (typeof TABS)[number];
 /** URL slug per tab, so each section is its own addressable page + sidebar link. */
 export const TAB_SLUGS: Record<Tab, string> = {
   Overview: "overview",
-  Cannibalization: "cannibalization",
   "Striking Distance": "striking-distance",
   "CTR Opportunity": "ctr-opportunity",
   Movers: "movers",
@@ -358,7 +356,6 @@ function SearchConsoleInner() {
         )}
 
         {data && tab === "Overview" && <OverviewTab data={data} range={range} />}
-        {data && tab === "Cannibalization" && <CannibalTab data={data} />}
         {data && tab === "Striking Distance" && <StrikingTab data={data} />}
         {data && tab === "CTR Opportunity" && <CtrOppTab data={data} />}
         {data && tab === "Movers" && <MoversTab data={data} />}
@@ -554,58 +551,6 @@ function OverviewTab({ data, range }: { data: Insights; range: string }) {
   );
 }
 
-function CannibalTab({ data }: { data: Insights }) {
-  if (!data.cannibalization.length)
-    return <EmptyState text="No cannibalization detected in this range (each query has at most one ranking page)." />;
-  return (
-    <Card>
-      <div className="mb-3 flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-semibold text-slate-900">Cannibalization</h3>
-          <p className="text-xs text-slate-500">
-            Queries where 2+ pages of yours are competing for the same spot - the listed pages split impressions and clicks.
-          </p>
-        </div>
-        <ExportBtn
-          onClick={() =>
-            downloadCsv("cannibalization.csv",
-              ["query","page","clicks","impressions","position"],
-              data.cannibalization.flatMap((g: any) =>
-                g.pages.map((p: any) => [g.query, p.page, p.clicks, p.impressions, p.position.toFixed(1)])))
-          }
-        />
-      </div>
-      <div className="space-y-4">
-        {data.cannibalization.map((g: any) => (
-          <div key={g.query} className="rounded-lg border border-slate-200 p-3">
-            <div className="flex items-center justify-between">
-              <div className="font-medium text-slate-900">{g.query}</div>
-              <div className="text-xs text-slate-500 tabular-nums">
-                {g.pages.length} pages · {fmt(g.totalImpressions)} impr · {fmt(g.totalClicks)} clicks
-              </div>
-            </div>
-            <table className="mt-2 w-full text-sm">
-              <tbody>
-                {g.pages.map((p: any) => (
-                  <tr key={p.page} className="border-t border-slate-100">
-                    <td className="max-w-md truncate py-1.5 pr-3">
-                      <a href={p.page} target="_blank" rel="noreferrer" className="text-slate-700 hover:underline">
-                        {shortenUrl(p.page)}
-                      </a>
-                    </td>
-                    <td className="py-1.5 pr-3 tabular-nums text-slate-600">{fmt(p.clicks)} clk</td>
-                    <td className="py-1.5 pr-3 tabular-nums text-slate-600">{fmt(p.impressions)} impr</td>
-                    <td className="py-1.5 tabular-nums text-slate-600">pos {p.position.toFixed(1)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ))}
-      </div>
-    </Card>
-  );
-}
 
 function StrikingTab({ data }: { data: Insights }) {
   if (!data.striking.length)

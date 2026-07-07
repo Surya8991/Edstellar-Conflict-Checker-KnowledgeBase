@@ -15,6 +15,7 @@ import {
   BarChart3,
   Compass,
   Boxes,
+  Split,
   Settings,
   Menu,
   X,
@@ -43,7 +44,6 @@ const NAV: { href: string; label: string; icon: any }[] = [
 /** GSC report sections - each is its own addressable page under /search-console. */
 const SEARCH_CONSOLE_SECTIONS = [
   { slug: "overview",         label: "Overview" },
-  { slug: "cannibalization",  label: "Cannibalization" },
   { slug: "striking-distance", label: "Striking Distance" },
   { slug: "ctr-opportunity",  label: "CTR Opportunity" },
   { slug: "movers",           label: "Movers" },
@@ -216,6 +216,19 @@ export default function Sidebar({ user, signOutSlot }: { user?: SidebarUser | nu
                         })}
                       </div>
                     )}
+                    {/* Keyword Cannibalization sits directly below Search Console. */}
+                    <Link
+                      href="/keyword-cannibalization"
+                      className={`mt-1 flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
+                        pathname === "/keyword-cannibalization" ||
+                        pathname.startsWith("/keyword-cannibalization/")
+                          ? "bg-slate-900 text-white"
+                          : "text-slate-600 hover:bg-slate-100"
+                      }`}
+                    >
+                      <Split size={17} />
+                      Keyword Cannibalization
+                    </Link>
                   </div>
                 )}
               </Fragment>

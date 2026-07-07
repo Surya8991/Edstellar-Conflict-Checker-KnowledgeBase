@@ -4,7 +4,7 @@
 > and how the system fits together. Update this file with every meaningful
 > change.
 
-**Last updated:** 2026-07-06 (Session 13 - Content Clusters rewritten to topic-token leader clustering; §17K-N follow-ups: member-common labels, wider coverage, programmatic blog-series grouping (lib/series.ts), filter/UI rework; template-noise fix shared into the Conflict Checker; ingest/redirect durability fixes; checker UX incl. collapsible panels + sidebar cleanups)
+**Last updated:** 2026-07-07 (Session 14 PLAN - §18: Keyword Cannibalization promoted to a top-level tool + 4-tab upgrade). 2026-07-06 (Session 13 - Content Clusters rewritten to topic-token leader clustering; §17K-N follow-ups: member-common labels, wider coverage, programmatic blog-series grouping (lib/series.ts), filter/UI rework; template-noise fix shared into the Conflict Checker; ingest/redirect durability fixes; checker UX incl. collapsible panels + sidebar cleanups)
 **Repo:** https://github.com/Layruss98266/Edstellar-Conflict-Checker-KnowledgeBase
 **Prod:** https://edstellar-conflict-checker-knowledg.vercel.app/
 
@@ -2461,3 +2461,178 @@ live corpus - strictly better:
   fewer, more precise clusters (280 topic-only / 339 via the body-floor route).
 - Regression-tested (`signals.test.ts`): a "Corporate Chemical Safety" page
   keys to bigrams `["chemical safety"]` only, label `"chemical safety"`.
+
+---
+
+## 18. Keyword Cannibalization - promoted to a top-level tool + 4-tab upgrade (PLAN)
+
+**Ask:** pull the Cannibalization view OUT of Search Console, make it a
+top-level sidebar item **directly below Search Console** named **"Keyword
+Cannibalization"**, then do the upgrade previously proposed (severity /
+primary-page / recommended action / action links / exclusions / export). The new
+tool has **4 sub-tabs**:
+
+| # | Tab | What it answers | Source |
+|---|-----|-----------------|--------|
+| 1 | **Conflict keywords · nearer avg position** | Queries where 2+ of our pages rank AND their avg positions are CLOSE (both fighting for the same rank) - the true, active cannibalization Google is actively swapping. High-confidence, action-now set. | Live GSC `["query","page"]` + position-gap filter |
+| 2 | **Conflict keywords · no avg-pos limit** | Every query where 2+ pages rank, regardless of how far apart - the full landscape (superset of Tab 1). | Same GSC pull, no position filter |
+| 3 | **Pages/keywords conflicting with a course or other page** | Cross-type conflicts: a query where the competing pages span DIFFERENT content types (blog vs course, category vs course...) - the strategic/revenue conflict (a blog stealing a course page's term). | Same GSC pull + join page URLs → `pages.content_type` |
+| 4 | **Same content/intent blogs to merge** | Near-duplicate blogs (same body/intent) that should be consolidated into one and 301'd - NOT keyword-based, content-based. | Existing topic + body-cosine cluster engine, filtered to blog clusters with `merge`/`consolidate` action |
+
+### 18A. Current state (what exists today)
+- Cannibalization is computed **live** in `lib/gsc-insights.buildInsights()` from a
+  single `["query","page"]` GSC call (rowLimit 2000), returned as
+  `Insights.cannibalization` and rendered by `CannibalTab` - a sub-tab of
+  `/search-console` (`TABS[1]`, slug `cannibalization`). Grouping = query →
+  pages[], filtered `pages.length >= 2 && totalImpressions >= 50`.
+- `gsc_metrics` stores only **top-5 queries per page** (`snapshotGscMetrics`), too
+  sparse to detect cannibalization reliably (misses a query where page B ranks
+  #7 but it's not in B's top-5). So the new tool keeps the **live** `["query",
+  "page"]` pull as its GSC source - one narrow call, not the 7-call `buildInsights`
+  bundle. (`page.length >= 2` groups still come straight from GSC; no dependency
+  on the sparse snapshot.)
+
+### 18B. Execution plan
+
+**1. Move + rename (routing).**
+- Remove `Cannibalization` from `search-console` `TABS`/`TAB_SLUGS`/`SLUG_TO_TAB`
+  and delete `CannibalTab` from that page (leave `buildInsights.cannibalization`
+  computed - harmless, still used by the checker's `pageCannibalization`; but the
+  SC UI no longer renders it).
+- New route `app/(dashboard)/keyword-cannibalization/page.tsx`.
+- `Sidebar.tsx`: add **Keyword Cannibalization** in the main NAV **immediately
+  after the Search Console block** (before Conflict Checker). Its 4 sub-tabs are
+  URL-driven (`?tab=<slug>`) same pattern as SC sections, optionally surfaced as
+  sidebar sub-links.
+
+**2. Data layer - new `lib/cannibalization.ts` (pure-ish, unit-tested where possible).**
+- `buildKeywordConflicts(range, opts)`:
+  1. One GSC `["query","page"]` call (reuse `runQuery`/`getAuthorizedClient`
+     from `lib/gsc`), rowLimit ~5000.
+  2. Group by query → `pages[]` (query, per-page clicks/impr/position/ctr).
+  3. Keep groups with `pages.length >= 2` and `totalImpressions >= cannibalMinImpr`.
+  4. Apply **query exclusions** (`isExcludedQuery`) and **URL exclusions**
+     (`isExcludedUrl`) so excluded keywords/pages don't show (consistent with
+     Clusters/Checker).
+  5. Enrich each group:
+     - **severity** = f(totalImpressions, position-proximity of top-2 pages,
+       #pages) → `high | medium | low` badge. (Impressions-weighted; a tight
+       position gap on a high-impression query = high.)
+     - **primary page** = the page that *should* win (best position, tie-break
+       clicks then impressions). Others flagged as **cannibals**.
+     - **recommended action** - rule-based:
+       - same-type near-duplicate → **consolidate / 301 losers → primary**;
+       - cross-type (course present) → **protect the commercial page**
+         (course > category > blog priority): de-optimise/blog-link the lower-value
+         page to the course, don't 301 across types;
+       - far-apart positions, same intent → **differentiate**.
+     - **action links** - deep-link the group's pages into the Conflict Checker
+       (`/?url=`) and Content Clusters, plus open-in-GSC.
+  6. Return `{ near, all, crossType }` derived views from the one enriched set:
+     - `all` = every qualifying group (**Tab 2**).
+     - `near` = `all` filtered to `positionGap(top2) <= cannibalNearPosGap` AND
+       `bestPosition <= cannibalMaxPos` (**Tab 1**).
+     - `crossType` = `all` filtered to groups whose pages span ≥2 distinct
+       `content_type`s (needs the page→type join) (**Tab 3**). One
+       `SELECT url, content_type FROM pages WHERE url = ANY($1::text[])` (raw
+       neon `$1::text[]`, per the drizzle-array gotcha) maps GSC page URLs → type.
+- **Tab 4** = reuse the cluster engine. New `lib/cannibalization.mergeBlogs()` (or
+  a param on the groups path) that runs the existing topic+body-cosine clustering
+  and returns clusters where **every member is a blog** and `groupAction` ∈
+  `{merge, consolidate}` - i.e. dedupe candidates - with the winner (canonical) +
+  losers-to-301 + body-cosine + per-page GSC clicks (to justify the winner).
+  Prefer calling the existing `/api/groups` logic rather than re-implementing.
+
+**3. Thresholds - add to `lib/thresholds.ts` (env-overridable, per the rule "every
+cutoff lives here"):**
+- `cannibalMinImpr` (default 50) - `CONFLICT_CANNIBAL_MIN_IMPR`
+- `cannibalNearPosGap` (default 5.0) - `CONFLICT_CANNIBAL_NEAR_GAP`
+- `cannibalMaxPos` (default 20.0) - `CONFLICT_CANNIBAL_MAX_POS`
+No hard-coded cutoffs in the route/UI.
+
+**4. API - `app/api/cannibalization/route.ts` (GET).**
+- `?range=` (default 28d), `?tab=` optional (compute-only what's needed).
+- Auth: dashboard session (same as other SC-derived pages); it's a live GSC read.
+- Per-instance cache (5 min, keyed by range + exclusions hash) like `/api/groups`,
+  `?fresh=1` to bust - GSC calls are the expensive part.
+- Tab 4 served from the groups/cluster path (already cached).
+
+**5. UI - `keyword-cannibalization/page.tsx`.**
+- 4 sub-tabs (`?tab=near-position|all-keywords|cross-type|merge-blogs`), Suspense
+  for `useSearchParams`.
+- Per group: query, severity badge, primary-page highlighted (star / "keep"),
+  cannibal rows dimmed with per-page clicks/impr/position, recommended-action
+  chip, action links. Cross-type tab shows `TYPE_COLORS` badges. Merge tab shows
+  winner vs 301-losers + body-cosine %.
+- Range selector, keyword-exclusion respected, **CSV export per tab**,
+  pagination (reuse `Pagination.tsx`), empty states, contextual (hide a tab's
+  filter chrome when it has no rows).
+
+**6. Docs/counts.** Update `Sidebar` nav count, `help-content.ts`, README nav
+list, and this log's DONE note in the same commit (doc-drift rule).
+
+### 18C. Deviations / open interpretation (confirm before build)
+- Tab 1 vs Tab 2 read as **filtered vs unfiltered by position proximity** (Tab 1 ⊂
+  Tab 2). Tab 3 = **cross-content-type** conflicts. Tab 4 = **content-similarity
+  blog merges** (cluster engine, not GSC). If any of these four readings is off,
+  correct it before I build - the GSC pull + cluster reuse are shared, so a
+  wrong tab definition is cheap to change now, expensive after.
+- Data source stays **live GSC** for Tabs 1-3 (accurate positions; the stored
+  snapshot is too sparse). Trade-off: ~1 GSC call per load, mitigated by the
+  5-min cache. If you'd rather it be instant/stored, say so and I'll widen
+  `snapshotGscMetrics` to store full `["query","page"]` instead of top-5.
+
+### 18D. DONE (stored-in-DB variant + SEO review) - shipped, live-verified
+
+**Decision taken:** user chose **stored-in-DB** over live-per-load, and asked me
+to check the logic "as an SEO manager". So Tabs 1-3 read a pre-computed table,
+NOT a live GSC call.
+
+- **New table `keyword_conflicts`** (`drizzle/0012`, `lib/db/schema.ts`
+  `keywordConflicts`): one row per conflicting query + a `pages` jsonb breakdown,
+  plus `severity`, `primary_page`, `recommended_action`, `cross_type`, `branded`,
+  `commercial_at_risk`, `position_gap`, `best_position`. Range `3m`.
+- **`lib/cannibalization.ts`** (pure, 9 unit tests) - `buildConflicts()` groups
+  GSC `["query","page"]` rows and classifies. **`lib/cannibalization-snapshot.ts`**
+  - `snapshotKeywordConflicts()`: one paginated GSC pull (3 full months) + a
+  `pages`→`content_type` join, full-refresh bulk upsert. **`scripts/cannibalization.ts`**
+  → `npm run cannibalization`. Wired as **Job 5** of the gsc-snapshot cron
+  (isolated try/catch - no new cron, so the Hobby 2-cron cap is untouched).
+- **`/api/cannibalization`** (GET) reads the table; branded queries hidden;
+  query + URL + exception exclusions applied at READ time (edits reflect without a
+  re-snapshot). Tabs derived client-side: near = `positionGap ≤ nearGap && bestPos
+  ≤ maxPos`, cross-type = `crossType`. **Tab 4 (merge-blogs)** reuses `/api/groups`
+  (blog-only clusters with a merge/consolidate action). New knobs in
+  `lib/thresholds.ts`: `cannibalMinImpr` (50) / `cannibalMinPageImpr` (5) /
+  `cannibalNearGap` (5) / `cannibalMaxPos` (20), env-overridable `CONFLICT_CANNIBAL_*`.
+- **UI** `app/(dashboard)/keyword-cannibalization` - 4 sub-tabs (`?tab=`), severity
+  badges, primary-page star, rule-based action chip (with the SEO play in the
+  tooltip), per-tab CSV export, pagination, Rescan. **Sidebar**: new "Keyword
+  Cannibalization" item directly below the Search Console block; the old
+  Cannibalization SC sub-tab + `CannibalTab` were removed. **Settings**: a
+  "Keyword Cannibalization data" card (last computed + group count + Rescan).
+
+**SEO-manager review on the live 724-group result - one real bug fixed:**
+- **Brand-navigational SERPs were masquerading as cannibalization.** Top
+  "conflicts" `ed stellar` / `edsteller` (misspellings of the brand) had 8
+  static/nav pages all ranking ~#1 - that's a brand SERP with sitelinks, not
+  content competing. `isBrandedQuery` only did a literal substring match on
+  "edstellar" so spaced/misspelled variants leaked. Fixed: normalize away
+  spaces/punctuation + edit-distance ≤2 fuzzy match (catches "ed stellar",
+  "edsteller", "edstella", "www.edstellar.com") without flagging long
+  informational queries. Re-ran: those flip to `branded=true` (hidden), while the
+  genuine catch **`ai training companies`** (a blog at pos 6 / 8.9k impr
+  outranking the AI category page at pos 71 - a commercial-intent query the money
+  page should own) correctly stays and is flagged `commercial_at_risk` → high →
+  "Protect the money page".
+- **Kept by design:** static/nav pages can still appear as competitors on
+  non-brand queries (rare after the brand fix); `minPageImpr=5` lets a barely-
+  ranking commercial page count as "at risk" (that IS the signal, per the AI
+  example). **Known cap:** the GSC pull is truncated at 100k query×page rows
+  (`MAX_ROWS`); GSC returns them clicks-DESC so the highest-value conflicts are
+  always covered, the tail is sub-impression noise that `minPageImpr` drops anyway.
+- Live result after the fix: 724 groups (14 branded/hidden), 369 cross-type, 199
+  commercial-at-risk; severity high/med/low = 200/153/371; actions
+  differentiate 337 / protect-commercial 199 / consolidate 112 / monitor 76.
+  `keyword_conflicts` populated via `npm run cannibalization` (GSC_SITE_URL passed
+  inline; writes to the shared prod DB - additive new table). 87/87 tests, typecheck clean.

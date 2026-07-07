@@ -7,6 +7,7 @@ import {
   timestamp,
   vector,
   boolean,
+  jsonb,
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
@@ -139,6 +140,33 @@ export const gscMetrics = pgTable(
     fetchedAt: timestamp("fetched_at").defaultNow(),
   },
   (t) => [index("gsc_metrics_date_page_idx").on(t.date, t.page)],
+);
+
+/** Pre-computed keyword-cannibalization conflicts (PROJECTLOG §18). One row per
+ *  conflicting query; `pages` holds the per-page breakdown. Populated by
+ *  lib/cannibalization-snapshot.ts (gsc-snapshot cron Job 5 / npm run cannibalization). */
+export const keywordConflicts = pgTable(
+  "keyword_conflicts",
+  {
+    id: serial("id").primaryKey(),
+    siteUrl: text("site_url"),
+    query: text("query").notNull(),
+    rangeLabel: text("range_label").notNull().default("3m"),
+    totalClicks: integer("total_clicks").notNull().default(0),
+    totalImpressions: integer("total_impressions").notNull().default(0),
+    pageCount: integer("page_count").notNull().default(0),
+    positionGap: real("position_gap"),
+    bestPosition: real("best_position"),
+    crossType: boolean("cross_type").notNull().default(false),
+    branded: boolean("branded").notNull().default(false),
+    commercialAtRisk: boolean("commercial_at_risk").notNull().default(false),
+    severity: text("severity").notNull().default("low"),
+    primaryPage: text("primary_page"),
+    recommendedAction: text("recommended_action"),
+    pages: jsonb("pages").notNull().default([]),
+    computedAt: timestamp("computed_at").defaultNow(),
+  },
+  (t) => [index("keyword_conflicts_range_sev_idx").on(t.rangeLabel, t.severity)],
 );
 
 /** Editable exclusion list: blog series hidden from Clusters + Conflict Checker
