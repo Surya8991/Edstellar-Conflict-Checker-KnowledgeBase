@@ -31,7 +31,7 @@ const NAV: { href: string; label: string; icon: any }[] = [
   { href: "/corpus",             label: "Edstellar Database", icon: Database },
   { href: "/conflict-checker",   label: "Conflict Checker",  icon: ScanSearch },
   { href: "/clusters",           label: "Content Clusters",  icon: Boxes },
-  { href: "/settings",           label: "Settings",          icon: Settings },
+  // Settings is rendered below the Search Console block (see the render).
   // Score History hidden for now (Session 13 - same pattern as Catalog
   // Conflicts). The /history page + /api routes still exist and dashboard
   // links to /history keep working; uncomment to restore the nav link.
@@ -219,6 +219,19 @@ export default function Sidebar({ user, signOutSlot }: { user?: SidebarUser | nu
               </div>
             )}
           </div>
+
+          {/* Settings - below the Search Console block. */}
+          <Link
+            href="/settings"
+            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
+              pathname === "/settings" || pathname.startsWith("/settings/")
+                ? "bg-slate-900 text-white"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            <Settings size={17} />
+            Settings
+          </Link>
 
           <button
             type="button"
