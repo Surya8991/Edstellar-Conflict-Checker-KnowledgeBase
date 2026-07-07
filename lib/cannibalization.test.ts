@@ -6,8 +6,7 @@ import { THRESHOLDS } from "./thresholds";
 const OPTS = {
   minImpr: 50,
   minPageImpr: 5,
-  nearGap: 5,
-  maxPos: 20,
+  nearGap: 10,
   brandTerms: ["edstellar"],
 };
 

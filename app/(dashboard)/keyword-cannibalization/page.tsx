@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { PageHeader, Card, TypeChip } from "@/app/components/ui";
+import { PageHeader, Card, TypeChip, TYPE_COLORS } from "@/app/components/ui";
 import { Pagination } from "@/app/components/Pagination";
 import { Star, Download, RefreshCw, ExternalLink, ArrowRight, Search, X } from "lucide-react";
 
@@ -37,23 +37,23 @@ interface MergeCluster { label: string; action: string; winnerUrl: string; membe
 const TABS = [
   {
     slug: "near-position",
-    label: "Near-position conflicts",
-    desc: "Queries where 2+ of your pages rank close together - Google keeps swapping them. The real, act-now cannibalization.",
+    label: "Nearer avg position",
+    desc: "Conflict keywords with a nearer avg position - difference of ±10 in position between the competing pages. Google keeps swapping them; the real, act-now cannibalization.",
   },
   {
     slug: "all-keywords",
-    label: "All keyword conflicts",
-    desc: "Every query 2+ of your pages rank for, regardless of how far apart. The full landscape.",
+    label: "No position limit",
+    desc: "Conflict keywords with no avg position limit - every query 2+ of your pages rank for, however far apart. The full landscape.",
   },
   {
     slug: "cross-type",
-    label: "Course / cross-type conflicts",
-    desc: "A query where different content types compete - e.g. a blog outranking a course. Protects revenue pages.",
+    label: "Course / other-page conflicts",
+    desc: "Pages and keywords conflicting with a course or other pages - different content types competing (e.g. a blog outranking a course). Protects revenue pages.",
   },
   {
     slug: "merge-blogs",
     label: "Blogs to merge",
-    desc: "Near-duplicate blogs (same content/intent) to consolidate into one and 301. Content-based, not keyword-based.",
+    desc: "Same content or intent blogs that need to be merged - near-duplicate blogs to consolidate into one and 301. Content-based, not keyword-based.",
   },
 ] as const;
 type TabSlug = (typeof TABS)[number]["slug"];
@@ -88,17 +88,6 @@ const ACTION_STYLE: Record<string, { label: string; cls: string; hint: string }>
   },
 };
 
-function fmt(n: number): string {
-  return n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(Math.round(n));
-}
-function shortUrl(u: string): string {
-  try {
-    const url = new URL(u);
-    return url.pathname.replace(/\/$/, "") || "/";
-  } catch {
-    return u;
-  }
-}
 function downloadCsv(filename: string, headers: string[], rows: (string | number)[][]) {
   const esc = (v: string | number) => {
     const s = String(v);
@@ -128,7 +117,7 @@ function Inner() {
   const tab: TabSlug = TABS.some((t) => t.slug === section) ? section : "near-position";
 
   const [groups, setGroups] = useState<CGroup[]>([]);
-  const [thresholds, setThresholds] = useState<{ nearGap: number; maxPos: number }>({ nearGap: 5, maxPos: 20 });
+  const [thresholds, setThresholds] = useState<{ nearGap: number }>({ nearGap: 10 });
   const [lastComputed, setLastComputed] = useState<string | null>(null);
   const [merge, setMerge] = useState<MergeCluster[]>([]);
   const [loading, setLoading] = useState(true);
@@ -140,6 +129,7 @@ function Inner() {
   const [search, setSearch] = useState("");
   const [sevFilter, setSevFilter] = useState<Severity | null>(null);
   const [actionFilter, setActionFilter] = useState<string | null>(null);
+  const [typeFilter, setTypeFilter] = useState<string | null>(null);
 
   // Tabs 1-3: pre-computed keyword conflicts.
   useEffect(() => {
@@ -152,7 +142,7 @@ function Inner() {
         if (d.error) setError(d.error);
         else {
           setGroups(d.groups ?? []);
-          setThresholds(d.thresholds ?? { nearGap: 5, maxPos: 20 });
+          setThresholds(d.thresholds ?? { nearGap: 10 });
           setLastComputed(d.lastComputed ?? null);
         }
       })
@@ -190,7 +180,7 @@ function Inner() {
   }, []);
 
   const near = useMemo(
-    () => groups.filter((g) => g.positionGap <= thresholds.nearGap && g.bestPosition <= thresholds.maxPos),
+    () => groups.filter((g) => g.positionGap <= thresholds.nearGap),
     [groups, thresholds],
   );
   const crossType = useMemo(() => groups.filter((g) => g.crossType), [groups]);
@@ -209,24 +199,49 @@ function Inner() {
       !s || g.query.toLowerCase().includes(s) || g.pages.some((p) => p.page.toLowerCase().includes(s));
   }, [search]);
 
+  const hasType = (g: CGroup, t: string) => g.pages.some((p) => (p.contentType ?? "other") === t);
+
   // Contextual counts: each dimension respects the OTHER active filters + search.
   const sevCounts = useMemo(() => {
     const c: Record<Severity, number> = { high: 0, medium: 0, low: 0 };
-    for (const g of rows) if (matchesSearch(g) && (!actionFilter || g.action === actionFilter)) c[g.severity]++;
+    for (const g of rows)
+      if (matchesSearch(g) && (!actionFilter || g.action === actionFilter) && (!typeFilter || hasType(g, typeFilter)))
+        c[g.severity]++;
     return c;
-  }, [rows, matchesSearch, actionFilter]);
+  }, [rows, matchesSearch, actionFilter, typeFilter]);
   const actionCounts = useMemo(() => {
     const c: Record<string, number> = {};
-    for (const g of rows) if (matchesSearch(g) && (!sevFilter || g.severity === sevFilter)) c[g.action] = (c[g.action] ?? 0) + 1;
+    for (const g of rows)
+      if (matchesSearch(g) && (!sevFilter || g.severity === sevFilter) && (!typeFilter || hasType(g, typeFilter)))
+        c[g.action] = (c[g.action] ?? 0) + 1;
     return c;
-  }, [rows, matchesSearch, sevFilter]);
+  }, [rows, matchesSearch, sevFilter, typeFilter]);
+  const typeCounts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const g of rows) {
+      if (!(matchesSearch(g) && (!sevFilter || g.severity === sevFilter) && (!actionFilter || g.action === actionFilter))) continue;
+      const seen = new Set<string>();
+      for (const p of g.pages) {
+        const t = p.contentType ?? "other";
+        if (!seen.has(t)) {
+          seen.add(t);
+          c[t] = (c[t] ?? 0) + 1;
+        }
+      }
+    }
+    return c;
+  }, [rows, matchesSearch, sevFilter, actionFilter]);
 
   const filtered = useMemo(
     () =>
       rows.filter(
-        (g) => matchesSearch(g) && (!sevFilter || g.severity === sevFilter) && (!actionFilter || g.action === actionFilter),
+        (g) =>
+          matchesSearch(g) &&
+          (!sevFilter || g.severity === sevFilter) &&
+          (!actionFilter || g.action === actionFilter) &&
+          (!typeFilter || hasType(g, typeFilter)),
       ),
-    [rows, matchesSearch, sevFilter, actionFilter],
+    [rows, matchesSearch, sevFilter, actionFilter, typeFilter],
   );
   const mergeFiltered = useMemo(() => {
     const s = search.trim().toLowerCase();
@@ -234,18 +249,20 @@ function Inner() {
     return merge.filter((c) => c.label.toLowerCase().includes(s) || c.members.some((m) => m.url.toLowerCase().includes(s)));
   }, [merge, search]);
 
-  const hasFilter = !!(search.trim() || sevFilter || actionFilter);
+  const hasFilter = !!(search.trim() || sevFilter || actionFilter || typeFilter);
   function clearFilters() {
     setSearch("");
     setSevFilter(null);
     setActionFilter(null);
+    setTypeFilter(null);
   }
 
-  // Reset page on tab/filter change; drop severity/action filters when switching tabs.
-  useEffect(() => setPage(1), [tab, search, sevFilter, actionFilter]);
+  // Reset page on tab/filter change; drop pill filters when switching tabs.
+  useEffect(() => setPage(1), [tab, search, sevFilter, actionFilter, typeFilter]);
   useEffect(() => {
     setSevFilter(null);
     setActionFilter(null);
+    setTypeFilter(null);
   }, [tab]);
 
   function go(slug: TabSlug) {
@@ -346,6 +363,22 @@ function Inner() {
                   active={actionFilter === a}
                   cls={ACTION_STYLE[a].cls}
                   onClick={() => setActionFilter(actionFilter === a ? null : a)}
+                />
+              ))}
+
+            <span className="ml-2 text-[11px] font-medium uppercase tracking-wide text-slate-400">Type</span>
+            <FilterPill label="All" active={!typeFilter} onClick={() => setTypeFilter(null)} />
+            {Object.entries(typeCounts)
+              .filter(([t, n]) => n > 0 || typeFilter === t)
+              .sort((a, b) => b[1] - a[1])
+              .map(([t, n]) => (
+                <FilterPill
+                  key={t}
+                  label={t.replace("-", " ")}
+                  count={n}
+                  active={typeFilter === t}
+                  cls={TYPE_COLORS[t] ?? "bg-slate-100 text-slate-600"}
+                  onClick={() => setTypeFilter(typeFilter === t ? null : t)}
                 />
               ))}
           </>
@@ -482,7 +515,7 @@ function ConflictCard({ g }: { g: CGroup }) {
             <span className="truncate font-medium text-slate-900">{g.query}</span>
           </div>
           <div className="mt-1 text-xs text-slate-500 tabular-nums">
-            {g.pageCount} pages · {fmt(g.totalImpressions)} impr · {fmt(g.totalClicks)} clicks · gap{" "}
+            {g.pageCount} pages · {g.totalImpressions.toLocaleString()} impr · {g.totalClicks.toLocaleString()} clicks · gap{" "}
             {g.positionGap.toFixed(1)} · best pos {g.bestPosition.toFixed(1)}
             {g.commercialAtRisk && <span className="ml-2 font-medium text-red-600">⚠ money page losing</span>}
           </div>
@@ -509,19 +542,19 @@ function ConflictCard({ g }: { g: CGroup }) {
               <td className="py-1.5 pr-2 align-top">
                 <TypeChip type={p.contentType ?? "static"} />
               </td>
-              <td className="max-w-xs truncate py-1.5 pr-3 align-top">
-                <a href={p.page} target="_blank" rel="noreferrer" className="text-slate-700 hover:underline">
-                  {shortUrl(p.page)}
+              <td className="py-1.5 pr-3 align-top">
+                <a href={p.page} target="_blank" rel="noreferrer" className="break-all text-slate-700 hover:underline">
+                  {p.page}
                 </a>
               </td>
               <td className="whitespace-nowrap py-1.5 pr-3 text-right align-top text-xs text-slate-500 tabular-nums">
                 pos {p.position.toFixed(1)}
               </td>
               <td className="whitespace-nowrap py-1.5 pr-3 text-right align-top text-xs text-slate-500 tabular-nums">
-                {fmt(p.impressions)} impr
+                {p.impressions.toLocaleString()} impr
               </td>
               <td className="whitespace-nowrap py-1.5 text-right align-top text-xs text-slate-500 tabular-nums">
-                {fmt(p.clicks)} clicks
+                {p.clicks.toLocaleString()} clicks
               </td>
             </tr>
           ))}
@@ -569,21 +602,21 @@ function MergeTab({ clusters, loading }: { clusters: MergeCluster[]; loading: bo
                 {c.action === "merge" ? "Merge → 301" : "Consolidate"}
               </span>
             </div>
-            <div className="mt-2 flex items-center gap-2 text-sm">
-              <Star size={13} className="text-emerald-600" fill="currentColor" />
-              <a href={winner.url} target="_blank" rel="noreferrer" className="text-slate-800 hover:underline">
-                {shortUrl(winner.url)}
+            <div className="mt-2 flex items-start gap-2 text-sm">
+              <Star size={13} className="mt-0.5 shrink-0 text-emerald-600" fill="currentColor" />
+              <a href={winner.url} target="_blank" rel="noreferrer" className="break-all text-slate-800 hover:underline">
+                {winner.url}
               </a>
-              <span className="text-xs text-slate-400">keep</span>
+              <span className="shrink-0 text-xs text-slate-400">keep</span>
             </div>
             <div className="mt-1 space-y-1 pl-5">
               {losers.map((m) => (
-                <div key={m.url} className="flex items-center gap-1.5 text-xs text-slate-500">
-                  <ArrowRight size={11} className="text-slate-300" />
-                  <a href={m.url} target="_blank" rel="noreferrer" className="hover:underline">
-                    {shortUrl(m.url)}
+                <div key={m.url} className="flex items-start gap-1.5 text-xs text-slate-500">
+                  <ArrowRight size={11} className="mt-0.5 shrink-0 text-slate-300" />
+                  <a href={m.url} target="_blank" rel="noreferrer" className="break-all hover:underline">
+                    {m.url}
                   </a>
-                  <span className="text-slate-400">301 →</span>
+                  <span className="shrink-0 text-slate-400">301 →</span>
                 </div>
               ))}
             </div>

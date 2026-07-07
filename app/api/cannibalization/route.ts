@@ -43,7 +43,6 @@ export async function GET(_req: NextRequest) {
 
     const { url: urlPatterns, query: queryPatterns, exception } = await getExclusions();
     const nearGap = THRESHOLDS.cannibalNearGap;
-    const maxPos = THRESHOLDS.cannibalMaxPos;
 
     const groups: any[] = [];
     for (const r of rows) {
@@ -69,12 +68,12 @@ export async function GET(_req: NextRequest) {
       });
     }
 
-    const near = groups.filter((g) => g.positionGap <= nearGap && g.bestPosition <= maxPos).length;
+    const near = groups.filter((g) => g.positionGap <= nearGap).length;
     const crossType = groups.filter((g) => g.crossType).length;
 
     return NextResponse.json({
       lastComputed: rows[0]?.computed_at ?? null,
-      thresholds: { nearGap, maxPos },
+      thresholds: { nearGap },
       counts: { all: groups.length, near, crossType },
       groups,
     });

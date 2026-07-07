@@ -54,7 +54,7 @@ const SEARCH_CONSOLE_SECTIONS = [
 ];
 
 const ADDITIONAL_NAV: { href: string; label: string; icon: any }[] = [
-  { href: "/",                   label: "Dashboard",         icon: LayoutDashboard },
+  { href: "/dashboard",          label: "Dashboard",         icon: LayoutDashboard },
   { href: "/manager",            label: "Manager View",      icon: BarChart3 },
   { href: "/competitors",        label: "Competitors",       icon: Swords },
   { href: "/bulk-check",         label: "Bulk Check",        icon: Layers },

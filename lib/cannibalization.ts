@@ -64,8 +64,7 @@ export interface ConflictGroup {
 export interface BuildOpts {
   minImpr: number; // group-total impressions floor
   minPageImpr: number; // per-page impressions floor to count as a real competitor
-  nearGap: number; // avg-position gap under which the top-2 pages are "near"
-  maxPos: number; // best position must be <= this for a group to be "near"
+  nearGap: number; // max avg-position DIFFERENCE (±) for the top-2 pages to be "near"
   brandTerms: string[];
 }
 
@@ -223,8 +222,9 @@ export function buildConflicts(
     }
     for (const p of pages) p.role = p.page === primary.page ? "primary" : "cannibal";
 
-    // 6. Action (rule-based, SEO best practice).
-    const near = positionGap <= opts.nearGap && bestPosition <= opts.maxPos;
+    // 6. Action (rule-based, SEO best practice). "near" = the two pages' avg
+    //    positions are within ±nearGap of each other (Google is undecided).
+    const near = positionGap <= opts.nearGap;
     let action: ConflictAction;
     if (crossType && maxCommercial > 1) {
       // don't 301 across intents - link/deoptimize toward the money page

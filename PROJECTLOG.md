@@ -2644,3 +2644,22 @@ filtered set; the merge-blogs tab honours the search box. Live-verified.
   differentiate 337 / protect-commercial 199 / consolidate 112 / monitor 76.
   `keyword_conflicts` populated via `npm run cannibalization` (GSC_SITE_URL passed
   inline; writes to the shared prod DB - additive new table). 87/87 tests, typecheck clean.
+
+### 18E. Follow-ups (root landing, type filter, ±10 near, full URLs, exact impr)
+
+- **Root `/` now lands on the Edstellar Database.** Dashboard moved to
+  `/dashboard` (`app/(dashboard)/dashboard/page.tsx`); `app/(dashboard)/page.tsx`
+  is a `redirect("/corpus")`. Sidebar Dashboard nav → `/dashboard`; the logo (still
+  `/`) resolves to the Edstellar Database on load.
+- **"Near" redefined to ±10 position difference** (per the tab spec). Removed
+  `cannibalMaxPos`; `cannibalNearGap` 5 → **10** (`CONFLICT_CANNIBAL_NEAR_GAP`).
+  `near` everywhere = `positionGap <= nearGap` only (buildConflicts action/severity
+  + Tab 1 filter + API count). Re-ran the snapshot so stored severity/action reflect it.
+- **Type filter** added to the Keyword Cannibalization filter bar (content-type
+  pills; a conflict "has" a type if any competing page is that type). Contextual
+  like the others (respects search + severity + action; zero-count hidden).
+- **Full URLs** shown for every competing page + merge winner/losers (was the path
+  only). **Impressions shown exact** (`toLocaleString()`, e.g. 8,943) instead of
+  the "8.9k" short form, per request; clicks too.
+- Tab labels/descriptions reworded to the user's four lines. `fmt`/`shortUrl`
+  helpers removed (dead after the exact-number/full-URL switch).

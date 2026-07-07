@@ -102,7 +102,6 @@ export async function snapshotKeywordConflicts(): Promise<{ groups: number; rows
     minImpr: THRESHOLDS.cannibalMinImpr,
     minPageImpr: THRESHOLDS.cannibalMinPageImpr,
     nearGap: THRESHOLDS.cannibalNearGap,
-    maxPos: THRESHOLDS.cannibalMaxPos,
     brandTerms,
   });
 

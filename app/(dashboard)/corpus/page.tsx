@@ -163,7 +163,7 @@ export default function CorpusPage() {
   return (
     <div>
       <PageHeader
-        title="Corpus"
+        title="Edstellar Database"
         subtitle="The existing-content index every check is compared against - categorised from the Edstellar catalog."
         right={
           <span className="text-sm text-slate-500">
