@@ -198,9 +198,19 @@ export interface TopicKey {
 
 export function topicKey(input: SignalInput, idx: DfIndex): TopicKey {
   const { unigrams, bigrams: bi } = pageTerms(input);
+  const uni = unigrams.filter((t) => isDistinctive(t, idx));
+  const uniSet = new Set(uni);
   return {
-    unigrams: unigrams.filter((t) => isDistinctive(t, idx)),
-    bigrams: bi.filter((t) => isDistinctive(t, idx)),
+    unigrams: uni,
+    // A bigram is a genuine topic phrase only if BOTH its words are distinctive.
+    // "safety corporate" / "corporate chemical" contain the template word
+    // "corporate" — the *bigram* is rare (would pass a bigram-DF test) but it's
+    // template noise, and it made one topic's label read like three (PROJECTLOG
+    // §17K). Requiring both unigrams distinctive drops it cleanly.
+    bigrams: bi.filter((t) => {
+      const [w1, w2] = t.split(" ");
+      return uniSet.has(w1) && uniSet.has(w2) && isDistinctive(t, idx);
+    }),
   };
 }
 

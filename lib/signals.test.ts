@@ -1,7 +1,10 @@
 /** npx tsx --test lib/signals.test.ts */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { tokenize, jaccard, slugTokens, slugOverlap, signalScores, buildDfIndex } from "./signals";
+import {
+  tokenize, jaccard, slugTokens, slugOverlap, signalScores, buildDfIndex,
+  topicKey, topicLabel,
+} from "./signals";
 
 test("tokenize lowercases, strips punctuation + stopwords", () => {
   assert.deepEqual(tokenize("The Skill-Gap Assessment!"), ["skill", "gap", "assessment"]);
@@ -82,4 +85,23 @@ test("signalScores with a DF index denoises template-only title/slug matches (2c
   // A genuine shared topic token survives the filter.
   const c = { title: "Big Data Training Courses", url: "https://x.com/blog/big-data-companies" };
   assert.ok(signalScores(a, c, 0.9, df).title > 0, "shared topic token 'big data' survives");
+});
+
+test("topicKey drops bigrams containing a template word (§17K label fix)", () => {
+  // "corporate" is template (every page); "chemical"/"safety" are topic words.
+  const corpus = [
+    { title: "Corporate Chemical Safety Training", url: "https://x.com/course/chemical-safety-training" },
+    ...Array.from({ length: 200 }, (_, i) => ({
+      title: `Corporate Subjectterm${i} Training`,
+      url: `https://x.com/category/subjectterm${i}-training`,
+    })),
+  ];
+  const df = buildDfIndex(corpus, 0.05);
+  const key = topicKey(corpus[0], df);
+  // Only the both-words-distinctive bigram survives — no "corporate chemical"
+  // or "safety corporate" leaking the template word into the label.
+  assert.deepEqual(key.bigrams, ["chemical safety"]);
+  assert.ok(!key.bigrams.some((b) => b.includes("corporate")));
+  // Label reads as one clean topic, not three.
+  assert.equal(topicLabel(key), "chemical safety");
 });

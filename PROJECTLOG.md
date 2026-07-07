@@ -2171,3 +2171,30 @@ The verification script (`scripts/local-verify-clusters.ts`) is gitignored
 (`scripts/local-*`), not committed. `LLM_KILL_SWITCH`/ingest paths were NOT run
 (they write to the shared prod DB) — the ingest/redirect fixes (§17H) still need
 a Neon-branch round-trip to verify end-to-end.
+
+### 17K. Bigram label pollution fix (template words leaking into topic labels)
+
+A cluster on one topic showed the label "chemical safety · safety corporate ·
+corporate chemical" — reading like THREE topics when it's one (chemical safety).
+Cause: the bigram DF filter kept bigrams like "safety corporate" / "corporate
+chemical" because the *bigram* is rare (distinctive by bigram-DF), even though
+"corporate" is a template unigram (82%+ DF). The pollution hit only the label,
+but it also added noise to the overlap score.
+
+Fix (`topicKey`, one rule): **a bigram survives only if BOTH its words are
+distinctive unigrams** (not just the bigram itself). "chemical safety" (both
+topic) stays; "safety corporate" (template word) drops. Measured effect on the
+live corpus — strictly better:
+
+- Labels are clean: the big-data cluster label went from "corporate big · big
+  data · data training" → **"big data"**.
+- Clustering got *tighter and more accurate*: removing template bigrams let the
+  genuine "big data" signal dominate, so the big-data cluster grew 3 → **8**
+  members (category + 6 big-data courses + the blog) — every member genuinely
+  about big data, no drift.
+- Overlaps re-measured: true pair big-data↔big-data-blog = 0.274, hardest false
+  sibling big-data↔data-analytics = 0.103 — 0.18 still sits between with margin;
+  no threshold change needed. All four acceptance checks still pass; overall
+  fewer, more precise clusters (280 topic-only / 339 via the body-floor route).
+- Regression-tested (`signals.test.ts`): a "Corporate Chemical Safety" page
+  keys to bigrams `["chemical safety"]` only, label `"chemical safety"`.
