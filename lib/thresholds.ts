@@ -73,6 +73,11 @@ export interface Thresholds {
   /** Content Clusters: minimum body cosine a member needs vs its seed - a topic
    *  match with near-zero body overlap is demoted to a singleton. */
   topicBodyFloor: number;
+  /** Content Clusters (PROJECTLOG §17L): max same-type cluster size that may be
+   *  suggested for merge/consolidate. Larger same-type families are treated as a
+   *  content SERIES (country/role variants) and get "differentiate" - you don't
+   *  301 twenty-seven distinct pages into one. */
+  groupMergeMaxSize: number;
   /** Weights used to pick the surviving (canonical) page. */
   winner: WinnerWeights;
 }
@@ -90,6 +95,7 @@ export const THRESHOLDS: Thresholds = {
   topicDfCap:             envNum("CONFLICT_TOPIC_DF_CAP", 0.05),
   topicOverlap:           envNum("CONFLICT_TOPIC_OVERLAP", 0.18),
   topicBodyFloor:         envNum("CONFLICT_TOPIC_BODY_FLOOR", 0.7),
+  groupMergeMaxSize:      envNum("CONFLICT_GROUP_MERGE_MAX_SIZE", 4),
   winner: {
     inbound:  envNum("CONFLICT_WINNER_INBOUND", 0.45),
     depth:    envNum("CONFLICT_WINNER_DEPTH", 0.3),

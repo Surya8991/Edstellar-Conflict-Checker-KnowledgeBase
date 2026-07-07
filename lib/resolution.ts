@@ -204,9 +204,20 @@ export function decidePair(
  * `pillar` ("link spokes to the pillar"). Otherwise it falls back to the
  * intent/similarity ladder for same-type near-duplicates:
  *   - mixed intent            → differentiate (they serve different searchers)
+ *   - large same-type family  → differentiate (a content series, not a pile to
+ *                               301 into one - see below)
  *   - same intent, maxSim≥merge      → merge (collapse into the winner)
  *   - same intent, maxSim≥consolidate → consolidate
  *   - else                    → differentiate
+ *
+ * The large-family guard (PROJECTLOG §17L): a big same-type cluster is almost
+ * always a SERIES - "skills in demand in {country}" ×27, "{role} roles &
+ * responsibilities" ×13 - whose members target different searchers and rank
+ * independently. "Merge → 301" there is actively harmful advice (redirecting 26
+ * distinct pages into one destroys their rankings). Body cosine can't tell a
+ * series from a dup pile because it's template-inflated (the whole reason the
+ * clustering moved to topic tokens), so we gate merge/consolidate on size:
+ * only small clusters (≤ groupMergeMaxSize) are collapse candidates.
  */
 export function groupAction(
   maxBodySim: number,
@@ -224,6 +235,8 @@ export function groupAction(
   }
   const sameIntent = intents.length > 0 && intents.every((i) => i === intents[0]);
   if (!sameIntent) return "differentiate";
+  // A large same-type family is a series, not a 301-able dup pile.
+  if (intents.length > t.groupMergeMaxSize) return "differentiate";
   if (maxBodySim >= t.bodyCosineMerge) return "merge";
   if (maxBodySim >= t.bodyCosineConsolidate) return "consolidate";
   return "differentiate";

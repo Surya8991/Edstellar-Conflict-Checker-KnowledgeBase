@@ -2128,6 +2128,50 @@ final URL). `detect-redirects` also gained a **healing branch** (a
 previously-stale page that probes 200 again clears its marks) and **404/410
 flagging** (dead pages were never marked stale before).
 
+### 17L. Content Clusters - issue fixes + filter/UI rework
+
+Acting on the blunt review of the Clusters page, fixed the substantive issues
+(no clustering-logic change - the topic engine is unchanged):
+
+- **Winner contradicted the pillar action.** For a `pillar` cluster the ★ winner
+  could be a deep course while the badge said "link spokes to the pillar" -
+  pointing at different pages. Winner is now forced to the seed for pillar
+  clusters (`app/api/groups/route.ts`); authority-based pick still runs for
+  merge/consolidate/differentiate.
+- **"Merge -> 301" on large series was harmful advice (§17L guard).** The
+  skills-in-demand-in-{country} ×27 and {role}-roles ×13 families were tagged
+  "Merge -> 301" because the action still keyed off template-inflated body
+  cosine. Added a size gate in `groupAction`: a same-type family larger than
+  `CONFLICT_GROUP_MERGE_MAX_SIZE` (default 4) gets `differentiate`, not merge -
+  you don't 301 twenty-seven distinct pages into one. Live result: 0 same-type
+  clusters >4 still suggest merge; remaining merges are all size 2-4.
+- **Ugly listicle labels.** `topicLabel` now drops pure numerals + a small
+  DISPLAY-ONLY filler set ("top/most/best/…") and dedupes overlapping bigrams:
+  "top 11 · 11 demand · demand denmark" -> "demand denmark". Matching is
+  untouched (topicOverlap never used the label), so no recalibration.
+- **Type filter lied.** It keyed off the winner's type, so a big-data cluster
+  (winner = category) was invisible under the "course" filter. Now a cluster
+  matches a type if ANY member has it; the pill counts jumped accordingly
+  (category 2 -> 27, course 169 -> 207) and are correct.
+- **`matchSim` "26% topic" was meaningless.** Member rows now lead with the
+  intuitive body-cosine "N% match" (content similarity to the pillar); the
+  abstract IDF topic-overlap moved to the tooltip.
+- **Singletons were a dead-end stat.** The route now returns a capped (500)
+  browsable list of unique-topic pages; the page renders them in a collapsible,
+  searchable section instead of just printing "1,548".
+- **Full scan on every visit.** `/api/groups` gained a per-instance response
+  cache (5-min TTL, keyed by overlap|minSize|limit); repeat loads dropped from
+  ~6.5s to ~0.1s. The Rescan button passes `?fresh=1` to bypass it.
+- **Search intent** is hidden by default behind a "show intent" checkbox
+  (clusters are about topic, not intent).
+- Filter bar reworked into labeled Action / Type rows + a controls row (show
+  intent, clear-filters, search) in a bordered panel.
+- Fixed a stray NUL byte in `route.ts` (a bad separator char that made the file
+  read as binary to tooling).
+
+New knob in `lib/thresholds.ts`: `CONFLICT_GROUP_MERGE_MAX_SIZE` (4). All
+verified against the live corpus (read-only) + browser; 64/64 tests, build clean.
+
 ### 17I. Deferred (tracked, not this pass)
 
 - **GSC query-overlap edges - the gold-standard upgrade** (17F #1–2): once

@@ -162,6 +162,15 @@ test("groupAction: mixed intent → differentiate regardless of similarity", () 
   assert.equal(groupAction(0.95, ["commercial", "informational"]), "differentiate");
 });
 
+test("groupAction: large same-type family → differentiate, not merge (§17L)", () => {
+  // 27 same-intent pages with template-inflated body sim = a series, not a pile
+  // to 301 into one page.
+  const many = Array.from({ length: 27 }, () => "informational" as const);
+  assert.equal(groupAction(0.95, many), "differentiate");
+  // A small same-type cluster still merges.
+  assert.equal(groupAction(0.95, ["informational", "informational"]), "merge");
+});
+
 test("groupAction: hub seed + cross-type spokes → pillar", () => {
   assert.equal(
     groupAction(0.6, ["commercial", "informational"], undefined, {

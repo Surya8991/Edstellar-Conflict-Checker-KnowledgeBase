@@ -105,3 +105,18 @@ test("topicKey drops bigrams containing a template word (§17K label fix)", () =
   // Label reads as one clean topic, not three.
   assert.equal(topicLabel(key), "chemical safety");
 });
+
+test("topicLabel drops listicle filler/numerals and dedupes overlaps", () => {
+  // Mimics "11 Most In-Demand Skills in Denmark" - the label used to read
+  // "top 11 · 11 demand · demand denmark".
+  const key = {
+    unigrams: ["11", "most", "demand", "skills", "denmark"],
+    bigrams: ["11 most", "most demand", "demand skills", "skills denmark"],
+  };
+  const label = topicLabel(key);
+  assert.ok(!/\d/.test(label), "no numerals in label");
+  assert.ok(!/\b(top|most|best)\b/.test(label), "no listicle filler");
+  // Overlapping bigrams collapse - "demand skills" and "skills denmark" don't
+  // both appear verbatim once their shared words are used.
+  assert.ok(label.includes("demand") && label.includes("denmark"));
+});

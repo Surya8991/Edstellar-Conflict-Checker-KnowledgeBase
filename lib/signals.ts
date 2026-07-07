@@ -250,8 +250,43 @@ export function sharedTopicTerms(a: TopicKey, b: TopicKey): string[] {
   return [...new Set(shared)];
 }
 
-/** A topic key's own label terms (bigrams first), for the cluster header. */
+/** Listicle / filler words that make a poor topic label ("Top 11 Most…").
+ *  DISPLAY-ONLY — never used for matching, so it can't affect clustering. */
+const LABEL_FILLER = new Set([
+  "top", "most", "best", "list", "guide", "complete", "ultimate", "essential",
+  "common", "key", "examples", "example", "ways", "tips", "types", "type",
+  "popular", "leading", "great", "good", "new", "latest",
+]);
+const isFillerToken = (w: string) => /^\d+$/.test(w) || LABEL_FILLER.has(w);
+
+/**
+ * A topic key's own label terms for the cluster header (e.g. "big data").
+ * Bigrams first, then unigrams — but: drop bigrams/unigrams that are pure
+ * numerals or listicle filler ("top 11", "most"), and DEDUPE overlapping terms
+ * so "top 11 · 11 demand · demand denmark" collapses to "demand · denmark".
+ */
 export function topicLabel(key: TopicKey, max = 3): string {
-  const terms = [...key.bigrams, ...key.unigrams.filter((u) => !key.bigrams.some((b) => b.includes(u)))];
-  return terms.slice(0, max).join(" · ");
+  const bigrams = key.bigrams.filter((b) => b.split(" ").every((w) => !isFillerToken(w)));
+  const unigrams = key.unigrams.filter((u) => !isFillerToken(u));
+  const used = new Set<string>();
+  const out: string[] = [];
+  for (const b of bigrams) {
+    if (out.length >= max) break;
+    const words = b.split(" ");
+    if (words.every((w) => used.has(w))) continue; // fully covered already
+    out.push(b);
+    words.forEach((w) => used.add(w));
+  }
+  for (const u of unigrams) {
+    if (out.length >= max) break;
+    if (used.has(u)) continue;
+    out.push(u);
+    used.add(u);
+  }
+  // Fallbacks so a label is never empty (all-numeral/filler topics).
+  return (
+    out.join(" · ") ||
+    key.bigrams.slice(0, max).join(" · ") ||
+    key.unigrams.slice(0, max).join(" · ")
+  );
 }
