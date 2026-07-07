@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Vercel + GitHub — Step-by-Step Guide</title>
+<title>Vercel + GitHub - Step-by-Step Guide</title>
 <style>
   :root{
     --bg:#0b1020; --panel:#121831; --panel2:#0f1530; --border:#1f2747;
@@ -65,7 +65,7 @@
   <div class="brand">
     <div class="logo">CC</div>
     <div>
-      <h1>Vercel + GitHub — Step-by-Step Guide</h1>
+      <h1>Vercel + GitHub - Step-by-Step Guide</h1>
       <div class="sub">Plain-English walkthrough of every action you'll take in GitHub and Vercel to run this project.</div>
     </div>
   </div>
@@ -81,9 +81,9 @@
   <h3>Contents</h3>
   <ol>
     <li><a href="#picture">The big picture</a></li>
-    <li><a href="#github">GitHub — the repo</a></li>
-    <li><a href="#vercel">Vercel — first-time setup</a> <span class="pill req">do once</span></li>
-    <li><a href="#crons">Crons — what they do, what they cost</a></li>
+    <li><a href="#github">GitHub - the repo</a></li>
+    <li><a href="#vercel">Vercel - first-time setup</a> <span class="pill req">do once</span></li>
+    <li><a href="#crons">Crons - what they do, what they cost</a></li>
     <li><a href="#update">Updating prod (day-to-day)</a></li>
     <li><a href="#daily">Day-to-day cheat sheet</a></li>
     <li><a href="#troubleshoot">Troubleshooting</a></li>
@@ -100,7 +100,7 @@
     <tbody>
       <tr><td><strong>GitHub</strong><br><code>Layruss98266/Edstellar-Conflict-Checker-KnowledgeBase</code></td><td>Source code + history.</td><td>Push changes. Code reviews. Roll back if needed.</td></tr>
       <tr><td><strong>Vercel</strong></td><td>The running app at <code>https://&lt;project&gt;.vercel.app</code>. Reads GitHub, builds it.</td><td>Set env vars. Watch builds. Add custom domain. Read function logs.</td></tr>
-      <tr><td><strong>Neon</strong> (Postgres)</td><td>Corpus + check history database.</td><td>Nothing day-to-day — set the connection string once.</td></tr>
+      <tr><td><strong>Neon</strong> (Postgres)</td><td>Corpus + check history database.</td><td>Nothing day-to-day - set the connection string once.</td></tr>
       <tr><td><strong>Groq / Anthropic / Google / Serper</strong></td><td>External APIs the app calls.</td><td>Get keys once, paste into Vercel env vars.</td></tr>
     </tbody>
   </table>
@@ -108,7 +108,7 @@
 </section>
 
 <section id="github" class="step">
-  <h2>1. GitHub — the repo</h2>
+  <h2>1. GitHub - the repo</h2>
 
   <h3>Where it is</h3>
   <p><a href="https://github.com/Layruss98266/Edstellar-Conflict-Checker-KnowledgeBase">github.com/Layruss98266/Edstellar-Conflict-Checker-KnowledgeBase</a> on the <code>main</code> branch.</p>
@@ -117,7 +117,7 @@
 <pre><button class="copy">copy</button><code>git clone https://github.com/Layruss98266/Edstellar-Conflict-Checker-KnowledgeBase.git
 cd Edstellar-Conflict-Checker-KnowledgeBase
 npm install
-cp .env.example .env       # fill in real values — see SETUP_GUIDE.md</code></pre>
+cp .env.example .env       # fill in real values - see SETUP_GUIDE.md</code></pre>
 
   <h3>The branch model</h3>
   <ul>
@@ -128,15 +128,15 @@ cp .env.example .env       # fill in real values — see SETUP_GUIDE.md</code></
   <h3>The rules you can't break</h3>
   <div class="danger">
     <ul style="margin:0">
-      <li><strong>Never commit <code>.env</code></strong> — it has secrets. <code>.gitignore</code> blocks it, but check <code>git status</code> before every commit.</li>
-      <li><strong>Never push directly to <code>main</code></strong> if a teammate is reviewing — open a PR.</li>
-      <li><strong>Never run <code>git push --force</code> on <code>main</code></strong> — it rewrites history Vercel relies on.</li>
+      <li><strong>Never commit <code>.env</code></strong> - it has secrets. <code>.gitignore</code> blocks it, but check <code>git status</code> before every commit.</li>
+      <li><strong>Never push directly to <code>main</code></strong> if a teammate is reviewing - open a PR.</li>
+      <li><strong>Never run <code>git push --force</code> on <code>main</code></strong> - it rewrites history Vercel relies on.</li>
     </ul>
   </div>
 </section>
 
 <section id="vercel" class="step">
-  <h2>2. Vercel — first-time setup <span class="pill req">do once</span></h2>
+  <h2>2. Vercel - first-time setup <span class="pill req">do once</span></h2>
 
   <h3>2.1 Sign in and import the repo</h3>
   <ol class="steps">
@@ -145,7 +145,7 @@ cp .env.example .env       # fill in real values — see SETUP_GUIDE.md</code></
     <li>Find <code>Edstellar-Conflict-Checker-KnowledgeBase</code> in the list → <strong>Import</strong>.</li>
     <li><strong>Framework Preset</strong>: Vercel auto-detects <strong>Next.js</strong>. Leave default.</li>
     <li><strong>Root Directory</strong>: leave as <code>.</code> (the app is at repo root since the flatten).</li>
-    <li><strong>Don't click Deploy yet</strong> — env vars first.</li>
+    <li><strong>Don't click Deploy yet</strong> - env vars first.</li>
   </ol>
 
   <h3>2.2 Add environment variables</h3>
@@ -161,12 +161,12 @@ cp .env.example .env       # fill in real values — see SETUP_GUIDE.md</code></
       <tr><td><code>AI_CHAT_PROVIDER</code></td><td><code>groq</code></td><td>literal value</td></tr>
       <tr><td><code>AI_EMBED_PROVIDER</code></td><td><code>local</code></td><td>literal value</td></tr>
       <tr><td><code>APP_BASE_URL</code></td><td><code>https://edstellar-conflict-checker-knowledg.vercel.app</code></td><td>Vercel will show this URL after first deploy. Add as placeholder now; update after deploy.</td></tr>
-      <tr><td><code>CRON_SECRET</code></td><td>Long random string, e.g. <code>openssl rand -hex 32</code></td><td><strong>Required in prod</strong> — cron routes fail OPEN if unset; anyone could trigger DB-writing jobs.</td></tr>
+      <tr><td><code>CRON_SECRET</code></td><td>Long random string, e.g. <code>openssl rand -hex 32</code></td><td><strong>Required in prod</strong> - cron routes fail OPEN if unset; anyone could trigger DB-writing jobs.</td></tr>
       <tr><td><code>BRAND_TERMS</code></td><td><code>edstellar,edstellar.com</code></td><td>literal value</td></tr>
     </tbody>
   </table>
 
-  <h3>Optional — add when you need the feature</h3>
+  <h3>Optional - add when you need the feature</h3>
   <table>
     <thead><tr><th>Name</th><th>Required for</th><th>Notes</th></tr></thead>
     <tbody>
@@ -186,12 +186,12 @@ cp .env.example .env       # fill in real values — see SETUP_GUIDE.md</code></
     <li>If it fails, see <a href="#troubleshoot">§ 6. Troubleshooting</a>.</li>
   </ol>
 
-  <h3>2.4 First-deploy follow-up — seed the database</h3>
+  <h3>2.4 First-deploy follow-up - seed the database</h3>
   <p>The app is up but the database is empty. The Conflict Checker has nothing to compare against until you do this:</p>
 <pre><button class="copy">copy</button><code># From your local laptop, using the SAME DATABASE_URL Vercel has:
 npm run db:setup        # one-time: enable pgvector, create tables (idempotent)
 npm run ingest          # ~20-30 min: crawl + embed every Edstellar URL</code></pre>
-  <div class="warn"><strong>Don't</strong> trigger this from the Vercel cron — <code>/api/cron/reingest</code> walks ~2,461 URLs sequentially, which will hit the function timeout from cold. Always do the initial seed locally. The cron is for incremental updates only.</div>
+  <div class="warn"><strong>Don't</strong> trigger this from the Vercel cron - <code>/api/cron/reingest</code> walks ~2,461 URLs sequentially, which will hit the function timeout from cold. Always do the initial seed locally. The cron is for incremental updates only.</div>
   <p>After ingest finishes, open the production URL → paste a URL or topic into <code>/conflict-checker</code> → confirm you get scored matches back.</p>
 
   <h3>2.5 Custom domain (optional)</h3>
@@ -199,7 +199,7 @@ npm run ingest          # ~20-30 min: crawl + embed every Edstellar URL</code></
 </section>
 
 <section id="crons" class="step">
-  <h2>3. Crons — what they do and what they cost</h2>
+  <h2>3. Crons - what they do and what they cost</h2>
   <p><code>vercel.json</code> schedules three jobs:</p>
   <table>
     <thead><tr><th>Path</th><th>Cadence</th><th>What it does</th></tr></thead>
@@ -213,8 +213,8 @@ npm run ingest          # ~20-30 min: crawl + embed every Edstellar URL</code></
   <h3>Plan limits</h3>
   <div class="warn">
     <ul style="margin:0">
-      <li><strong>Hobby (free)</strong> — max <strong>2 crons</strong>, <strong>daily-or-longer</strong> cadence, <strong>60 s</strong> function timeout. Current config has 3 crons → <strong>Hobby will reject one</strong>.</li>
-      <li><strong>Pro ($20/mo)</strong> — removes those caps. You need Pro to run this config as-is.</li>
+      <li><strong>Hobby (free)</strong> - max <strong>2 crons</strong>, <strong>daily-or-longer</strong> cadence, <strong>60 s</strong> function timeout. Current config has 3 crons → <strong>Hobby will reject one</strong>.</li>
+      <li><strong>Pro ($20/mo)</strong> - removes those caps. You need Pro to run this config as-is.</li>
     </ul>
   </div>
   <p>If you want to stay on Hobby, edit <code>vercel.json</code> to drop one of the weekly crons (e.g. remove <code>/api/cron/audit-links</code> and run it manually with <code>npm run audit:links</code> when you need it).</p>
@@ -222,7 +222,7 @@ npm run ingest          # ~20-30 min: crawl + embed every Edstellar URL</code></
 
 <section id="update" class="step">
   <h2>4. Updating prod (day-to-day)</h2>
-  <p>For any change — copy fix, bug fix, new feature:</p>
+  <p>For any change - copy fix, bug fix, new feature:</p>
 <pre><button class="copy">copy</button><code># 1. Make sure your local main is up to date
 git checkout main
 git pull
@@ -239,8 +239,8 @@ git commit -m "fix: what changed and why"
 git push -u origin fix/short-description</code></pre>
   <p>Then on GitHub:</p>
   <ol class="steps">
-    <li>The push prompts you to <strong>Open Pull Request</strong> — click it.</li>
-    <li>Vercel comments with a <strong>Preview URL</strong> (<code>https://&lt;branch&gt;-&lt;hash&gt;.vercel.app</code>) — click to test live.</li>
+    <li>The push prompts you to <strong>Open Pull Request</strong> - click it.</li>
+    <li>Vercel comments with a <strong>Preview URL</strong> (<code>https://&lt;branch&gt;-&lt;hash&gt;.vercel.app</code>) - click to test live.</li>
     <li>When happy → <strong>Squash and merge</strong> → delete the branch.</li>
     <li>Vercel auto-deploys <code>main</code> → prod updates in ~90 s.</li>
   </ol>
@@ -287,18 +287,18 @@ git push -u origin fix/short-thing
   <p>The redirect URI in Google Cloud Console doesn't include your Vercel URL. In Google Cloud → <strong>Credentials → your OAuth client → Authorized redirect URIs</strong>, add <code>https://edstellar-conflict-checker-knowledg.vercel.app/api/gsc/callback</code>, save, retry.</p>
 
   <h3>Cron job didn't run</h3>
-  <p>Vercel → project → <strong>Cron Jobs</strong> tab shows scheduled runs + invocation logs. If you see <code>401 Unauthorized</code>, your <code>CRON_SECRET</code> was changed but the cron job's stored secret wasn't — redeploy and Vercel re-syncs.</p>
+  <p>Vercel → project → <strong>Cron Jobs</strong> tab shows scheduled runs + invocation logs. If you see <code>401 Unauthorized</code>, your <code>CRON_SECRET</code> was changed but the cron job's stored secret wasn't - redeploy and Vercel re-syncs.</p>
 
   <h3>The function timed out</h3>
-  <p><code>maxDuration</code> is already maxed for our crons (300 s for ingest, 120 s for GSC snapshot). If <code>/api/cron/reingest</code> still times out it means too many URLs changed since the last run — re-seed locally with <code>npm run ingest -- --force</code> to catch up.</p>
+  <p><code>maxDuration</code> is already maxed for our crons (300 s for ingest, 120 s for GSC snapshot). If <code>/api/cron/reingest</code> still times out it means too many URLs changed since the last run - re-seed locally with <code>npm run ingest -- --force</code> to catch up.</p>
 </section>
 
 <section id="security" class="step">
   <h2>7. Security hygiene</h2>
   <ul>
     <li><strong>Rotate secrets quarterly</strong> or any time one might have leaked (Slack DM, screen-share, accidental commit).</li>
-    <li><strong>If a secret leaks</strong>: in Vercel → <strong>Settings → Environment Variables</strong>, update the value, then redeploy (Deployments tab → ⋯ → Redeploy). Rotate at the source — Neon → Reset password, Groq → revoke key &amp; make new one, Google → regenerate client secret.</li>
-    <li><strong>Never commit <code>.env</code></strong> — <code>.gitignore</code> blocks it; <code>git status</code> is the safety net.</li>
+    <li><strong>If a secret leaks</strong>: in Vercel → <strong>Settings → Environment Variables</strong>, update the value, then redeploy (Deployments tab → ⋯ → Redeploy). Rotate at the source - Neon → Reset password, Groq → revoke key &amp; make new one, Google → regenerate client secret.</li>
+    <li><strong>Never commit <code>.env</code></strong> - <code>.gitignore</code> blocks it; <code>git status</code> is the safety net.</li>
     <li><strong>GitHub secret scanning</strong> is on by default. If you push a secret by accident, GitHub will email you and revoke certain known-format keys (Groq, OpenAI, Anthropic do this). Still rotate immediately.</li>
   </ul>
 </section>
@@ -341,7 +341,7 @@ git push -u origin fix/short-thing
 </section>
 
 <footer>
-  Companion to <code>VERCEL_GITHUB_GUIDE.md</code>. Last updated alongside the markdown source — if the two ever drift, the markdown is authoritative.
+  Companion to <code>VERCEL_GITHUB_GUIDE.md</code>. Last updated alongside the markdown source - if the two ever drift, the markdown is authoritative.
 </footer>
 
 </div>

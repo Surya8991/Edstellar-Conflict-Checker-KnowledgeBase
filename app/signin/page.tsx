@@ -8,7 +8,7 @@ interface PageProps {
 }
 
 /**
- * Sign-in page. Server component — submits a form action that calls
+ * Sign-in page. Server component - submits a form action that calls
  * NextAuth's signIn server function. Restricted to the Edstellar Google
  * Workspace (or whatever AUTH_ALLOWED_DOMAINS is set to).
  */
@@ -21,7 +21,7 @@ export default async function SignInPage({ searchParams }: PageProps) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
       <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-        {/* Brand row — same circle-mark + wordmark + subtitle pattern as the
+        {/* Brand row - same circle-mark + wordmark + subtitle pattern as the
             sidebar header so the two surfaces read as one app. Centered for
             the sign-in context. */}
         <div className="mb-8 flex items-center justify-center gap-3">
@@ -64,7 +64,7 @@ export default async function SignInPage({ searchParams }: PageProps) {
             type="submit"
             className="inline-flex w-full items-center justify-center gap-3 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
           >
-            {/* Google G — official multi-color logo. Each quadrant is one path. */}
+            {/* Google G - official multi-color logo. Each quadrant is one path. */}
             <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
               <path fill="#4285F4" d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/>
               <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>

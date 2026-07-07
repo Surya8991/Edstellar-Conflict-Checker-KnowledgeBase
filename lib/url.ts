@@ -8,7 +8,7 @@
  *   - differ only in URL-fragment (#section)
  *   - differ only in casing of the host
  *
- * Returns the original string if it can't be parsed (defensive — never
+ * Returns the original string if it can't be parsed (defensive - never
  * throws on garbage input).
  */
 export function normalizeUrl(input: string | null | undefined): string {

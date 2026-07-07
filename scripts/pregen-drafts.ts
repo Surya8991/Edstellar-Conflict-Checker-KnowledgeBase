@@ -3,7 +3,7 @@
  *
  * Runs locally on the operator's machine. For each high-value page,
  * builds an editorial brief, calls Antigravity (`agy -p`) or Claude
- * (`claude -p`) — operator's existing subscription, no API cost —
+ * (`claude -p`) - operator's existing subscription, no API cost -
  * captures the markdown, embeds it, and UPSERTs into
  * pregenerated_drafts so /api/drafts can serve it instantly.
  *
@@ -14,7 +14,7 @@
  *   DRAFT_PROVIDER=claude npm run pregen-drafts # use Claude Code instead of agy
  *
  * Page selection (top 300):
- *   1. All pages with content_type IN ('category', 'subcategory') — hubs
+ *   1. All pages with content_type IN ('category', 'subcategory') - hubs
  *   2. Top 200 pages by gsc_clicks_28d
  *   3. Pages whose (course_type, category) cluster has zero TOFU content
  *
@@ -23,7 +23,7 @@
  */
 // Side-effect import runs SYNCHRONOUSLY at module-init, BEFORE the
 // `@/lib/db` import below initializes Drizzle with process.env.DATABASE_URL.
-// `import { config }` + a top-level call doesn't work — ES modules hoist
+// `import { config }` + a top-level call doesn't work - ES modules hoist
 // all imports above any code in the body.
 import "dotenv/config"; // loads .env (DATABASE_URL lives here)
 import { config as loadEnv } from "dotenv";
@@ -87,12 +87,12 @@ function log(msg: string, extra?: Record<string, unknown>) {
 async function selectTargetPages(limit: number): Promise<PageRow[]> {
   // Two cheap queries, merged + deduped in JS. The earlier single-CTE
   // version with three UNIONs and a NOT EXISTS subquery hung on the
-  // Neon HTTP driver — each scan was fine alone, but unioned across
+  // Neon HTTP driver - each scan was fine alone, but unioned across
   // 2,461 rows with a correlated subquery it timed out.
   //
   // Rule 1: top by 28d GSC clicks (covers traffic-priority pages).
   // Rule 2: hub pages (category / subcategory) regardless of traffic.
-  // Cluster-gap rule has been dropped from selection — it can be a
+  // Cluster-gap rule has been dropped from selection - it can be a
   // follow-up batch driven by the /strategy page once the cache exists.
   const cols = sql`id, url, title, content_type, category, course_type,
                    content_text, meta_description, gsc_clicks_28d, gsc_impressions_28d`;
@@ -127,7 +127,7 @@ async function alreadyCached(sourceUrl: string): Promise<boolean> {
 
 function buildBrief(p: PageRow): string {
   const lines: string[] = [];
-  lines.push(`# Content brief — refresh angle for: ${p.title || p.url}`);
+  lines.push(`# Content brief - refresh angle for: ${p.title || p.url}`);
   lines.push("");
   lines.push(`**Source URL (the page this draft sits next to):** ${p.url}`);
   if (p.content_type) lines.push(`**Content type:** ${p.content_type}`);
@@ -153,13 +153,13 @@ function buildBrief(p: PageRow): string {
   lines.push("");
   lines.push("## Instructions");
   lines.push("");
-  lines.push("Write a publish-ready 1500–2500 word **companion blog post** for the page above. Do NOT rewrite the existing page — write a *different* angle that supports it (a complementary deep-dive, a how-to, a beginner's guide, a frequently-asked-questions explainer — whichever fits best given the page's content type).");
+  lines.push("Write a publish-ready 1500–2500 word **companion blog post** for the page above. Do NOT rewrite the existing page - write a *different* angle that supports it (a complementary deep-dive, a how-to, a beginner's guide, a frequently-asked-questions explainer - whichever fits best given the page's content type).");
   lines.push("");
   lines.push("### Output format (strict)");
-  lines.push("Return ONLY the article. No preamble, no \"Here is your article\", no closing remarks. The first line must be the H1 (`# Title`). The second line must be `> Meta: <description ≤155 chars>`. The last line must be the conclusion's final sentence. Markdown only — no HTML.");
+  lines.push("Return ONLY the article. No preamble, no \"Here is your article\", no closing remarks. The first line must be the H1 (`# Title`). The second line must be `> Meta: <description ≤155 chars>`. The last line must be the conclusion's final sentence. Markdown only - no HTML.");
   lines.push("");
   lines.push("### Required structure");
-  lines.push("1. H1 title — under 65 chars, includes a primary keyword, no clickbait.");
+  lines.push("1. H1 title - under 65 chars, includes a primary keyword, no clickbait.");
   lines.push("2. Meta line: `> Meta: <description ≤155 chars>`.");
   lines.push("3. Intro 90–130 words.");
   lines.push("4. 4–7 H2 sections @ 200–400 words each, with H3 subsections where helpful.");
@@ -176,7 +176,7 @@ function buildBrief(p: PageRow): string {
   lines.push("- No fake quotes attributed to real people.");
   lines.push("- Do not mention competitors by name.");
   lines.push("- Link back to the source URL above as `[anchor text](" + p.url + ")` once, in a contextually natural place.");
-  lines.push("- The article must stand on its own — a reader who never visits the source URL still gets full value.");
+  lines.push("- The article must stand on its own - a reader who never visits the source URL still gets full value.");
   return lines.join("\n");
 }
 
@@ -256,7 +256,7 @@ async function main() {
   const embedder = getEmbedder();
 
   let okCount = 0, cachedCount = 0, failCount = 0;
-  // Sequential by default — local CLI is single-tenant and concurrent
+  // Sequential by default - local CLI is single-tenant and concurrent
   // spawns can hammer the embedder cache. Bump --concurrency if your
   // machine can handle it.
   if (args.concurrency === 1) {
@@ -273,7 +273,7 @@ async function main() {
       log(`progress ${i + 1}/${pages.length} · ok=${okCount} cached=${cachedCount} fail=${failCount}`);
     }
   } else {
-    // Simple bucketed concurrency — N workers pulling from a shared queue.
+    // Simple bucketed concurrency - N workers pulling from a shared queue.
     const queue = [...pages];
     await Promise.all(
       Array.from({ length: args.concurrency }, async () => {

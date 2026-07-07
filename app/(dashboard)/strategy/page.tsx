@@ -32,7 +32,7 @@ function pct(n: number, total: number): number {
   return Math.round((n / total) * 100);
 }
 
-// Centralized — mirrors lib/score-bands.ts intentStage() so a content-type
+// Centralized - mirrors lib/score-bands.ts intentStage() so a content-type
 // rename only needs to update both call sites at once.
 const STAGE_CASE_SQL = sql`
   CASE
@@ -196,7 +196,7 @@ export default async function StrategyPage() {
           </div>
           <p className="mt-3 text-xs text-slate-500">
             Healthy mix depends on goals, but a heavy BOFU skew with little TOFU/MOFU usually means awareness traffic
-            is starved — clusters below show where the gap is.
+            is starved - clusters below show where the gap is.
           </p>
         </Card>
 

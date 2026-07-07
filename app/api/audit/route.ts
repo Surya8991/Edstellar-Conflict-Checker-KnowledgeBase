@@ -7,10 +7,10 @@ export const dynamic = "force-dynamic";
 
 /**
  * GET /api/audit?kind=meta|links|health|duplicates
- *   meta       — title/meta length issues (<25 or >65 title; <70 or >160 desc)
- *   links      — pages with non-2xx http_status (run audit:links first)
- *   health     — composite per-page score (0–100)
- *   duplicates — duplicate H1s and titles in the catalog
+ *   meta       - title/meta length issues (<25 or >65 title; <70 or >160 desc)
+ *   links      - pages with non-2xx http_status (run audit:links first)
+ *   health     - composite per-page score (0–100)
+ *   duplicates - duplicate H1s and titles in the catalog
  */
 export async function GET(request: NextRequest) {
   try {
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     if (kind === "links") {
       // Return every audited row (http_status NOT NULL) so the UI can
       // distinguish broken from working, not just the 4xx/5xx slice.
-      // Pages that were never audited (http_status IS NULL) are excluded —
+      // Pages that were never audited (http_status IS NULL) are excluded -
       // they'd swamp the list and aren't a finding either way.
       const rows = await db.execute(sql`
         SELECT id, url, title, content_type, http_status, last_audited_at
@@ -88,8 +88,8 @@ export async function GET(request: NextRequest) {
     if (kind === "canonical") {
       // Pages whose <link rel="canonical"> points somewhere else (or is missing
       // entirely). Two flavours:
-      //   - 'missing'         — no canonical tag at all.
-      //   - 'cross-canonical' — canonical points to a different URL. Either a
+      //   - 'missing'         - no canonical tag at all.
+      //   - 'cross-canonical' - canonical points to a different URL. Either a
       //                          valid redirect signal OR a CMS bug; SEO eyeballs
       //                          which.
       // We pull every page that has either no canonical OR one that differs
@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
       // (trailing slash, www, http/https, casing, fragments) don't trigger a
       // false 'cross-canonical' flag. This matters because the live extractor
       // captures whatever the CMS wrote, and the URL stored in `pages.url`
-      // came from the sitemap CSV — the two often differ by one of those
+      // came from the sitemap CSV - the two often differ by one of those
       // tokens even though they resolve to the same page.
       const rows = (await db.execute(sql`
         SELECT id, url, title, content_type, canonical_url
@@ -141,15 +141,15 @@ export async function GET(request: NextRequest) {
     if (kind === "clusters") {
       // Topic-cluster health (#43). Returns TWO datasets:
       //
-      //   courseClusters — one row per (course_type, category) bucket. The
+      //   courseClusters - one row per (course_type, category) bucket. The
       //     blog count column reflects blogs whose category EXACTLY matches
       //     the course category. In practice the blog corpus uses a separate,
       //     broader taxonomy (e.g. "Training & Development" vs "Artificial
-      //     Intelligence"), so this column is mostly 0 — that's still
+      //     Intelligence"), so this column is mostly 0 - that's still
       //     useful: it surfaces clusters that have NO awareness content
       //     under matching nomenclature.
       //
-      //   blogClusters — one row per blog category (the blog corpus's own
+      //   blogClusters - one row per blog category (the blog corpus's own
       //     taxonomy). Blogs in the corpus have `course_type IS NULL` so
       //     they never appeared in the course view; this gives them their
       //     own surface with traffic + staleness so the team can spot
@@ -191,7 +191,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (kind === "stale") {
-      // Stale-content snapshot (#28) — populated by gsc-snapshot cron.
+      // Stale-content snapshot (#28) - populated by gsc-snapshot cron.
       const rows = await db.execute(sql`
         SELECT id, url, title, content_type, lastmod,
                gsc_clicks_28d, gsc_impressions_28d, gsc_position_28d, stale_reason
@@ -226,7 +226,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // health — composite per-page score
+    // health - composite per-page score
     const rows = await db.execute(sql`
       SELECT id, url, title, content_type, token_count, http_status,
              length(coalesce(title,'')) AS title_len,

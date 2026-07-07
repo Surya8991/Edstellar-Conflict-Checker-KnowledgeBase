@@ -123,7 +123,7 @@ export async function lookup(input: string) {
 }
 
 /**
- * Batched per-URL stats — used by the Conflict Checker enrich endpoint.
+ * Batched per-URL stats - used by the Conflict Checker enrich endpoint.
  * Runs sequentially (each pageStats already issues 3 calls; we don't want to
  * blow GSC quota by fanning out 10×3 in parallel).
  */

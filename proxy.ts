@@ -1,6 +1,6 @@
 /**
  * Auth proxy (Next 16 file convention; replaces the deprecated middleware.ts)
- * — NextAuth v5.
+ * - NextAuth v5.
  *
  * Behaviour controlled by AUTH_ENABLED env var:
  *   - unset / false  → proxy does nothing; site is open (current state).
@@ -20,7 +20,7 @@ import { NextResponse } from "next/server";
 import { auth, isAuthEnabled } from "@/auth";
 
 /**
- * Public-path contract — audit S5/H2 (Session 6).
+ * Public-path contract - audit S5/H2 (Session 6).
  *
  * Each entry is matched as either an exact path (`pathname === entry`) or as
  * a strict prefix (`pathname.startsWith(entry + "/")`). The trailing slash is
@@ -42,7 +42,7 @@ const PUBLIC_PATHS = [
   "/opengraph-image",
   "/robots.txt",
   "/manifest.webmanifest",
-  "/brand",               // public/brand/* — logos used on the sign-in page itself
+  "/brand",               // public/brand/* - logos used on the sign-in page itself
 ];
 
 function isPublicPath(pathname: string): boolean {
@@ -54,7 +54,7 @@ function isPublicPath(pathname: string): boolean {
 }
 
 /**
- * Audit H2 — replaced the wide `\.[a-z0-9]{2,6}$/i` regex with an explicit
+ * Audit H2 - replaced the wide `\.[a-z0-9]{2,6}$/i` regex with an explicit
  * allow-list of common static-asset extensions so future routes like
  * `/api/export.json` or `/dashboard/report.pdf` do not silently become public.
  */
@@ -71,7 +71,7 @@ const STATIC_ASSET_RE = /\.(png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|otf|eot|c
  *     an Origin header matching the request host. Same-origin browser
  *     POSTs always do; cross-site attacker POSTs don't, with the
  *     exception of HTML form posts that omit Origin entirely on some
- *     legacy browsers — we accept null Origin only when Referer matches.
+ *     legacy browsers - we accept null Origin only when Referer matches.
  *   - Read methods (GET/HEAD/OPTIONS) are unaffected.
  *   - The proxy only runs when AUTH_ENABLED=true, so unauth'd webhook
  *     posters (CMS hooks for /api/check etc.) don't trip the check.

@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 
 // Dropdown choices for every paginated table. Bumped up in Session 5 to
-// reduce per-page clicking — most data-heavy views (audit, corpus, bulk
+// reduce per-page clicking - most data-heavy views (audit, corpus, bulk
 // check) now show 100 by default; users on small viewports can drop to 50.
 export const DEFAULT_PAGE_SIZES = [50, 100, 200, 500];
 
@@ -27,7 +27,7 @@ export function Pagination({
   unit?: string;
 }) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  // Auto-reset when a filter shrinks `total` below the current page —
+  // Auto-reset when a filter shrinks `total` below the current page -
   // otherwise the caller has to remember to setPage(1) in every effect.
   useEffect(() => {
     if (page > totalPages) onJump(1);

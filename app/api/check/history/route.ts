@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(Number(params.get("limit")) || 50, 200);
 
     if (!input) {
-      // Recent — one row per input_value with run count + most recent + trend.
+      // Recent - one row per input_value with run count + most recent + trend.
       const rows = await db.execute(sql`
         SELECT input_value,
                input_type,

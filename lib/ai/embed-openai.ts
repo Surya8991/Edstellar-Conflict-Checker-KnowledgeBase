@@ -5,10 +5,10 @@ import type { EmbeddingProvider } from "./types";
  *
  * Inert until OPENAI_API_KEY is set. Wired so switching
  * AI_EMBED_PROVIDER=openai works with no business-logic changes.
- * Note: 1536 dims — requires the documented re-embed migration to widen
+ * Note: 1536 dims - requires the documented re-embed migration to widen
  * pages.embedding from 384 to 1536.
  *
- * Audit 10C (Session 8) — production hardening:
+ * Audit 10C (Session 8) - production hardening:
  *   - Chunked into ≤BATCH_MAX requests so we never hit OpenAI's 2,048-
  *     input-per-call cap. Bulk ingest at 2.5k+ pages used to crash with
  *     a 400 the moment the array got too big.
@@ -79,7 +79,7 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
           await sleep(retryAfterMs);
           continue;
         }
-        // 4xx that isn't 429 — don't retry; surface body for debugging.
+        // 4xx that isn't 429 - don't retry; surface body for debugging.
         const body = await res.text().catch(() => "");
         throw new Error(
           `OpenAI embeddings ${res.status} ${res.statusText} ${body.slice(0, 500)}`,

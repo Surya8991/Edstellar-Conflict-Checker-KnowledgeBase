@@ -13,12 +13,12 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 /**
- * POST /api/drafts  — enqueue a draft generation request from a checkId.
+ * POST /api/drafts  - enqueue a draft generation request from a checkId.
  * The route builds the brief from the check + its top matches and stores
  * it as `brief_md`. The local worker picks it up via GET ?status=queued.
  *
- * GET /api/drafts            — list drafts (UI history; session-gated)
- * GET /api/drafts?status=    — worker poll (requires X-Worker-Key)
+ * GET /api/drafts            - list drafts (UI history; session-gated)
+ * GET /api/drafts?status=    - worker poll (requires X-Worker-Key)
  */
 
 // Batch 17: POST /api/drafts is now SYNCHRONOUS. It does a vector lookup
@@ -26,7 +26,7 @@ export const maxDuration = 120;
 // or calls Groq to adapt/generate (~2-8s).
 // We accept either `input` directly (URL or topic string) or `checkId`
 // (we look up the input from the checks row). `context` is the optional
-// editorial brief — same shape as the existing copyWriterBrief output.
+// editorial brief - same shape as the existing copyWriterBrief output.
 const CreateBody = z.object({
   input: z.string().trim().min(1).max(4000).optional(),
   checkId: z.coerce.number().int().positive().optional(),
@@ -216,11 +216,11 @@ async function buildBriefFromCheckId(checkId: number): Promise<string> {
   });
 
   const lines: string[] = [];
-  lines.push(`# Content brief — Check #${checkId}`);
+  lines.push(`# Content brief - Check #${checkId}`);
   lines.push("");
   lines.push(`**Input type:** ${check.inputType}`);
   lines.push(`**Topic / source:** ${check.inputValue}`);
-  lines.push(`**Top conflict score:** ${check.topScore ?? "—"}%`);
+  lines.push(`**Top conflict score:** ${check.topScore ?? "-"}%`);
   lines.push("");
 
   if (check.summary) {
@@ -243,7 +243,7 @@ async function buildBriefFromCheckId(checkId: number): Promise<string> {
   if (avoid.length) {
     lines.push("## Avoid overlap with these existing pages");
     for (const m of avoid) {
-      lines.push(`- [${m.pageTitle || m.pageUrl}](${m.pageUrl}) — score ${m.conflictScore}%, ${m.conflictType ?? "unknown"}`);
+      lines.push(`- [${m.pageTitle || m.pageUrl}](${m.pageUrl}) - score ${m.conflictScore}%, ${m.conflictType ?? "unknown"}`);
       if (m.rationale) lines.push(`  - ${m.rationale}`);
     }
     lines.push("");
@@ -267,15 +267,15 @@ async function buildBriefFromCheckId(checkId: number): Promise<string> {
   lines.push("**Your job:** Produce a publish-ready 1500–2500 word article in Markdown that Edstellar can publish on its blog with minimal editing.");
   lines.push("");
   lines.push("### Output format (strict)");
-  lines.push("Return ONLY the article. No preamble, no \"Here is your article:\", no closing remarks. The first line must be the H1 (`# Title`). The last line must be the conclusion's final sentence. Markdown only — no HTML.");
+  lines.push("Return ONLY the article. No preamble, no \"Here is your article:\", no closing remarks. The first line must be the H1 (`# Title`). The last line must be the conclusion's final sentence. Markdown only - no HTML.");
   lines.push("");
   lines.push("### Required structure");
-  lines.push("1. **H1 title** — under 65 chars, includes the primary keyword once, no clickbait.");
-  lines.push("2. **Meta description block** — second line: `> Meta: <description ≤155 chars>` (this line gets stripped before publish; it's for SEO).");
-  lines.push("3. **Intro** — 90–130 words. State the problem, who it's for (corporate L&D / HR / training managers), and what the reader will learn. No \"In today's fast-paced world…\".");
-  lines.push("4. **4–7 H2 sections** — each with 200–400 words. Use H3 subsections where helpful. Lead with the answer, then explain.");
-  lines.push("5. **FAQ section** — `## Frequently Asked Questions` with 4–6 H3 questions. Answer each in 50–90 words. Pull from the People-Also-Ask list if available.");
-  lines.push("6. **Conclusion** — 80–120 words. Summarize the 2–3 most important takeaways and give a single, specific next step (e.g., \"Audit your current training catalogue against this checklist\").");
+  lines.push("1. **H1 title** - under 65 chars, includes the primary keyword once, no clickbait.");
+  lines.push("2. **Meta description block** - second line: `> Meta: <description ≤155 chars>` (this line gets stripped before publish; it's for SEO).");
+  lines.push("3. **Intro** - 90–130 words. State the problem, who it's for (corporate L&D / HR / training managers), and what the reader will learn. No \"In today's fast-paced world…\".");
+  lines.push("4. **4–7 H2 sections** - each with 200–400 words. Use H3 subsections where helpful. Lead with the answer, then explain.");
+  lines.push("5. **FAQ section** - `## Frequently Asked Questions` with 4–6 H3 questions. Answer each in 50–90 words. Pull from the People-Also-Ask list if available.");
+  lines.push("6. **Conclusion** - 80–120 words. Summarize the 2–3 most important takeaways and give a single, specific next step (e.g., \"Audit your current training catalogue against this checklist\").");
   lines.push("");
   lines.push("### Voice & quality bar");
   lines.push("- Audience: corporate L&D, HR, learning managers at mid-to-large enterprises.");
@@ -284,18 +284,18 @@ async function buildBriefFromCheckId(checkId: number): Promise<string> {
   lines.push("- Concrete examples > abstract claims. If you make a claim, support it.");
   lines.push("- Use lists and tables when they aid scanning, not as filler.");
   lines.push("");
-  lines.push("### Hard rules — do not break these");
+  lines.push("### Hard rules - do not break these");
   lines.push("- **No invented statistics.** If you use a number, it must be one you genuinely know to be true (well-known industry benchmarks are OK). Never write \"studies show 73% of…\" without a citation, and don't fabricate citations.");
   lines.push("- **No fake quotes.** Don't attribute statements to real people unless they're public, verifiable, and you cite the source.");
   lines.push("- **No competitor name-dropping** beyond what's already in the brief above.");
-  lines.push("- **Differentiate from the 'avoid' list.** Do NOT rewrite or paraphrase those pages — read what they cover and take a deliberately different angle (different audience, different framework, different depth, or a counterargument).");
+  lines.push("- **Differentiate from the 'avoid' list.** Do NOT rewrite or paraphrase those pages - read what they cover and take a deliberately different angle (different audience, different framework, different depth, or a counterargument).");
   lines.push("- **Use the internal-link targets** above where contextually relevant. Format as Markdown links: `[anchor text](url)`. 3–6 internal links across the article.");
-  lines.push("- **Address the People-Also-Ask questions** from the brief above somewhere in the body (not only in the FAQ — weave them into H2 sections too). This is how the article earns AI Overview / featured-snippet placement.");
+  lines.push("- **Address the People-Also-Ask questions** from the brief above somewhere in the body (not only in the FAQ - weave them into H2 sections too). This is how the article earns AI Overview / featured-snippet placement.");
   lines.push("- **Primary keyword** should appear in: H1, first 100 words, at least one H2, and the meta description.");
   lines.push("");
   lines.push("### SEO niceties");
   lines.push("- Include 2–3 secondary keywords from the keyword set naturally throughout.");
   lines.push("- Use bolded definitions for key terms on first mention.");
-  lines.push("- Aim for an FAQ that directly mirrors PAA wording — that's what wins AI citations.");
+  lines.push("- Aim for an FAQ that directly mirrors PAA wording - that's what wins AI citations.");
   return lines.join("\n");
 }

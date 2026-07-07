@@ -114,7 +114,7 @@ async function getStats(): Promise<DashboardStats> {
   return stats;
 }
 
-// Stat moved to @/app/components/ui (Session 9 audit 10C — was duplicated
+// Stat moved to @/app/components/ui (Session 9 audit 10C - was duplicated
 // here and in /competitors with a different visual treatment; unified
 // behind a size="lg|sm" prop).
 
@@ -141,12 +141,12 @@ function relativeTime(iso: string | null): string {
 export default async function DashboardHome() {
   const stats = await getStats();
 
-  // System-attention signals — only render if non-zero.
+  // System-attention signals - only render if non-zero.
   const attention: { tone: "danger" | "warn" | "info"; text: string; href: string }[] = [];
   if (stats.highRiskChecks7d > 0) {
     attention.push({
       tone: "danger",
-      text: `${stats.highRiskChecks7d} check${stats.highRiskChecks7d === 1 ? "" : "s"} scored ≥80 in the last 7 days — review before publishing`,
+      text: `${stats.highRiskChecks7d} check${stats.highRiskChecks7d === 1 ? "" : "s"} scored ≥80 in the last 7 days - review before publishing`,
       href: "/history",
     });
   }
@@ -167,7 +167,7 @@ export default async function DashboardHome() {
   if (!stats.gscConnected) {
     attention.push({
       tone: "info",
-      text: "Search Console not connected — performance tabs are blank",
+      text: "Search Console not connected - performance tabs are blank",
       href: "/search-console",
     });
   }
@@ -187,7 +187,7 @@ export default async function DashboardHome() {
           </Card>
         )}
 
-        {/* SECTION 1 — Needs attention. Only renders when there's something
+        {/* SECTION 1 - Needs attention. Only renders when there's something
             to act on, so the dashboard's empty state isn't a wall of red. */}
         {attention.length > 0 && (
           <section>
@@ -212,7 +212,7 @@ export default async function DashboardHome() {
           </section>
         )}
 
-        {/* SECTION 2 — Today's signals. The 6 headline counters grouped
+        {/* SECTION 2 - Today's signals. The 6 headline counters grouped
             with their own header so they read as one block instead of a
             free-floating tile cloud. */}
         <section>
@@ -241,7 +241,7 @@ export default async function DashboardHome() {
             accent={stats.highRiskChecks7d > 0 ? "danger" : "ok"}
             href="/history"
           />
-          {/* Catalog Conflicts hidden for now (Session 11 — will be revisited).
+          {/* Catalog Conflicts hidden for now (Session 11 - will be revisited).
               Uncomment to restore the stat tile.
           <Stat
             label="Catalog conflicts"
@@ -259,7 +259,7 @@ export default async function DashboardHome() {
           </div>
         </section>
 
-        {/* SECTION 3 — Editorial outcomes. Only shows once the team starts
+        {/* SECTION 3 - Editorial outcomes. Only shows once the team starts
             marking outcomes; explicit header so leadership knows what
             they're looking at when it appears. */}
         {(stats.blocked90d > 0 || stats.published90d > 0 || stats.stalePages > 0) && (
@@ -290,7 +290,7 @@ export default async function DashboardHome() {
           </section>
         )}
 
-        {/* SECTION 4 — Recent activity. Two parallel feeds: what the team
+        {/* SECTION 4 - Recent activity. Two parallel feeds: what the team
             has been screening + the worst standing duplicates in the
             catalogue. Empty case suppresses the whole section. */}
         {stats.dbReady && stats.recentChecks.length > 0 && (
@@ -333,7 +333,7 @@ export default async function DashboardHome() {
               )}
             </Card>
 
-            {/* "Top catalog conflicts" card hidden for now (Session 11 — will
+            {/* "Top catalog conflicts" card hidden for now (Session 11 - will
                 be revisited). Uncomment to restore; the /api/dashboard feed
                 (stats.topConflicts) still returns the data.
             <Card className="p-0">
@@ -382,7 +382,7 @@ export default async function DashboardHome() {
           </section>
         )}
 
-        {/* SECTION 5 — Quick actions. Always rendered at the bottom so the
+        {/* SECTION 5 - Quick actions. Always rendered at the bottom so the
             'what should I do next?' bridge is always one click away. */}
         <section>
           <SectionHeader title="Quick actions" subtitle="Jump straight into the most-used flows." />

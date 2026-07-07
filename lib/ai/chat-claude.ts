@@ -35,7 +35,7 @@ export class ClaudeChatProvider extends BaseChatProvider {
         model: this.model,
         max_tokens: 2048,
         temperature: 0.2,
-        system: `${system} Respond with valid JSON only — no markdown fences.`,
+        system: `${system} Respond with valid JSON only - no markdown fences.`,
         messages: [{ role: "user", content: user }],
       });
       const block = res.content.find((b) => b.type === "text");

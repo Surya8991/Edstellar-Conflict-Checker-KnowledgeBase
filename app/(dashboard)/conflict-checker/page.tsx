@@ -62,7 +62,7 @@ export default function ConflictCheckerPage() {
   const [typeFilter, setTypeFilter] = useState<string>("");
   const [sortBy, setSortBy] = useState<"score" | "similarity">("score");
 
-  // Pagination — needed because runs can return 100+ matches.
+  // Pagination - needed because runs can return 100+ matches.
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [hideNeedsReview, setHideNeedsReview] = useState(false);
@@ -70,7 +70,7 @@ export default function ConflictCheckerPage() {
   // Lazy on-demand explanation cache: { [url]: {score, type, rationale, loading?} }
   const [explained, setExplained] = useState<Record<string, any>>({});
 
-  // Search-depth control — how many corpus candidates the vector search retrieves.
+  // Search-depth control - how many corpus candidates the vector search retrieves.
   // Named tiers are shown to non-technical users; the numeric value drives the API.
   const [vectorLimit, setVectorLimit] = useState(100);
 
@@ -86,7 +86,7 @@ export default function ConflictCheckerPage() {
   const [suggesting, setSuggesting] = useState(false);
   const [suggestions, setSuggestions] = useState<any>(null);
 
-  // AI Draft state (Batch 18). Cache-first synchronous resolver — either
+  // AI Draft state (Batch 18). Cache-first synchronous resolver - either
   // returns instantly from pregenerated_drafts or 2-8s via Groq fallback.
   // No polling, no queued/running states.
   interface DraftState {
@@ -126,7 +126,7 @@ export default function ConflictCheckerPage() {
         method: "POST",
         headers: { "content-type": "application/json" },
         // Omit minSimilarity so the server applies its own floor (0.50,
-        // Session 6 H11) — sending 0 here used to defeat that floor entirely
+        // Session 6 H11) - sending 0 here used to defeat that floor entirely
         // since `0 ?? default` short-circuits to 0, not the default.
         body: JSON.stringify({ input, vectorLimit }),
         signal: controller.signal,
@@ -135,12 +135,12 @@ export default function ConflictCheckerPage() {
       if (!res.ok) {
         // Surface the server's rate-limit countdown when present.
         if (res.status === 429 && data.retryAfterSec)
-          throw new Error(`Rate-limited — try again in ${data.retryAfterSec}s.`);
+          throw new Error(`Rate-limited - try again in ${data.retryAfterSec}s.`);
         throw new Error(data.error || "Check failed");
       }
       setResult(data);
     } catch (err) {
-      // A superseded request aborts — the newer request owns the UI now.
+      // A superseded request aborts - the newer request owns the UI now.
       if ((err as Error).name === "AbortError") return;
       setError((err as Error).message);
     } finally {
@@ -314,7 +314,7 @@ export default function ConflictCheckerPage() {
           <div role="status" aria-live="polite" aria-atomic="true" className="text-xs text-slate-500">
             {slowHint && (
               <p className="mt-2">
-                Still working — the first check of the day takes ~10s while the AI model warms up. Future checks are instant.
+                Still working - the first check of the day takes ~10s while the AI model warms up. Future checks are instant.
               </p>
             )}
           </div>
@@ -357,7 +357,7 @@ export default function ConflictCheckerPage() {
                   )}
                 </div>
               </div>
-              <p className="text-sm leading-relaxed text-slate-700">{result.summary || "—"}</p>
+              <p className="text-sm leading-relaxed text-slate-700">{result.summary || "-"}</p>
               {result.primaryQuery && (
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Primary SEO query</span>
@@ -375,7 +375,7 @@ export default function ConflictCheckerPage() {
               )}
             </Card>
 
-            {/* Filters — visible when there's anything to filter */}
+            {/* Filters - visible when there's anything to filter */}
             {result.matches.length > 0 && (
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span className="text-slate-500">Type:</span>
@@ -515,9 +515,9 @@ export default function ConflictCheckerPage() {
                 </div>
               )}
               {suggestions && !suggestions?.suggestions?.angles?.length && !suggestions?.error && (
-                <p className="mt-3 text-xs text-slate-500">Couldn&apos;t generate suggestions — try Re-run.</p>
+                <p className="mt-3 text-xs text-slate-500">Couldn&apos;t generate suggestions - try Re-run.</p>
               )}
-              {/* PAA — questions Google considers related. Free signal from
+              {/* PAA - questions Google considers related. Free signal from
                   the SERP, surfaced here so writers can answer them in-page
                   (good for AI Overview citation). (#39) */}
               {(suggestions?.serp?.peopleAlsoAsk?.length ?? 0) > 0 && (
@@ -538,7 +538,7 @@ export default function ConflictCheckerPage() {
               {suggestions?.error && <div className="mt-3 text-sm text-red-600">{suggestions.error}</div>}
             </Card>
 
-            {/* AI Draft panel — cache-first via pregenerated_drafts; Groq fallback. */}
+            {/* AI Draft panel - cache-first via pregenerated_drafts; Groq fallback. */}
             <Card>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0 flex-1">
@@ -664,7 +664,7 @@ function ResolutionPanel({ m, inputUrl }: { m: Match; inputUrl?: string }) {
     <div className="mt-4 grid grid-cols-1 gap-x-8 gap-y-3 border-t border-slate-100 pt-4 lg:grid-cols-2">
       {/* Left: the four separate signals */}
       <div className="space-y-1.5">
-        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Why — signals</div>
+        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Why - signals</div>
         <SignalBar label="Title" value={s.title} />
         <SignalBar label="H1" value={s.h1} />
         <SignalBar label="URL" value={s.slug} />
@@ -730,7 +730,7 @@ function MatchCard({
   const hasRationale = !!m.rationale;
 
   // Audit 10C tokenization: lib/score-bands.ts is the single source of truth.
-  // needs-review rows are a similarity-only estimate (no LLM verdict yet) — mute
+  // needs-review rows are a similarity-only estimate (no LLM verdict yet) - mute
   // them so a skimmer can tell them apart from full-weight, AI-verified scores.
   const scoreBarColor = needsReview ? "bg-slate-300" : bandBarColor(m.conflictScore);
   const scoreTextColor = needsReview ? "text-slate-400" : bandTextColor(m.conflictScore);
@@ -751,9 +751,9 @@ function MatchCard({
                 stage === "MOFU" ? "border border-violet-200 bg-violet-50 text-violet-700" :
                 "border border-emerald-200 bg-emerald-50 text-emerald-700"
               }`} title={
-                stage === "TOFU" ? "Top of Funnel — awareness content" :
-                stage === "MOFU" ? "Middle of Funnel — consideration content" :
-                "Bottom of Funnel — conversion content"
+                stage === "TOFU" ? "Top of Funnel - awareness content" :
+                stage === "MOFU" ? "Middle of Funnel - consideration content" :
+                "Bottom of Funnel - conversion content"
               }>
                 {stage}
               </span>
@@ -780,7 +780,7 @@ function MatchCard({
           </a>
           <div className="mt-0.5 truncate text-xs text-slate-400">{m.url}</div>
 
-          {/* Meta strip — similarity + impact + action hint live on one line
+          {/* Meta strip - similarity + impact + action hint live on one line
               so the card stays compact and the score column has more room. */}
           <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px]">
             <span
@@ -813,11 +813,11 @@ function MatchCard({
           </div>
         </div>
 
-        {/* Score column — large numeric for the eye, slim bar for context,
+        {/* Score column - large numeric for the eye, slim bar for context,
             badge for the editorial verdict. */}
         <div
           className="flex shrink-0 flex-col items-end gap-1.5"
-          title={needsReview ? "Similarity-only estimate — not yet AI-verified. Analyze to get a weighted score." : undefined}
+          title={needsReview ? "Similarity-only estimate - not yet AI-verified. Analyze to get a weighted score." : undefined}
         >
           <div className="flex items-center gap-2.5">
             <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-100">
@@ -907,7 +907,7 @@ function copyWriterBrief(result: CheckResult | null, suggestions: any, serp?: an
   const lines: string[] = [];
   const topAngle = angles[0];
 
-  lines.push(`# Content brief — ${topAngle?.title ?? result.summary.split(".")[0]}`);
+  lines.push(`# Content brief - ${topAngle?.title ?? result.summary.split(".")[0]}`);
   lines.push("");
   if (suggestions?.headline) {
     lines.push(`> ${suggestions.headline}`);
@@ -933,7 +933,7 @@ function copyWriterBrief(result: CheckResult | null, suggestions: any, serp?: an
     lines.push("");
   }
 
-  // PAA from Serper — questions Google considers related. Answering these
+  // PAA from Serper - questions Google considers related. Answering these
   // in the article is the cheapest way to be eligible for AI Overview
   // citations and featured snippets. (#39)
   const paa = (serp?.peopleAlsoAsk ?? []) as { question: string; snippet?: string }[];
@@ -955,7 +955,7 @@ function copyWriterBrief(result: CheckResult | null, suggestions: any, serp?: an
   if (angles.length > 1) {
     lines.push("## Alternative angles considered");
     for (const a of angles.slice(1)) {
-      lines.push(`- **${a.title}** (${a.format}) — ${a.differentiation}`);
+      lines.push(`- **${a.title}** (${a.format}) - ${a.differentiation}`);
     }
     lines.push("");
   }
@@ -966,9 +966,9 @@ function copyWriterBrief(result: CheckResult | null, suggestions: any, serp?: an
   if (toAvoid.length) {
     lines.push("## Avoid overlap with these existing pages");
     for (const m of toAvoid) {
-      const ownerHint = m.ownerUrl && m.ownerUrl !== m.url ? ` — owner: ${m.ownerUrl}` : "";
+      const ownerHint = m.ownerUrl && m.ownerUrl !== m.url ? ` - owner: ${m.ownerUrl}` : "";
       const traffic = m.gscClicks28d ? ` · ${m.gscClicks28d.toLocaleString()} clicks/28d` : "";
-      lines.push(`- [${m.title || m.url}](${m.url}) — ${m.conflictType}, score ${m.conflictScore}%${traffic}${ownerHint}`);
+      lines.push(`- [${m.title || m.url}](${m.url}) - ${m.conflictType}, score ${m.conflictScore}%${traffic}${ownerHint}`);
       if (m.issue) lines.push(`  - ${m.issue}`);
     }
     lines.push("");
@@ -990,7 +990,7 @@ function copyWriterBrief(result: CheckResult | null, suggestions: any, serp?: an
 
   const md = lines.join("\n");
   // Audit H14 (Session 6): swapped the modal `alert()` for a transient
-  // toast. Also handle the clipboard rejection — writeText fails on
+  // toast. Also handle the clipboard rejection - writeText fails on
   // non-HTTPS pages, denied permissions, or browsers that block during
   // background tabs.
   navigator.clipboard.writeText(md).then(
@@ -1005,7 +1005,7 @@ function copyWriterBrief(result: CheckResult | null, suggestions: any, serp?: an
 function copyShareLink(checkId: number) {
   const url = `${window.location.origin}/check/${checkId}`;
   navigator.clipboard.writeText(url).then(
-    () => toast.success(`Share link copied — /check/${checkId}`),
+    () => toast.success(`Share link copied - /check/${checkId}`),
     () => toast.error("Couldn't copy link to clipboard."),
   );
 }

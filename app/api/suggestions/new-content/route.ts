@@ -19,7 +19,7 @@ export const maxDuration = 120;
 
 const SYSTEM = `You are a senior SEO content strategist for Edstellar, a B2B corporate-training company.
 Return ONLY compact JSON matching the requested schema. No preamble, no explanation, no markdown fences.
-Every field has a strict word/char cap — respect it. Prefer concrete, specific phrasing over generic SEO clichés
+Every field has a strict word/char cap - respect it. Prefer concrete, specific phrasing over generic SEO clichés
 ("ultimate guide", "everything you need to know", "key insights" are banned).`;
 
 interface Angle {
@@ -39,7 +39,7 @@ function buildPrompt(topic: string, url: string, competitorSnippets: string): st
   return `TOPIC: ${topic}
 ${url ? `EXISTING URL: ${url}\n` : ""}
 Top competitors currently ranking:
-${competitorSnippets || "(no SERP data available — treat as greenfield)"}
+${competitorSnippets || "(no SERP data available - treat as greenfield)"}
 
 Produce 6 NEW content angles Edstellar should publish that:
   • Don't repeat any competitor's framing above.
@@ -51,7 +51,7 @@ Return STRICT JSON, no other text:
 {
   "headline": string,          // ≤14 words. ONE sentence stating the strategic opening.
                                //   Bad:  "The topic of skills gaps is a pressing concern…"
-                               //   Good: "Competitors flood the SERP with generic checklists — own the AI-assisted variant instead."
+                               //   Good: "Competitors flood the SERP with generic checklists - own the AI-assisted variant instead."
   "angles": [                  // exactly 6 items
     {
       "title":           string,  // ≤9 words. Working headline. No "ultimate", "guide to", "everything", "complete".
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
         ? {
             edstellarRank: serp.edstellarRank,
             competitors: serp.organic,
-            // #39 — surface PAA + answer box so the UI / writer brief can
+            // #39 - surface PAA + answer box so the UI / writer brief can
             // reuse them. Free data we were already paying Serper for.
             peopleAlsoAsk: serp.peopleAlsoAsk ?? [],
             answerBox: serp.answerBox ?? null,

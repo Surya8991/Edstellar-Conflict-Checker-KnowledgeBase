@@ -5,10 +5,10 @@
  * Audit S6 (Session 6): the previous implementation abused chat.summarize()
  * to coax a {diagnosis,angles,decision} JSON shape out of the LLM, parsing
  * the result out of the `searchSynopsis` field. It worked maybe 10% of the
- * time. Now uses chat.proposeRewrite() — a structured-output method with
+ * time. Now uses chat.proposeRewrite() - a structured-output method with
  * zod-validated schema, dedicated prompt, and prompt-injection delimiters.
  *
- * Auth/rate-limit: gateLlmEndpoint() — WEBHOOK_API_KEY OR per-IP rate-limit
+ * Auth/rate-limit: gateLlmEndpoint() - WEBHOOK_API_KEY OR per-IP rate-limit
  * (audit S3).
  */
 import { NextRequest, NextResponse } from "next/server";

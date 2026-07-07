@@ -7,7 +7,7 @@ import { toCsv } from "@/lib/csv";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Columns exported — same shape the import route expects back. */
+/** Columns exported - same shape the import route expects back. */
 const COLUMNS = [
   "url",
   "title",
@@ -22,7 +22,7 @@ const COLUMNS = [
 ] as const;
 
 /**
- * GET /api/pages/export — stream the corpus (respecting the same filters as
+ * GET /api/pages/export - stream the corpus (respecting the same filters as
  * /api/pages) as a CSV attachment. No pagination: exports every matching row.
  * Session-gated by the auth proxy like the rest of the dashboard.
  */

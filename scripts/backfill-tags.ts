@@ -1,6 +1,6 @@
 /**
  * Retag every existing `pages` row using lib/taxonomy.
- * Pure metadata UPDATE — no re-fetch, no re-embed. Idempotent.
+ * Pure metadata UPDATE - no re-fetch, no re-embed. Idempotent.
  * Run: npm run backfill:tags
  */
 import "dotenv/config";

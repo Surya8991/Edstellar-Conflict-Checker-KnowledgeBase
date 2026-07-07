@@ -75,7 +75,7 @@ function isForbiddenIpv6(ip: string): boolean {
       lower.startsWith("fea") || lower.startsWith("feb")) return true;
   // ff00::/8 multicast
   if (lower.startsWith("ff")) return true;
-  // IPv4-mapped (::ffff:a.b.c.d) — extract and check
+  // IPv4-mapped (::ffff:a.b.c.d) - extract and check
   const v4Mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
   if (v4Mapped) return isForbiddenIpv4(v4Mapped[1]!);
   return false;

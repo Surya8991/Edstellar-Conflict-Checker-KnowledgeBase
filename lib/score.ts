@@ -20,7 +20,7 @@ export function similarityToBaseScore(sim: number): number {
  * **0.6*base + 0.4*llm**. Rationale: vector similarity is a measured,
  * reproducible signal; the LLM verdict is sharper on intent but can
  * hallucinate with high confidence. docs/conflict-types.md already
- * argued for measurable-signal-heavy weighting — code now matches.
+ * argued for measurable-signal-heavy weighting - code now matches.
  *
  * A hostile LLM hallucination is now bounded to a ~40-point drift from
  * the empirical embedding signal (was ~60 points).

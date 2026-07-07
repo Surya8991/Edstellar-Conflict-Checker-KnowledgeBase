@@ -3,7 +3,7 @@
  * component reads this with usePathname() and renders the matching section
  * in a side panel.
  *
- * Each entry has four blocks — keep them tight and copy-edit-friendly:
+ * Each entry has four blocks - keep them tight and copy-edit-friendly:
  *   - what:        one sentence on what the page is for
  *   - howToUse:    bullet steps for the typical workflow
  *   - readingIt:   bullet hints for understanding what's on screen
@@ -27,20 +27,20 @@ export const HELP: Record<string, HelpEntry> = {
       "Single-screen view of everything the team should care about today: high-risk drafts, broken links, thin pages, and recent checks.",
     howToUse: [
       "Sections from top to bottom: Needs attention → Today's signals → Editorial outcomes → Recent activity → Quick actions. Each section is gated, so empty ones disappear instead of filling the page with zeros.",
-      "Scan 'Needs attention' first — red and amber items are things to act on today.",
+      "Scan 'Needs attention' first - red and amber items are things to act on today.",
       "Click any stat tile in 'Today's signals' to drop into the relevant tab (Pages ingested → Corpus, Checks run → History, etc.).",
-      "'Editorial outcomes' appears once your team marks outcomes on the History page — leadership reporting comes from here.",
+      "'Editorial outcomes' appears once your team marks outcomes on the History page - leadership reporting comes from here.",
       "'Recent activity' shows the last 8 checks. Click any check to re-run it.",
     ],
     readingIt: [
-      "Red 'High-risk last 7d' tile means somebody ran a check that scored ≥ 80 — that's a 'don't publish' verdict.",
+      "Red 'High-risk last 7d' tile means somebody ran a check that scored ≥ 80 - that's a 'don't publish' verdict.",
       "'Caught / Published / Stale' tiles only appear once the team starts marking outcomes on the History page.",
       "'Last ingest' hint shows how fresh the corpus is. If it says 'never' or > 7d ago, the cron didn't run.",
     ],
     troubleshoot: [
       { problem: "All tiles show 0 and an amber 'Database not connected' banner appears", fix: "DATABASE_URL is missing in env. Ask an admin to set it in Vercel → Settings → Environment Variables." },
-      { problem: "'GSC not connected' info banner won't go away", fix: "Visit /search-console → Connect Google. If you've already done that, your OAuth refresh token may have expired — reconnect." },
-      { problem: "Recent checks panel is empty after I ran some checks", fix: "Try a hard refresh (Ctrl+Shift+R). The DB write is best-effort and very rarely fails silently — check the network tab for /api/check responses." },
+      { problem: "'GSC not connected' info banner won't go away", fix: "Visit /search-console → Connect Google. If you've already done that, your OAuth refresh token may have expired - reconnect." },
+      { problem: "Recent checks panel is empty after I ran some checks", fix: "Try a hard refresh (Ctrl+Shift+R). The DB write is best-effort and very rarely fails silently - check the network tab for /api/check responses." },
     ],
   },
 
@@ -54,7 +54,7 @@ export const HELP: Record<string, HelpEntry> = {
       "You'll land back where you were trying to go.",
     ],
     readingIt: [
-      "There's no email/password form on purpose — SSO only.",
+      "There's no email/password form on purpose - SSO only.",
       "If you see 'AccessDenied' it means the email you signed in with isn't on the allow-list. Switch accounts.",
     ],
     troubleshoot: [
@@ -70,18 +70,18 @@ export const HELP: Record<string, HelpEntry> = {
       "Pre-publish duplication detector. Paste a URL or a topic, and we score how much it overlaps with what's already on edstellar.com.",
     howToUse: [
       "Paste a draft URL (https://…) or a topic phrase (e.g. 'leadership skills for first-time managers') into the input box.",
-      "Adjust 'Search depth' (Quick 25 / Standard 100 / Thorough 500) if you want more or fewer candidates surfaced — Standard is fine for most cases.",
+      "Adjust 'Search depth' (Quick 25 / Standard 100 / Thorough 500) if you want more or fewer candidates surfaced - Standard is fine for most cases.",
       "Hit Check. First check after a deploy takes 8–15 s while the embedder warms up; subsequent checks are 2–4 s.",
       "Read the top score: ≥80 means don't publish, 60–79 means reconsider angle, 35–59 means publish but link to overlapping pages, <35 means safe.",
-      "Scroll the match list. Each card's Resolution panel names an action (Merge / Consolidate / Differentiate / Keep both) and a winner page — cards with 'Owner' badges are the editorial winners, so non-owner matches should redirect to them.",
+      "Scroll the match list. Each card's Resolution panel names an action (Merge / Consolidate / Differentiate / Keep both) and a winner page - cards with 'Owner' badges are the editorial winners, so non-owner matches should redirect to them.",
       "Click 'Re-run' on Net-new content suggestions when stuck for an angle. Click 'Copy brief' once happy to drop a Markdown writer brief on your clipboard.",
-      "Click 'AI Draft' for a starting draft — instant if a similar page was pre-generated, otherwise a few seconds via a live model call.",
+      "Click 'AI Draft' for a starting draft - instant if a similar page was pre-generated, otherwise a few seconds via a live model call.",
     ],
     readingIt: [
       "Score colour: red ≥80 (block), orange ≥60 (review), amber ≥35 (partial overlap), green <35 (safe).",
-      "Use the 'Sort by' control to switch the match list between conflict score and raw topic similarity — pick whichever ordering you actually want; there's no hidden traffic-weighting behind either option.",
+      "Use the 'Sort by' control to switch the match list between conflict score and raw topic similarity - pick whichever ordering you actually want; there's no hidden traffic-weighting behind either option.",
       "Each match's Resolution panel breaks the score into four separate signals (Title / H1 / URL / Body) so you can see WHY it conflicts, plus a search-intent label and the suggested action.",
-      "Amber 'N clicks · 28 days' chip on a match means that page actually pulls traffic — cannibalizing it is expensive.",
+      "Amber 'N clicks · 28 days' chip on a match means that page actually pulls traffic - cannibalizing it is expensive.",
       "Indigo 'Owner' pill = that match IS the team's chosen winning page for this topic. Gray 'Non-owner' = the match should redirect to an owner URL set elsewhere.",
       "Click 'Show why this conflicts' on any match to expand the LLM rationale; click 'Analyze with AI' to lazily classify rows that landed past the initial top-15 cutoff.",
     ],
@@ -89,31 +89,31 @@ export const HELP: Record<string, HelpEntry> = {
       { problem: "Got 'Failed to load external module @xenova/transformers'", fix: "Next.config.ts `serverExternalPackages` is misconfigured. Should be fixed in main; ping engineering if it returns." },
       { problem: "Top match's body is mostly nav/footer junk", fix: "The page might have unusual class names the extractor's noise selectors miss. Add the selector to lib/extract.ts NOISE_SELECTORS and re-ingest." },
       { problem: "Rate-limited (429) even though I'm a real user", fix: "The default limit is 60 checks/minute per IP. If your team shares an office IP this can trip; ask an admin to set WEBHOOK_API_KEY and use that path instead." },
-      { problem: "Net-new content suggestions returns 'No angles' or weird text", fix: "Hit Re-run — the LLM occasionally returns invalid JSON. If it persists, GROQ_API_KEY may have rate-limited; check status.groq.com." },
+      { problem: "Net-new content suggestions returns 'No angles' or weird text", fix: "Hit Re-run - the LLM occasionally returns invalid JSON. If it persists, GROQ_API_KEY may have rate-limited; check status.groq.com." },
     ],
   },
 
   "/clusters": {
     title: "Content Clusters",
     what:
-      "Groups the WHOLE live corpus by TOPIC across content types — a category page, its blog, and its courses land in ONE cluster. Each cluster gets a topic label, a suggested action, and a winner (pillar) page. This is the corpus-wide view, versus the Conflict Checker's one-page-at-a-time view.",
+      "Groups the WHOLE live corpus by TOPIC across content types - a category page, its blog, and its courses land in ONE cluster. Each cluster gets a topic label, a suggested action, and a winner (pillar) page. This is the corpus-wide view, versus the Conflict Checker's one-page-at-a-time view.",
     howToUse: [
       "The page auto-scans on load; click 'Rescan' any time to refresh (it re-runs the full grouping live, nothing is cached).",
-      "Filter with the pills — action (Pillar / Merge / Differentiate) and content type — or type into the search box to jump to a specific page or title.",
+      "Filter with the pills - action (Pillar / Merge / Differentiate) and content type - or type into the search box to jump to a specific page or title.",
       "Click a cluster row to expand all its members; each shows the page, its intent, the topic tokens it shares with the pillar, and its topic-match %.",
-      "The ★ marks the suggested winner — usually the pillar (category) page; a spoke only wins if it has more authority.",
+      "The ★ marks the suggested winner - usually the pillar (category) page; a spoke only wins if it has more authority.",
     ],
     readingIt: [
       "Membership is by DISTINCTIVE topic tokens, not raw similarity: template words every page shares ('corporate', 'training', 'courses') are auto-learned from the corpus and dropped, so 'big data' groups with big-data pages, never with 'sales' pages that merely share the same template.",
-      "Every member matches the cluster's SEED (pillar) directly — pages are never chained together, so a cluster stays on one topic instead of ballooning into a mixed-topic mega-cluster.",
-      "'Pillar + spokes' = a hub page (category/subcategory) with cross-type spokes on one topic — link the spokes to the pillar, don't merge them. 'Merge → 301' / 'Differentiate' apply to same-type near-duplicates within a topic.",
+      "Every member matches the cluster's SEED (pillar) directly - pages are never chained together, so a cluster stays on one topic instead of ballooning into a mixed-topic mega-cluster.",
+      "'Pillar + spokes' = a hub page (category/subcategory) with cross-type spokes on one topic - link the spokes to the pillar, don't merge them. 'Merge → 301' / 'Differentiate' apply to same-type near-duplicates within a topic.",
       "The tags under each page (e.g. 'big data') are the exact distinctive tokens it shares with the pillar; the topic% is the IDF-weighted overlap, and the body% is the content-embedding check that keeps an off-topic page out.",
-      "The meta line reads 'N clustered · M unique-topic pages' — a unique-topic page is a real answer (nothing else covers that topic), not a coverage gap.",
+      "The meta line reads 'N clustered · M unique-topic pages' - a unique-topic page is a real answer (nothing else covers that topic), not a coverage gap.",
     ],
     troubleshoot: [
       { problem: "Page says 'No clusters found'", fix: "No topic had two or more pages clear the overlap + body-floor bar. This is a live scan (not a precomputed table), so an empty result is a real answer, not a stale-cache problem." },
-      { problem: "Two pages I know are on the same topic aren't grouped", fix: "Their distinctive-token overlap is below the bar, or one fails the body-content floor vs the pillar. Two pages that only share template words ('corporate training') are deliberately NOT grouped — that was the old mega-cluster bug." },
-      { problem: "A page I expected to see is missing entirely", fix: "It may be marked as a redirect/canonicalized-away/dead by the redirect-detection scan (`is_stale`) — those never appear in clusters, by design." },
+      { problem: "Two pages I know are on the same topic aren't grouped", fix: "Their distinctive-token overlap is below the bar, or one fails the body-content floor vs the pillar. Two pages that only share template words ('corporate training') are deliberately NOT grouped - that was the old mega-cluster bug." },
+      { problem: "A page I expected to see is missing entirely", fix: "It may be marked as a redirect/canonicalized-away/dead by the redirect-detection scan (`is_stale`) - those never appear in clusters, by design." },
     ],
   },
 
@@ -122,9 +122,9 @@ export const HELP: Record<string, HelpEntry> = {
     what:
       "Run the Conflict Checker on up to 100 URLs/topics at once. Each row gets a verdict (block / review / pass) and you can export everything as CSV.",
     howToUse: [
-      "Paste one URL or topic per line into the textarea — or upload a CSV/TXT file (one column).",
+      "Paste one URL or topic per line into the textarea - or upload a CSV/TXT file (one column).",
       "Pick a Concurrency between 1–6. Higher = faster but rate-limit risk; 3 is safe.",
-      "Click 'Run all checks'. Watch the progress bar — each row lands in the table as soon as it finishes.",
+      "Click 'Run all checks'. Watch the progress bar - each row lands in the table as soon as it finishes.",
       "Filter by verdict pill or score slider to focus on the rows that need attention.",
       "Click 'Download CSV' when the run finishes for handoff to writers / leadership.",
     ],
@@ -146,20 +146,20 @@ export const HELP: Record<string, HelpEntry> = {
     what:
       "For a draft URL, topic, or pasted text, suggests the top existing pages it should link to. Two modes: whole-page (one ranked list) and per-paragraph (separate suggestions per paragraph of text).",
     howToUse: [
-      "Pick a mode. 'Whole page' = one ranked list for the entire input — fastest. 'Per paragraph' = the input is split on blank lines and each paragraph gets its own short list.",
-      "Paste a URL (https://…), a topic phrase, or — for per-paragraph mode — your draft text with blank lines between paragraphs.",
+      "Pick a mode. 'Whole page' = one ranked list for the entire input - fastest. 'Per paragraph' = the input is split on blank lines and each paragraph gets its own short list.",
+      "Paste a URL (https://…), a topic phrase, or - for per-paragraph mode - your draft text with blank lines between paragraphs.",
       "Click the suggest button. Per-paragraph mode shows one block per paragraph with the top targets for that paragraph.",
       "Copy the URL + suggested anchor (the matched page's title) into your CMS.",
     ],
     readingIt: [
       "Higher similarity = more topically related, not necessarily a stronger link choice. A 60%-similarity course page might be a better hub link than an 80%-similarity blog.",
-      "Each card shows the page's content type (course / blog / category) — useful for picking variety in anchor types.",
-      "In per-paragraph mode the same target page can show up in multiple paragraphs — the editor decides where to actually use it.",
+      "Each card shows the page's content type (course / blog / category) - useful for picking variety in anchor types.",
+      "In per-paragraph mode the same target page can show up in multiple paragraphs - the editor decides where to actually use it.",
     ],
     troubleshoot: [
       { problem: "Per-paragraph mode says 'no paragraphs long enough'", fix: "Each paragraph needs at least 80 characters. Either lengthen them or paste fewer, longer ones with blank lines between." },
-      { problem: "Suggestions look generic", fix: "Pasted text wins over a URL — the URL fetcher captures nav/footer noise that drowns out the actual topic. If using URL mode and seeing generic results, paste the body text instead." },
-      { problem: "Always returns the same hub pages regardless of input", fix: "Your input is short — fewer keywords = vector search defaults to popular pages. Add 2–3 keywords inline." },
+      { problem: "Suggestions look generic", fix: "Pasted text wins over a URL - the URL fetcher captures nav/footer noise that drowns out the actual topic. If using URL mode and seeing generic results, paste the body text instead." },
+      { problem: "Always returns the same hub pages regardless of input", fix: "Your input is short - fewer keywords = vector search defaults to popular pages. Add 2–3 keywords inline." },
     ],
   },
 
@@ -174,7 +174,7 @@ export const HELP: Record<string, HelpEntry> = {
       "On Canonical: red 'missing' rows have no canonical tag; amber 'cross-canonical' rows point to another URL (often a CMS template bug).",
       "On Images: rows are sorted by absolute missing-alt count. Click each URL to fix in the CMS.",
       "On Stale: the gsc-snapshot cron flags pages with <5 clicks/28d AND lastmod > 12 mo. Refresh or prune candidates.",
-      "On Clusters: two tables. Course clusters by (course type × category) with content-debt score. Blog clusters by blog category (separate taxonomy) with traffic + stale ratio. Blog count in the course table is mostly 0 because the two corpora use different category vocabularies — that's expected, not a bug.",
+      "On Clusters: two tables. Course clusters by (course type × category) with content-debt score. Blog clusters by blog category (separate taxonomy) with traffic + stale ratio. Blog count in the course table is mostly 0 because the two corpora use different category vocabularies - that's expected, not a bug.",
     ],
     readingIt: [
       "Health Score breakdown: -20 missing title, -8 title-too-short, -15 missing meta, -6 meta-too-short, -10 not-embedded, -10 thin body, -30 4xx/5xx status, -8 low token count.",
@@ -182,8 +182,8 @@ export const HELP: Record<string, HelpEntry> = {
       "Stale tab is only populated after the gsc-snapshot cron has run with a connected GSC account.",
     ],
     troubleshoot: [
-      { problem: "Link Audit tab is empty even though I expect data", fix: "The link audit cron runs weekly and only populates pages that have been HEAD-checked. Empty means the cron hasn't run yet — ask an admin or wait a week." },
-      { problem: "Link Audit only shows 4xx/5xx but I want to see 2xx too", fix: "Click the 'ok 2xx' or 'redirect 3xx' chip at the top of the tab — the default 'all' view also shows them. Status bands also filter via the chips." },
+      { problem: "Link Audit tab is empty even though I expect data", fix: "The link audit cron runs weekly and only populates pages that have been HEAD-checked. Empty means the cron hasn't run yet - ask an admin or wait a week." },
+      { problem: "Link Audit only shows 4xx/5xx but I want to see 2xx too", fix: "Click the 'ok 2xx' or 'redirect 3xx' chip at the top of the tab - the default 'all' view also shows them. Status bands also filter via the chips." },
       { problem: "Canonical tab shows pages I think are fine", fix: "Theme/CMS templates often emit a canonical pointing at the un-trailing-slash variant, or a category root. Audit the actual <link> tag in the page source." },
       { problem: "Images tab shows 0 missing alt but the live page clearly has alt-less images", fix: "Re-ingest with --force. The image_count / images_no_alt columns are only filled on new ingestion." },
     ],
@@ -197,14 +197,14 @@ export const HELP: Record<string, HelpEntry> = {
       "Search the left list by URL/topic to find a check.",
       "Click an entry to see its trend line + the latest matches that triggered the score.",
       "Use the dropdown next to each historical score to mark the outcome: published / merged / redirected / discarded.",
-      "Outcomes feed the dashboard's 'Caught / Published last 90 days' tiles — leadership reporting comes from here.",
+      "Outcomes feed the dashboard's 'Caught / Published last 90 days' tiles - leadership reporting comes from here.",
     ],
     readingIt: [
       "If the same URL has been checked multiple times, the trend chart shows whether your edits are reducing the conflict score (good) or accidentally increasing it (bad).",
       "ScorePill colour: red ≥80, orange ≥60, amber ≥35, green <35.",
     ],
     troubleshoot: [
-      { problem: "My outcome doesn't save", fix: "Check the network tab for the /api/check/outcome request. If WEBHOOK_API_KEY is set, this endpoint needs the X-API-Key header — open a ticket." },
+      { problem: "My outcome doesn't save", fix: "Check the network tab for the /api/check/outcome request. If WEBHOOK_API_KEY is set, this endpoint needs the X-API-Key header - open a ticket." },
       { problem: "List is empty even though I've run checks", fix: "Checks only persist when DATABASE_URL is set AND the persist call succeeded. Recent rate-limit denials don't persist." },
     ],
   },
@@ -214,13 +214,13 @@ export const HELP: Record<string, HelpEntry> = {
     what:
       "Leadership-facing summary of program activity: week-over-week volume, high-risk catches, and per-user adoption. Lives under Additional Tools in the sidebar, not the top-level nav.",
     howToUse: [
-      "Check the four top tiles first — 'Checks · last 7d', 'High-risk caught · 7d', 'Shipped · 7d', and 'Open high-risk' — each shows a week-over-week delta so you can tell if the trend is improving or not.",
-      "'Open high-risk' is the one tile that's an action queue, not just a metric — those are checks that scored ≥80 and haven't been resolved yet.",
+      "Check the four top tiles first - 'Checks · last 7d', 'High-risk caught · 7d', 'Shipped · 7d', and 'Open high-risk' - each shows a week-over-week delta so you can tell if the trend is improving or not.",
+      "'Open high-risk' is the one tile that's an action queue, not just a metric - those are checks that scored ≥80 and haven't been resolved yet.",
       "Scroll to the per-user activity table to see whether the team is actually using the tool, not just whether the corpus looks healthy.",
     ],
     readingIt: [
-      "'Shipped · 7d' counts published outcomes among checks CREATED in the last 7 days — a check created last week and published today won't count in this week's tile. That's a different clock than the Dashboard's 90-day tiles (which key off when the outcome was resolved, not when the check was created); don't directly compare the two numbers.",
-      "This page is a snapshot, not a trend line — there's no week-by-week series here, only a single this-week-vs-last-week delta per tile.",
+      "'Shipped · 7d' counts published outcomes among checks CREATED in the last 7 days - a check created last week and published today won't count in this week's tile. That's a different clock than the Dashboard's 90-day tiles (which key off when the outcome was resolved, not when the check was created); don't directly compare the two numbers.",
+      "This page is a snapshot, not a trend line - there's no week-by-week series here, only a single this-week-vs-last-week delta per tile.",
     ],
     troubleshoot: [
       { problem: "All tiles show 0", fix: "Either no checks have run in the last 7 days, or DATABASE_URL isn't set. Check the Dashboard for the same 'Database not connected' banner." },
@@ -231,20 +231,20 @@ export const HELP: Record<string, HelpEntry> = {
   "/catalog-conflicts": {
     title: "Catalog Conflicts",
     what:
-      "Precomputed snapshot of near-duplicate pairs across the existing catalogue. Use it to plan merges/redirects, not to gate publishing. Currently unlinked from the sidebar (Session 11) but still reachable directly at this URL — ask an admin why before assuming it's the tool you want; Content Clusters (/clusters) is the actively-maintained equivalent for grouping.",
+      "Precomputed snapshot of near-duplicate pairs across the existing catalogue. Use it to plan merges/redirects, not to gate publishing. Currently unlinked from the sidebar (Session 11) but still reachable directly at this URL - ask an admin why before assuming it's the tool you want; Content Clusters (/clusters) is the actively-maintained equivalent for grouping.",
     howToUse: [
       "Pick a pair_type chip to focus: duplicate / cannibalization / category-bleed / subcategory-bleed / overlap.",
       "Use the Min similarity slider to drop low-confidence pairs.",
       "Click either side of a pair to inspect the page. Decide: merge, redirect, or leave alone.",
     ],
     readingIt: [
-      "'cannibalization' (≥85% similar, same search intent) is the dangerous one for SEO — both pages compete for the same SERP slot. Same content_type is no longer required, since a course and a blog can share intent too.",
-      "'duplicate' is ≥95% similar AND same content_type — usually a CMS templating accident or a redirect that should exist.",
+      "'cannibalization' (≥85% similar, same search intent) is the dangerous one for SEO - both pages compete for the same SERP slot. Same content_type is no longer required, since a course and a blog can share intent too.",
+      "'duplicate' is ≥95% similar AND same content_type - usually a CMS templating accident or a redirect that should exist.",
       "'category-bleed' / 'subcategory-bleed' = a category/subcategory page is too narrow (or a course/blog too generic).",
-      "Redirected/canonicalized-away pages never appear here — a page marked stale by the redirect scan is excluded on both sides of every pair.",
+      "Redirected/canonicalized-away pages never appear here - a page marked stale by the redirect scan is excluded on both sides of every pair.",
     ],
     troubleshoot: [
-      { problem: "Page is empty after ingesting the corpus", fix: "The precompute hasn't run yet — this is a MANUAL refresh, there is no cron for it. An admin needs to run `npm run catalog-conflicts`." },
+      { problem: "Page is empty after ingesting the corpus", fix: "The precompute hasn't run yet - this is a MANUAL refresh, there is no cron for it. An admin needs to run `npm run catalog-conflicts`." },
       { problem: "Pairs include obvious junk like /enquiry-form ↔ /book-a-demo", fix: "That class was filtered out in Session 4. If it's back, an admin reverted the static-page exclusion." },
     ],
   },
@@ -261,12 +261,12 @@ export const HELP: Record<string, HelpEntry> = {
       "Click any row in 'Top pages' to open the per-page drilldown modal (queries / countries / devices / trend).",
     ],
     readingIt: [
-      "By Country uses full names (India, United States, …) — the alpha-3 codes from the API are translated client-side.",
-      "CTR Opportunity flags page-1 queries where the click rate is well below the industry curve — title rewrite candidates.",
-      "Striking Distance flags positions 8–20 with enough impressions to matter — content/internal-link work moves them into top-3.",
+      "By Country uses full names (India, United States, …) - the alpha-3 codes from the API are translated client-side.",
+      "CTR Opportunity flags page-1 queries where the click rate is well below the industry curve - title rewrite candidates.",
+      "Striking Distance flags positions 8–20 with enough impressions to matter - content/internal-link work moves them into top-3.",
     ],
     troubleshoot: [
-      { problem: "'User does not have sufficient permission for site …' banner", fix: "Either the connected account isn't a user on the property, OR GSC_SITE_URL is set to a property the account can't see. The resolver tries trailing-slash + sc-domain variants automatically — the error message lists what IS accessible." },
+      { problem: "'User does not have sufficient permission for site …' banner", fix: "Either the connected account isn't a user on the property, OR GSC_SITE_URL is set to a property the account can't see. The resolver tries trailing-slash + sc-domain variants automatically - the error message lists what IS accessible." },
       { problem: "Connect Google → redirect_uri_mismatch", fix: "Two-side fix. Add the Vercel URL to Google Cloud Console → Credentials → OAuth client → Authorized redirect URIs AND set GOOGLE_REDIRECT_URI in Vercel env vars to that same URL with /api/gsc/callback." },
       { problem: "All tabs show 0 data even though Google says we have traffic", fix: "GSC has 2–3 day data latency. If 24h returns 0, try 7d or 28d." },
     ],
@@ -279,11 +279,11 @@ export const HELP: Record<string, HelpEntry> = {
     howToUse: [
       "Type a topic (e.g. 'leadership development') into the input. Hit Research.",
       "We pull the top organic results, drop noise destinations (YouTube, Quora, PDFs, Edstellar itself), dedupe by domain, and summarize the survivors.",
-      "Read each card's 'angle' line — that's how they're framing the topic, useful for picking a different angle yourself.",
+      "Read each card's 'angle' line - that's how they're framing the topic, useful for picking a different angle yourself.",
     ],
     readingIt: [
       "Known competitor pill (indigo) = on the curated list (skillsoft, kornferry, pluralsight, etc.). New-faces are anything else above the dedup cut.",
-      "Per-domain dedup means top results from one big site (e.g. coursera.org) get collapsed — so you see 6 different competitors, not 6 articles from one.",
+      "Per-domain dedup means top results from one big site (e.g. coursera.org) get collapsed - so you see 6 different competitors, not 6 articles from one.",
     ],
     troubleshoot: [
       { problem: "'SERPER_API_KEY is not set' error", fix: "An admin needs to add a Serper.dev key to env vars. Free tier covers 2,500 searches/month." },
@@ -306,7 +306,7 @@ export const HELP: Record<string, HelpEntry> = {
       "Owner pill = this is the editorial winner for its topic. Stale pill = low traffic + old lastmod. Alt: N = N images missing alt text. Canonical chip = canonical URL ≠ this URL.",
     ],
     troubleshoot: [
-      { problem: "Row has 'not embedded' label", fix: "The embedder failed on that URL — usually a 404 / timeout / very short body. Re-ingest with --force." },
+      { problem: "Row has 'not embedded' label", fix: "The embedder failed on that URL - usually a 404 / timeout / very short body. Re-ingest with --force." },
       { problem: "Counts in the tiles don't sum to total", fix: "They will once the home page (single static row) is included. The 'All' tile is authoritative." },
     ],
   },

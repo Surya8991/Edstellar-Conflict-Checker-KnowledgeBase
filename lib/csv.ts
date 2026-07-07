@@ -34,7 +34,7 @@ export function toCsv<T extends Record<string, unknown>>(
  * Empty trailing lines are ignored. Values are always strings.
  */
 export function parseCsv(text: string): Record<string, string>[] {
-  // Strip a leading UTF-8 BOM — Excel's "CSV UTF-8" export writes one, and
+  // Strip a leading UTF-8 BOM - Excel's "CSV UTF-8" export writes one, and
   // without stripping it the first header cell becomes "﻿url" so a
   // `"url" in row` check fails even though the column is visibly there.
   const records = parseRecords(text.replace(/^﻿/, ""));

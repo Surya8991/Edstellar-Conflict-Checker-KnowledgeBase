@@ -5,7 +5,7 @@ import * as schema from "./schema";
 const url = process.env.DATABASE_URL;
 if (!url) {
   // Throw lazily at query time rather than crash module import during build.
-  console.warn("[db] DATABASE_URL is not set — database calls will fail.");
+  console.warn("[db] DATABASE_URL is not set - database calls will fail.");
 }
 
 // A syntactically valid placeholder keeps neon() from throwing at import time

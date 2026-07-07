@@ -11,7 +11,7 @@ import { log } from "@/lib/logger";
  *   GROQ_API_KEYS=key1,key2,key3   comma-separated pool; falls back to the
  *                                  single GROQ_API_KEY when unset.
  *   GROQ_MODEL                     primary model (llama-3.3-70b-versatile).
- *   GROQ_FALLBACK_MODEL            tried after every key 429s on the primary —
+ *   GROQ_FALLBACK_MODEL            tried after every key 429s on the primary -
  *                                  each model has its own TPD bucket, so the
  *                                  same keys usually still work on it.
  *                                  Default llama-3.1-8b-instant; set to ""
@@ -77,7 +77,7 @@ export class GroqChatProvider extends BaseChatProvider {
           const status = (e as { status?: number })?.status;
           if (status === 429) {
             cooldownUntil.set(comboKey, Date.now() + retryAfterMs(e));
-            log.warn("groq 429 — rotating", { key: i + 1, of: this.clients.length, model });
+            log.warn("groq 429 - rotating", { key: i + 1, of: this.clients.length, model });
             lastErr = e;
             continue; // next key, then next model
           }

@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS pregenerated_drafts (
   draft_md      TEXT NOT NULL,
   embedding     vector(384) NOT NULL,
 
-  -- Provenance — which model wrote this row, when, and a short context
+  -- Provenance - which model wrote this row, when, and a short context
   -- hash so refresh runs can detect drift.
   model         TEXT NOT NULL,
   context_hash  TEXT,
@@ -46,7 +46,7 @@ CREATE INDEX IF NOT EXISTS pregenerated_drafts_generated_at_idx
 
 -- Soft-uniqueness: one cached row per source_url. Re-running pregen for
 -- a URL UPSERTs the new draft. Drafts with NULL source_url (Groq-cached
--- ones) can have duplicates, which is fine — vector search dedupes by
+-- ones) can have duplicates, which is fine - vector search dedupes by
 -- picking the highest-similarity row.
 CREATE UNIQUE INDEX IF NOT EXISTS pregenerated_drafts_source_url_unique
   ON pregenerated_drafts (source_url) WHERE source_url IS NOT NULL;

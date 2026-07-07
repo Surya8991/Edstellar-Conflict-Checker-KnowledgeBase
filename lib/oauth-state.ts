@@ -14,7 +14,7 @@
 import crypto from "node:crypto";
 
 export const OAUTH_STATE_COOKIE = "gsc_oauth_state";
-export const OAUTH_STATE_MAX_AGE_SEC = 600; // 10 minutes — long enough for human, short enough for replay
+export const OAUTH_STATE_MAX_AGE_SEC = 600; // 10 minutes - long enough for human, short enough for replay
 
 function getSecret(): string {
   const s = process.env.AUTH_SECRET || process.env.GOOGLE_CLIENT_SECRET;

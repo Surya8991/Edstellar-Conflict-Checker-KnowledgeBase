@@ -1,5 +1,5 @@
 /**
- * NextAuth v5 (Auth.js) — Google SSO restricted to @edstellar.com.
+ * NextAuth v5 (Auth.js) - Google SSO restricted to @edstellar.com.
  *
  * Wired to be opt-in via `AUTH_ENABLED=true`. When the flag is unset or
  * "false", every helper here is exported but `isAuthEnabled()` returns
@@ -8,17 +8,17 @@
  * OAuth consent screen is published.
  *
  * Required env when AUTH_ENABLED=true:
- *   - AUTH_SECRET        — random string (openssl rand -hex 32)
- *   - GOOGLE_CLIENT_ID   — reused from the GSC OAuth client (or a new one)
+ *   - AUTH_SECRET        - random string (openssl rand -hex 32)
+ *   - GOOGLE_CLIENT_ID   - reused from the GSC OAuth client (or a new one)
  *   - GOOGLE_CLIENT_SECRET
  *
  * In Google Cloud Console, ADD this redirect URI alongside the GSC one:
  *   https://<prod-host>/api/auth/callback/google
  *
  * Optional env:
- *   - AUTH_ALLOWED_DOMAINS — comma-separated. Defaults to "edstellar.com".
+ *   - AUTH_ALLOWED_DOMAINS - comma-separated. Defaults to "edstellar.com".
  *     Email addresses outside the list bounce at the signIn callback.
- *   - AUTH_TRUST_HOST=true — recommended on Vercel (auto-detected when
+ *   - AUTH_TRUST_HOST=true - recommended on Vercel (auto-detected when
  *     deployed there but harmless to set explicitly).
  */
 import NextAuth from "next-auth";

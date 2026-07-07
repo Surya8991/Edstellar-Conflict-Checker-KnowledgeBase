@@ -20,14 +20,14 @@ export interface VectorMatch {
   id: number;
   url: string;
   title: string | null;
-  /** Page H1 — used for the per-signal H1 Jaccard (lib/signals). */
+  /** Page H1 - used for the per-signal H1 Jaccard (lib/signals). */
   h1: string | null;
   contentType: string | null;
   /** Content-depth proxy for winner selection (lib/resolution). */
   tokenCount: number | null;
   snippet: string;
   similarity: number; // cosine similarity 0..1
-  /** Editorial owner — the URL the team has decided should rank for this
+  /** Editorial owner - the URL the team has decided should rank for this
    *  topic. Null = no owner set. Drives the 'merge / redirect' UX hints. */
   ownerUrl: string | null;
   /** Last-28-day GSC clicks materialised onto the page. Used for
@@ -55,7 +55,7 @@ export async function vectorSearchPages(
 
   // Live pages only: a page that redirects / is canonicalized elsewhere
   // (marked by scripts/detect-redirects.ts) must never be reported as a
-  // conflict target — it isn't a page any more.
+  // conflict target - it isn't a page any more.
   const rows = await db.execute(sql`
     SELECT id, url, title, h1, content_type, token_count,
            owner_url, gsc_clicks_28d, gsc_impressions_28d,

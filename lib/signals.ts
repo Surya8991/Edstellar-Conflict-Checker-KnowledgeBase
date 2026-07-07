@@ -2,8 +2,8 @@
  * Per-signal similarity primitives for the content-conflict tool
  * (plans/01-conflict-automation.md, Stage 4).
  *
- * Signals are computed and reported SEPARATELY — never blended into one
- * number — so a reviewer can see *why* two pages were grouped. Identical
+ * Signals are computed and reported SEPARATELY - never blended into one
+ * number - so a reviewer can see *why* two pages were grouped. Identical
  * titles with different bodies is a metadata problem; similar bodies with
  * different titles is true content overlap.
  *
@@ -73,7 +73,7 @@ export interface SignalScores {
   slug: number;
   /**
    * Body content similarity, 0..1. Passed in from the caller (cosine on
-   * embeddings — the measured signal the corpus already stores). Kept in the
+   * embeddings - the measured signal the corpus already stores). Kept in the
    * same struct so all four signals travel together.
    */
   body: number;
@@ -93,7 +93,7 @@ export function signalScores(
   body: number,
   /**
    * Optional corpus DF index (PROJECTLOG §17). When supplied, the title & slug
-   * Jaccards are computed over DISTINCTIVE tokens only — template words shared
+   * Jaccards are computed over DISTINCTIVE tokens only - template words shared
    * by every page ("corporate", "training", "courses") are dropped so the
    * lexical bars stop lighting up for pure template matches. Omit for the
    * legacy raw-token behaviour (unchanged).
@@ -116,11 +116,11 @@ export function signalScores(
 // Shared by Content Clusters (lib/cluster.ts) and the Conflict Checker's
 // lexical signals. The corpus document-frequency of a token cleanly separates
 // template vocabulary ("training" 82%, "corporate" 78%) from topic vocabulary
-// ("big" 0.6%, "sales" 1.2%) — so a DF cap auto-learns the stopword list.
+// ("big" 0.6%, "sales" 1.2%) - so a DF cap auto-learns the stopword list.
 
 /** Last non-empty path segment of a URL, tokenized. `/category/big-data-training`
  *  → ["big","data","training"]. Section prefixes (/category/, /blog/) are
- *  dropped — they polluted topic keys in the full-corpus simulation. */
+ *  dropped - they polluted topic keys in the full-corpus simulation. */
 export function lastSegmentTokens(url: string | null | undefined): string[] {
   if (!url) return [];
   let path = url;
@@ -179,7 +179,7 @@ export function isDistinctive(term: string, idx: DfIndex): boolean {
   return (idx.df.get(term) ?? 0) / idx.n < idx.cap;
 }
 
-/** Smoothed inverse document frequency — rarer terms weigh more. */
+/** Smoothed inverse document frequency - rarer terms weigh more. */
 export function idf(term: string, idx: DfIndex): number {
   const d = idx.df.get(term) ?? 0;
   return Math.log((idx.n + 1) / (d + 1)) + 1;
@@ -204,7 +204,7 @@ export function topicKey(input: SignalInput, idx: DfIndex): TopicKey {
     unigrams: uni,
     // A bigram is a genuine topic phrase only if BOTH its words are distinctive.
     // "safety corporate" / "corporate chemical" contain the template word
-    // "corporate" — the *bigram* is rare (would pass a bigram-DF test) but it's
+    // "corporate" - the *bigram* is rare (would pass a bigram-DF test) but it's
     // template noise, and it made one topic's label read like three (PROJECTLOG
     // §17K). Requiring both unigrams distinctive drops it cleanly.
     bigrams: bi.filter((t) => {
@@ -242,7 +242,7 @@ export function topicOverlap(
   return union === 0 ? 0 : inter / union;
 }
 
-/** Shared distinctive terms between two topic keys (bigrams first) — the
+/** Shared distinctive terms between two topic keys (bigrams first) - the
  *  human-readable "why grouped" tags, e.g. ["big data", "big"]. */
 export function sharedTopicTerms(a: TopicKey, b: TopicKey): string[] {
   const bset = new Set([...b.unigrams, ...b.bigrams]);

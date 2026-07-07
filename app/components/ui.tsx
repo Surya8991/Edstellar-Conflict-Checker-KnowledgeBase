@@ -76,7 +76,7 @@ export function ConflictBadge({ type }: { type: string }) {
   );
 }
 
-/** Color palette for `pages.content_type` values. Single source of truth —
+/** Color palette for `pages.content_type` values. Single source of truth -
  *  reused by Corpus, Conflict Checker, and any other view that surfaces a type. */
 export const TYPE_COLORS: Record<string, string> = {
   course:               "bg-indigo-100 text-indigo-700",
@@ -110,11 +110,11 @@ export const INTENT_STYLE: Record<Intent, string> = {
 };
 
 export const ACTION_STYLE: Record<ClusterAction, { label: string; cls: string; hint: string }> = {
-  merge:         { label: "Merge → 301", cls: "bg-rose-100 text-rose-700 border-rose-200", hint: "Near-duplicate, same intent — redirect the loser into the winner." },
-  consolidate:   { label: "Consolidate", cls: "bg-amber-100 text-amber-800 border-amber-200", hint: "Strong overlap, same intent — keep the winner, re-link the other as support." },
-  differentiate: { label: "Differentiate", cls: "bg-blue-100 text-blue-700 border-blue-200", hint: "Same intent, partial overlap — rewrite to separate the angles." },
-  "keep-both":   { label: "Keep both", cls: "bg-emerald-100 text-emerald-700 border-emerald-200", hint: "Different intent — no conflict." },
-  pillar:        { label: "Pillar + spokes", cls: "bg-purple-100 text-purple-700 border-purple-200", hint: "Hub page + cross-type spokes on one topic — link the spokes to the pillar, don't merge." },
+  merge:         { label: "Merge → 301", cls: "bg-rose-100 text-rose-700 border-rose-200", hint: "Near-duplicate, same intent - redirect the loser into the winner." },
+  consolidate:   { label: "Consolidate", cls: "bg-amber-100 text-amber-800 border-amber-200", hint: "Strong overlap, same intent - keep the winner, re-link the other as support." },
+  differentiate: { label: "Differentiate", cls: "bg-blue-100 text-blue-700 border-blue-200", hint: "Same intent, partial overlap - rewrite to separate the angles." },
+  "keep-both":   { label: "Keep both", cls: "bg-emerald-100 text-emerald-700 border-emerald-200", hint: "Different intent - no conflict." },
+  pillar:        { label: "Pillar + spokes", cls: "bg-purple-100 text-purple-700 border-purple-200", hint: "Hub page + cross-type spokes on one topic - link the spokes to the pillar, don't merge." },
 };
 
 /** `/path` from a full URL, falling back to the raw string. */
@@ -159,7 +159,7 @@ export function ScoreBar({ score }: { score: number }) {
 /**
  * Audit 10C tokenization (Session 8): single Button component to replace
  * the three parallel style variants littered across pages. Drop-in
- * replacement for `<button>` — same children, same `onClick`, etc.
+ * replacement for `<button>` - same children, same `onClick`, etc.
  *
  *   <Button>             primary   medium
  *   <Button variant="secondary">   bordered
@@ -207,14 +207,14 @@ export function Button({
 /**
  * Audit 10C polish (Session 9): unified Stat component. Previously the
  * dashboard rendered a big Card-shaped KPI tile and the competitors page
- * rendered a small slate-50 inline box — both called `Stat` locally.
+ * rendered a small slate-50 inline box - both called `Stat` locally.
  * Two variants live here so existing call sites work without contortions:
  *
  *   <Stat size="lg" label="..." value={n} hint="..." href="/audit" accent="warn" />
- *     headline KPI on the dashboard — big card, optional link + accent
+ *     headline KPI on the dashboard - big card, optional link + accent
  *
  *   <Stat size="sm" label="..." value="..." />
- *     inline sub-metric in a row — small bordered box, no link/accent
+ *     inline sub-metric in a row - small bordered box, no link/accent
  *
  * `size="lg"` is the default since the dashboard cluster is the more
  * common use. The legacy local Stat definitions in dashboard + competitors
@@ -246,7 +246,7 @@ export function Stat({
   href?: string;
 }) {
   if (size === "sm") {
-    // Inline sub-metric — no link, no accent on the value.
+    // Inline sub-metric - no link, no accent on the value.
     return (
       <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
         <div className="text-xs uppercase tracking-wider text-slate-400">{label}</div>

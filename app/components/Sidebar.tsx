@@ -30,7 +30,7 @@ const NAV: { href: string; label: string; icon: any }[] = [
   { href: "/",                   label: "Dashboard",         icon: LayoutDashboard },
   { href: "/conflict-checker",   label: "Conflict Checker",  icon: ScanSearch },
   { href: "/clusters",           label: "Content Clusters",  icon: Boxes },
-  // Score History hidden for now (Session 13 — same pattern as Catalog
+  // Score History hidden for now (Session 13 - same pattern as Catalog
   // Conflicts). The /history page + /api routes still exist and dashboard
   // links to /history keep working; uncomment to restore the nav link.
   // { href: "/history",            label: "Score History",     icon: History },
@@ -42,7 +42,7 @@ const NAV: { href: string; label: string; icon: any }[] = [
 const ADDITIONAL_NAV: { href: string; label: string; icon: any }[] = [
   { href: "/manager",            label: "Manager View",      icon: BarChart3 },
   { href: "/bulk-check",         label: "Bulk Check",        icon: Layers },
-  // Catalog Conflicts hidden for now (Session 11 — user will revisit later).
+  // Catalog Conflicts hidden for now (Session 11 - user will revisit later).
   // The /catalog-conflicts page + /api/catalog-conflicts + the scan script all
   // still exist; uncomment to restore.
   // { href: "/catalog-conflicts",  label: "Catalog Conflicts", icon: GitCompareArrows },
@@ -97,7 +97,7 @@ export default function Sidebar({ user, signOutSlot }: { user?: SidebarUser | nu
       {/* Sidebar. Drawer on small, static on >= lg. Audit H18: when the
           drawer is open on narrow viewports, surface it as a modal dialog
           so assistive tech treats it correctly. The `lg:` static layout
-          isn't modal — only the mobile drawer is. */}
+          isn't modal - only the mobile drawer is. */}
       <aside
         id="sidebar-drawer"
         role={open ? "dialog" : undefined}

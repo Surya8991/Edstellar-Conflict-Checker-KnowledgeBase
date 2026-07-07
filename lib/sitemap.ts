@@ -11,10 +11,10 @@ export interface SitemapEntry {
  *
  * Why: ingesting these pollutes vector search with pages that aren't
  * original content. The two worst offenders are:
- *   - Tag / category / author archive pages — they re-list other posts'
+ *   - Tag / category / author archive pages - they re-list other posts'
  *     titles + snippets, so they always look ~70% similar to whatever the
  *     candidate is about, generating false-positive conflicts.
- *   - Utility URLs (sitemap itself, search, login, cart, checkout) —
+ *   - Utility URLs (sitemap itself, search, login, cart, checkout) -
  *     either no content or no SEO surface.
  *
  * Pagination is also dropped: `/blog/page/2/` is the same set of titles

@@ -5,7 +5,7 @@
 ALTER TABLE pages ADD COLUMN IF NOT EXISTS owner_url text;
 CREATE INDEX IF NOT EXISTS pages_owner_url_idx ON pages (owner_url);
 
--- #26 Business-impact severity — last-28-day GSC totals materialised onto the
+-- #26 Business-impact severity - last-28-day GSC totals materialised onto the
 -- page row so the conflict checker can score by traffic value without
 -- re-joining gsc_metrics on every request.
 ALTER TABLE pages ADD COLUMN IF NOT EXISTS gsc_clicks_28d      integer;
@@ -26,12 +26,12 @@ ALTER TABLE pages ADD COLUMN IF NOT EXISTS images_no_alt  integer;
 ALTER TABLE pages ADD COLUMN IF NOT EXISTS is_stale       boolean DEFAULT false;
 ALTER TABLE pages ADD COLUMN IF NOT EXISTS stale_reason   text;
 
--- #9A item 8 — filter-column indexes for /api/pages perf.
+-- #9A item 8 - filter-column indexes for /api/pages perf.
 CREATE INDEX IF NOT EXISTS pages_content_type_idx ON pages (content_type);
 CREATE INDEX IF NOT EXISTS pages_course_type_idx_v2 ON pages (course_type);
 CREATE INDEX IF NOT EXISTS pages_category_idx_v2 ON pages (category);
 
--- #36 Shipped-vs-blocked reporting — flag whether a check turned into a
+-- #36 Shipped-vs-blocked reporting - flag whether a check turned into a
 -- published page so leadership can report 'we caught N this quarter'.
 -- outcome values: 'published' | 'merged' | 'redirected' | 'discarded' | null
 ALTER TABLE checks ADD COLUMN IF NOT EXISTS verdict     text;

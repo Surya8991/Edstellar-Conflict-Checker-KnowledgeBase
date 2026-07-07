@@ -1,11 +1,11 @@
 /**
  * Center-based ("leader") topic clustering for Content Clusters
- * (PROJECTLOG §17D-E — replaces the old body-embedding connected-components
+ * (PROJECTLOG §17D-E - replaces the old body-embedding connected-components
  * approach, which chained different topics into a single 375-page hairball).
  *
  * A cluster = one TOPIC across content types (the category page is the natural
  * pillar; its courses/blogs are spokes). Every member matches the cluster's
- * SEED directly by distinctive-topic-token overlap — never member↔member — so
+ * SEED directly by distinctive-topic-token overlap - never member↔member - so
  * transitive chaining is impossible by construction.
  *
  * Pure + deterministic. Unit-tested in cluster.test.ts against the user's exact
@@ -53,12 +53,12 @@ export interface TopicCluster {
 
 export interface ClusterResult {
   clusters: TopicCluster[];
-  /** URLs whose topic is genuinely unique (never reached minSize) — an answer,
+  /** URLs whose topic is genuinely unique (never reached minSize) - an answer,
    *  not a coverage gap. */
   singletons: string[];
   /** Total pages evaluated (every page is keyed and considered). */
   corpusSize: number;
-  /** The DF index built over the corpus — exposed so callers can reuse it. */
+  /** The DF index built over the corpus - exposed so callers can reuse it. */
   dfIndex: DfIndex;
 }
 

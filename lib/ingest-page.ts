@@ -2,13 +2,13 @@
  * Audit H10 (Session 6): shared ingest-one-page primitive used by both
  * scripts/ingest.ts (bulk worker pool) and app/api/cron/reingest/route.ts
  * (Vercel-cron worker pool). Previously the cron version ran a serial
- * for-loop over the entire sitemap inside a single 300s function —
+ * for-loop over the entire sitemap inside a single 300s function -
  * ~1,500 URLs × ~500ms each = guaranteed timeout. The script had its own
  * worker pool but didn't share code.
  *
  * `ingestOne` takes the embed function as a dependency so the script can
  * pass its already-initialised local model and the cron route can call
- * getEmbedder() — same query plan either way.
+ * getEmbedder() - same query plan either way.
  */
 import type { NeonQueryFunction } from "@neondatabase/serverless";
 import { fetchAndExtract, estimateTokens } from "./extract";
@@ -117,7 +117,7 @@ export async function ingestOne(
 
 /**
  * Drive a worker pool over a queue of sitemap entries. Returns the rollup
- * counters. Concurrency defaults to 10 — same as audit-links.
+ * counters. Concurrency defaults to 10 - same as audit-links.
  */
 export async function runIngestPool(
   entries: SitemapEntry[],

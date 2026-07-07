@@ -6,7 +6,7 @@ import { classifyIntent } from "@/lib/intent";
  * Precompute near-duplicate page pairs across the whole corpus and store them
  * in `catalog_conflicts` for the Catalog Conflicts dashboard.
  *
- * Session 11 rewrite — solidified:
+ * Session 11 rewrite - solidified:
  *   - **One query, not N.** A single pgvector top-k lateral join replaces the
  *     old per-page loop (2,400+ round-trips). Same result, ~1-2 s, and it can't
  *     half-finish and leave a torn table.
@@ -20,7 +20,7 @@ import { classifyIntent } from "@/lib/intent";
  * Noise filters kept from the original:
  *   1. `static` pages excluded on BOTH sides ("Enquire Now" ↔ "Get a Free Demo").
  *   2. Template-noise: sim ≥ 0.97 where either page has < min-body chars.
- *   3. Redirected/canonicalized-away pages excluded on BOTH sides — a page
+ *   3. Redirected/canonicalized-away pages excluded on BOTH sides - a page
  *      scripts/detect-redirects.ts marked `is_stale` must never appear as its
  *      own row (matches the `LIVE` predicate in app/api/groups/route.ts).
  *
@@ -85,7 +85,7 @@ async function main() {
   // One query: for every page, probe its top-k nearest neighbours via the HNSW
   // index and keep those that clear the threshold. Both sides' metadata + body
   // length come back in the same row.
-  // Live pages only on both sides — a redirected/canonicalized-away page
+  // Live pages only on both sides - a redirected/canonicalized-away page
   // (scripts/detect-redirects.ts) must never form a conflict pair.
   const LIVE = (alias: string) =>
     `COALESCE(${alias}.is_stale, false) = false
@@ -136,10 +136,10 @@ async function main() {
     inserts.push(r);
   }
 
-  // Bulk replace as ONE statement — a `WITH del AS (DELETE ...)` CTE runs the
+  // Bulk replace as ONE statement - a `WITH del AS (DELETE ...)` CTE runs the
   // delete and the insert in the same query, so it's atomic even though
   // neon's HTTP driver is stateless (each separate sql.query() call is its
-  // own auto-committed request — a DELETE followed by a failing INSERT would
+  // own auto-committed request - a DELETE followed by a failing INSERT would
   // otherwise leave catalog_conflicts empty).
   if (inserts.length) {
     const pts = inserts.map((r) =>
@@ -165,7 +165,7 @@ async function main() {
     );
     found = inserts.length;
   } else {
-    // No qualifying pairs — still clear the table so a shrinking corpus
+    // No qualifying pairs - still clear the table so a shrinking corpus
     // doesn't leave last run's rows behind.
     await sql.query("DELETE FROM catalog_conflicts");
   }

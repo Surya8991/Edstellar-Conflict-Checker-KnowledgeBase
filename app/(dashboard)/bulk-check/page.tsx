@@ -40,7 +40,7 @@ function saveHistory(inputs: string, results: Result[]) {
   try {
     localStorage.setItem(HISTORY_KEY, JSON.stringify([next, ...prev]));
   } catch {
-    // quota exceeded — skip silently
+    // quota exceeded - skip silently
   }
 }
 
@@ -67,7 +67,7 @@ export default function BulkCheckPage() {
     return s.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith("#"));
   }
 
-  // Live progress — bumped by the worker pool as each row finishes.
+  // Live progress - bumped by the worker pool as each row finishes.
   const [doneCount, setDoneCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
 
@@ -81,7 +81,7 @@ export default function BulkCheckPage() {
     setDoneCount(0);
     setTotalCount(inputs.length);
 
-    // Client-side worker pool — one POST /api/check per input, so the user
+    // Client-side worker pool - one POST /api/check per input, so the user
     // gets live per-row feedback instead of staring at "Running…" for 4 min.
     // Results land in the table as soon as each finishes.
     let cursor = 0;
@@ -168,7 +168,7 @@ export default function BulkCheckPage() {
     <div>
       <PageHeader
         title="Bulk Conflict Check"
-        subtitle="Paste up to a few hundred URLs or topics — get a verdict + score for each, downloadable as CSV."
+        subtitle="Paste up to a few hundred URLs or topics - get a verdict + score for each, downloadable as CSV."
       />
       <div className="space-y-5 p-8">
         <Card>
@@ -318,15 +318,15 @@ export default function BulkCheckPage() {
                       <td className="py-2 pr-3">
                         <VerdictPill verdict={r.verdict} ok={r.ok} />
                       </td>
-                      <td className="py-2 pr-3 tabular-nums">{r.topScore ?? "—"}</td>
+                      <td className="py-2 pr-3 tabular-nums">{r.topScore ?? "-"}</td>
                       <td className="max-w-md truncate py-2 pr-3">
                         {r.topMatchUrl ? (
                           <a href={r.topMatchUrl} target="_blank" rel="noreferrer" className="text-slate-700 hover:underline">
                             {r.topMatchTitle || r.topMatchUrl}
                           </a>
-                        ) : r.error ? <span className="text-red-500 text-xs">{r.error}</span> : "—"}
+                        ) : r.error ? <span className="text-red-500 text-xs">{r.error}</span> : "-"}
                       </td>
-                      <td className="py-2 capitalize text-slate-600">{r.topMatchType || "—"}</td>
+                      <td className="py-2 capitalize text-slate-600">{r.topMatchType || "-"}</td>
                     </tr>
                   ))}
                 </tbody>

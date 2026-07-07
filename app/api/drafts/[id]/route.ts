@@ -10,8 +10,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * GET   /api/drafts/:id  — UI poll (session-gated). Returns full draft body.
- * PATCH /api/drafts/:id  — worker writes back (requires X-Worker-Key).
+ * GET   /api/drafts/:id  - UI poll (session-gated). Returns full draft body.
+ * PATCH /api/drafts/:id  - worker writes back (requires X-Worker-Key).
  */
 
 const PatchBody = z.object({

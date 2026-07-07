@@ -86,7 +86,7 @@ export function widenForCorporateTraining(topic: string): string {
 
 /**
  * SERP-noise destinations: video pages, social, Q&A / forums, file shares.
- * These rank for B2B training queries but have no useful text to summarize —
+ * These rank for B2B training queries but have no useful text to summarize -
  * the extractor would return a video-player shell or user-generated chatter.
  */
 const NOISE_DOMAINS = new Set([
@@ -121,15 +121,15 @@ export async function researchCompetitors(
   const limit = opts.limit ?? 6;
   const chat = getChat();
 
-  // Ask for more than we need — Edstellar + noise + per-domain dedup eats
+  // Ask for more than we need - Edstellar + noise + per-domain dedup eats
   // most of the first page on corporate-training queries. Audit H13: only
   // widen with "corporate training" when the topic doesn't already include
-  // a training-related term — otherwise we double-up keywords and SERP
+  // a training-related term - otherwise we double-up keywords and SERP
   // relevance collapses.
   const organic = await serperSearch(widenForCorporateTraining(topic), 20);
 
   // Skip Edstellar (exact-suffix), drop SERP-noise destinations, then keep
-  // only the first result per domain — otherwise the top-N is often dominated
+  // only the first result per domain - otherwise the top-N is often dominated
   // by one large site (oreilly.com, coursera.org) and we lose competitive
   // coverage.
   const seenDomains = new Set<string>();

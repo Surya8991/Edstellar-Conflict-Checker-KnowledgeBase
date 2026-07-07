@@ -7,7 +7,7 @@
  *   - Caller decides: similarity >= 0.85 → return cached; lower → fall
  *     back to Groq (lib/drafts/runtime.ts).
  *
- * Mirrors lib/search.ts vectorSearchPages, but smaller surface — we
+ * Mirrors lib/search.ts vectorSearchPages, but smaller surface - we
  * only ever need the top match for drafts.
  */
 import { sql } from "drizzle-orm";
@@ -37,7 +37,7 @@ interface NearestDraftRow {
 
 /**
  * Return the nearest cached draft to a query embedding, or null if the
- * table is empty. Caller decides the threshold — we don't filter here
+ * table is empty. Caller decides the threshold - we don't filter here
  * because cache-near-miss is still useful as input to Groq's "adapt
  * this draft" prompt.
  */

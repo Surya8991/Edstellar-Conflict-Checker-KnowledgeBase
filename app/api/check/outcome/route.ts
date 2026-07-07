@@ -19,7 +19,7 @@ const BodySchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  // H4: gate unconditionally — when WEBHOOK_API_KEY is unset we fall back to
+  // H4: gate unconditionally - when WEBHOOK_API_KEY is unset we fall back to
   // rate-limiting (60 req/min) instead of leaving the endpoint open for
   // arbitrary DB row updates with zero auth and zero rate-limit.
   const gate = await gateLlmEndpoint(request, "check-outcome", { max: 60, windowSec: 60 });

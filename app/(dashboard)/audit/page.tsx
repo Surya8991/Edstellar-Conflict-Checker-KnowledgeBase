@@ -6,7 +6,7 @@ import { Pagination } from "@/app/components/Pagination";
 import { Tabs, useActiveTab } from "@/app/components/Tabs";
 
 // Audit H15 (Session 6): tab id IS the audit kind in /api/audit, so the
-// URL `?tab=` value also drives the fetch — single source of truth.
+// URL `?tab=` value also drives the fetch - single source of truth.
 const TABS = [
   { id: "meta", label: "Meta" },
   { id: "links", label: "Link Audit" },
@@ -19,14 +19,14 @@ const TABS = [
 ] as const;
 
 const TAB_SUBTITLES: Record<string, string> = {
-  meta: "Title and description length — flags pages that are too short, too long, or missing meta tags.",
-  links: "Broken internal links — pages that 404 or redirect unexpectedly.",
-  duplicates: "Pages with very similar content — candidates to merge, redirect, or differentiate.",
+  meta: "Title and description length - flags pages that are too short, too long, or missing meta tags.",
+  links: "Broken internal links - pages that 404 or redirect unexpectedly.",
+  duplicates: "Pages with very similar content - candidates to merge, redirect, or differentiate.",
   health: "Composite score per page combining content length, meta quality, and link health.",
-  canonical: "Pages missing a canonical tag or pointing to a different URL — can split your search ranking signals.",
+  canonical: "Pages missing a canonical tag or pointing to a different URL - can split your search ranking signals.",
   images: "Images without alt text or with oversized file sizes.",
-  stale: "Pages with little traffic and no recent updates — candidates to refresh, merge, or retire.",
-  clusters: "Topic groups — courses and blog posts covering the same subject, showing coverage gaps and overlaps.",
+  stale: "Pages with little traffic and no recent updates - candidates to refresh, merge, or retire.",
+  clusters: "Topic groups - courses and blog posts covering the same subject, showing coverage gaps and overlaps.",
 };
 
 export default function AuditPage() {
@@ -92,7 +92,7 @@ function MetaTab({ rows, flagFilter, onFlagFilter }: { rows: any[]; flagFilter: 
   const filtered = flagFilter ? rows.filter((r) => r.flags?.includes(flagFilter)) : rows;
   const slice = filtered.slice((page - 1) * pageSize, page * pageSize);
 
-  if (!rows.length) return <Card className="text-sm text-slate-500">No meta issues found — everything within recommended length.</Card>;
+  if (!rows.length) return <Card className="text-sm text-slate-500">No meta issues found - everything within recommended length.</Card>;
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -185,7 +185,7 @@ function LinksTab({ rows, audited, breakdown }: { rows: any[]; audited: number; 
 
   return (
     <div className="space-y-3">
-      {/* Top-of-tab breakdown chips — read at a glance, click to filter. */}
+      {/* Top-of-tab breakdown chips - read at a glance, click to filter. */}
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className="text-slate-500">Status:</span>
         <button
@@ -236,7 +236,7 @@ function LinksTab({ rows, audited, breakdown }: { rows: any[]; audited: number; 
                 </td>
                 <td className="px-4 py-2">
                   <span className={`rounded px-2 py-0.5 text-xs font-mono ${statusStyle(r.http_status)}`}>
-                    {r.http_status === 0 ? "—" : r.http_status}
+                    {r.http_status === 0 ? "-" : r.http_status}
                   </span>
                 </td>
                 <td className="px-4 py-2 capitalize text-slate-500">{r.content_type}</td>
@@ -310,7 +310,7 @@ function bandOf(h: number): Exclude<Band, "all"> {
 function HealthTab({ rows }: { rows: any[] }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
-  // Lower bound — show pages with health >= minHealth. Default 0 = all rows.
+  // Lower bound - show pages with health >= minHealth. Default 0 = all rows.
   // The intent of this page is to surface low-health pages for fixing, so
   // rows are sorted ascending (weakest first) regardless of the filter.
   const [minHealth, setMinHealth] = useState(0);
@@ -418,7 +418,7 @@ function HealthTab({ rows }: { rows: any[] }) {
                   </div>
                 </td>
                 <td className="px-4 py-2 tabular-nums text-slate-500">{(r.body_len ?? 0).toLocaleString()}</td>
-                <td className="px-4 py-2 tabular-nums text-slate-500">{r.http_status ?? "—"}</td>
+                <td className="px-4 py-2 tabular-nums text-slate-500">{r.http_status ?? "-"}</td>
               </tr>
             ))}
           </tbody>
@@ -431,7 +431,7 @@ function HealthTab({ rows }: { rows: any[] }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Batch E SEO audit tabs — Canonical / Images / Stale
+// Batch E SEO audit tabs - Canonical / Images / Stale
 // ─────────────────────────────────────────────────────────────────────────
 
 function CanonicalTab({ rows }: { rows: any[] }) {
@@ -472,7 +472,7 @@ function CanonicalTab({ rows }: { rows: any[] }) {
                 <td className="max-w-md truncate px-4 py-2 text-xs text-slate-500">
                   {r.canonical_url ? (
                     <a href={r.canonical_url} target="_blank" rel="noreferrer" className="hover:underline">{r.canonical_url}</a>
-                  ) : <span className="text-slate-300">—</span>}
+                  ) : <span className="text-slate-300">-</span>}
                 </td>
               </tr>
             ))}
@@ -545,7 +545,7 @@ function StaleTab({ rows }: { rows: any[] }) {
   return (
     <div className="space-y-3">
       <div className="text-xs text-slate-500">
-        <strong className="text-amber-700">{rows.length.toLocaleString()}</strong> pages flagged stale — refresh or prune candidates, sorted by lowest traffic first.
+        <strong className="text-amber-700">{rows.length.toLocaleString()}</strong> pages flagged stale - refresh or prune candidates, sorted by lowest traffic first.
       </div>
       <Card className="p-0">
         <table className="w-full text-sm">
@@ -570,7 +570,7 @@ function StaleTab({ rows }: { rows: any[] }) {
                 <td className="px-4 py-2 capitalize text-slate-500">{r.content_type}</td>
                 <td className="px-4 py-2 text-right tabular-nums">{r.gsc_clicks_28d ?? 0}</td>
                 <td className="px-4 py-2 text-right tabular-nums text-slate-500">{(r.gsc_impressions_28d ?? 0).toLocaleString()}</td>
-                <td className="px-4 py-2 text-xs text-slate-500">{r.lastmod ?? <span className="text-slate-300">—</span>}</td>
+                <td className="px-4 py-2 text-xs text-slate-500">{r.lastmod ?? <span className="text-slate-300">-</span>}</td>
                 <td className="px-4 py-2">
                   <span className={`rounded px-2 py-0.5 text-xs font-medium ${action.cls}`}>{action.label}</span>
                 </td>
@@ -610,11 +610,11 @@ interface BlogClusterRow {
 
 function ClustersTab({ rows, blogRows }: { rows: ClusterRow[]; blogRows: BlogClusterRow[] }) {
   if (!rows.length && !blogRows.length) {
-    return <Card className="text-sm text-slate-500">No clusters to show — corpus may not be tagged yet.</Card>;
+    return <Card className="text-sm text-slate-500">No clusters to show - corpus may not be tagged yet.</Card>;
   }
 
   // Editorial-debt score: a cluster with many courses and few blogs is
-  // 'thin' — the team has product pages but no awareness/discovery content.
+  // 'thin' - the team has product pages but no awareness/discovery content.
   // Formula: max(0, courses/3 - blogs). Sorts the worst-debt to the top.
   const enriched = rows.map((r) => ({
     ...r,
@@ -627,7 +627,7 @@ function ClustersTab({ rows, blogRows }: { rows: ClusterRow[]; blogRows: BlogClu
     byType.get(r.course_type)!.push(r);
   }
 
-  // Blog corpus uses its own taxonomy (broader buckets — "Training &
+  // Blog corpus uses its own taxonomy (broader buckets - "Training &
   // Development", "Leadership & Management"). Most blogs have a category
   // that doesn't overlap with the course catalogue, so the 'Blogs' column
   // in the course table is mostly 0 and we surface them separately here.
@@ -645,7 +645,7 @@ function ClustersTab({ rows, blogRows }: { rows: ClusterRow[]; blogRows: BlogClu
             <strong>Course clusters · how to read:</strong> each row is a
             (course type, category) bucket. Content debt = max(0, courses/3 - blogs).
             The Blogs column counts only blogs whose category exactly matches the
-            course category — most blogs live under a different taxonomy and
+            course category - most blogs live under a different taxonomy and
             appear in the Blog clusters table below.
           </Card>
           {[...byType.entries()].map(([type, clusters]) => (
@@ -683,7 +683,7 @@ function ClustersTab({ rows, blogRows }: { rows: ClusterRow[]; blogRows: BlogClu
                             +{c.debt}
                           </span>
                         ) : (
-                          <span className="text-slate-300">—</span>
+                          <span className="text-slate-300">-</span>
                         )}
                       </td>
                     </tr>
@@ -733,7 +733,7 @@ function ClustersTab({ rows, blogRows }: { rows: ClusterRow[]; blogRows: BlogClu
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{b.blogs}</td>
                       <td className={`px-3 py-2 text-right tabular-nums ${b.clicks_28d >= 100 ? "font-semibold text-slate-900" : "text-slate-500"}`}>{b.clicks_28d.toLocaleString()}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-slate-500">{b.impressions_28d.toLocaleString()}</td>
-                      <td className="px-3 py-2 text-right tabular-nums text-slate-500">{b.avg_position > 0 ? b.avg_position.toFixed(1) : "—"}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-slate-500">{b.avg_position > 0 ? b.avg_position.toFixed(1) : "-"}</td>
                       <td className={`px-3 py-2 text-right tabular-nums ${b.stale_pages > 0 ? "text-amber-600" : "text-slate-400"}`}>{b.stale_pages}</td>
                       <td className="px-3 py-2 text-right">
                         {stalePct >= 50 ? (
@@ -743,7 +743,7 @@ function ClustersTab({ rows, blogRows }: { rows: ClusterRow[]; blogRows: BlogClu
                         ) : stalePct > 0 ? (
                           <span className="text-xs text-slate-500">{stalePct}%</span>
                         ) : (
-                          <span className="text-slate-300">—</span>
+                          <span className="text-slate-300">-</span>
                         )}
                       </td>
                     </tr>

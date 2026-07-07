@@ -1,7 +1,7 @@
 /**
  * One-off: reclassify the homepage row from content_type='home' to 'static'.
  * The 'home' tag is preserved so it's still distinguishable in tag filters.
- * Idempotent — re-running after the row is fixed is a no-op.
+ * Idempotent - re-running after the row is fixed is a no-op.
  */
 import "dotenv/config";
 import { neon } from "@neondatabase/serverless";

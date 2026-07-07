@@ -23,7 +23,7 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
   /**
    * Audit 10C (Session 8): the prior implementation used a serial
    * `for (const text of texts) await pipe(text, ...)` loop. xenova/
-   * transformers actually supports passing an array directly — the
+   * transformers actually supports passing an array directly - the
    * underlying ORT model batches in a single forward pass, dropping
    * wall-clock by ~Nx for bulk ingest. We keep one fallback to the
    * sequential path if the array form ever throws (older lib versions).
@@ -38,12 +38,12 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
         normalize: true,
       });
       // xenova returns either a single Tensor (one row) or a list of
-      // Tensors (batched). `res.tolist()` is the universal accessor —
+      // Tensors (batched). `res.tolist()` is the universal accessor -
       // produces number[][] regardless of input shape.
       const list: number[][] = typeof res.tolist === "function"
         ? (res.tolist() as number[][])
         : [Array.from(res.data as Float32Array)];
-      // Single-input batches sometimes come back un-wrapped — re-wrap.
+      // Single-input batches sometimes come back un-wrapped - re-wrap.
       if (texts.length === 1 && Array.isArray(list) && typeof list[0] === "number") {
         return [list as unknown as number[]];
       }

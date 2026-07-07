@@ -3,7 +3,7 @@
  * something a future log-drain (Better Stack / Axiom / etc.) can parse.
  *
  * Levels: debug | info | warn | error. Default min-level is "info" in prod,
- * "debug" in dev — controlled by LOG_LEVEL env var.
+ * "debug" in dev - controlled by LOG_LEVEL env var.
  *
  * Output is one JSON object per line on stdout (info+) or stderr (warn/error)
  * so Vercel's runtime logs split naturally between the two.

@@ -50,10 +50,10 @@ async function probe(url: string): Promise<Probe | null> {
   let res: Response;
   try {
     res = await tryOnce("HEAD");
-    // Some servers reject HEAD (405) — retry with GET.
+    // Some servers reject HEAD (405) - retry with GET.
     if (res.status === 405 || res.status === 501) res = await tryOnce("GET");
   } catch {
-    return null; // network error — leave the page as-is rather than mis-flagging
+    return null; // network error - leave the page as-is rather than mis-flagging
   }
   if (res.status >= 300 && res.status < 400) {
     const loc = res.headers.get("location");
@@ -128,7 +128,7 @@ async function main() {
   }
 
   if (dead.length) {
-    // Dead pages have no canonical target — clear it so a stale redirect target
+    // Dead pages have no canonical target - clear it so a stale redirect target
     // from a prior run can't linger.
     await sql.query(
       `UPDATE pages AS p SET
@@ -144,7 +144,7 @@ async function main() {
 
   if (healed.length) {
     // Clear the stale marks on pages that resolve 200 again (only ones actually
-    // flagged stale — guarded in SQL too, so a concurrent re-mark isn't undone).
+    // flagged stale - guarded in SQL too, so a concurrent re-mark isn't undone).
     await sql.query(
       `UPDATE pages SET
          is_stale = false,

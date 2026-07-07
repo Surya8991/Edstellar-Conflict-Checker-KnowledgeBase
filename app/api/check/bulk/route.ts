@@ -12,7 +12,7 @@ export const maxDuration = 300;
  * Body: { inputs: string[], limit?: number, concurrency?: number }
  * Returns: { results: Array<{input, ok, topScore, verdict, summary?, error?}> }
  *
- * Same auth strategy as /api/check — WEBHOOK_API_KEY if set, otherwise
+ * Same auth strategy as /api/check - WEBHOOK_API_KEY if set, otherwise
  * rate-limited per-IP. Bulk gets a tighter window (10 calls per 5 minutes)
  * because each call can fan out to 50+ inputs.
  */

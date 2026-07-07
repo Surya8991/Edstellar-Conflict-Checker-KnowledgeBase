@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Conflict Checker — Setup Guide</title>
+<title>Conflict Checker - Setup Guide</title>
 <style>
   :root{
     --bg:#0b1020; --panel:#121831; --panel2:#0f1530; --border:#1f2747;
@@ -63,7 +63,7 @@
   <div class="brand">
     <div class="logo">CC</div>
     <div>
-      <h1>Conflict Checker — Setup Guide</h1>
+      <h1>Conflict Checker - Setup Guide</h1>
       <div class="sub">Follow the steps in order. Each step says what to do, where to click, and what to paste.</div>
     </div>
   </div>
@@ -90,7 +90,7 @@
 </div>
 
 <div class="note">
-  <strong>Already done ✅</strong> — <code>GROQ_API_KEY</code> is set. <strong>DATABASE_URL</strong> is set and the schema is created. The 2,478-URL ingest is running in the background.
+  <strong>Already done ✅</strong> - <code>GROQ_API_KEY</code> is set. <strong>DATABASE_URL</strong> is set and the schema is created. The 2,478-URL ingest is running in the background.
 </div>
 
 <!-- STEP 1 -->
@@ -117,7 +117,7 @@
     <li>Open <code>.env</code> and paste it:
 <pre><code>DATABASE_URL=postgresql://neondb_owner:...@ep-...-pooler.region.aws.neon.tech/neondb?sslmode=require</code><button class="copy" data-copy="DATABASE_URL=">Copy</button></pre>
     </li>
-    <li>Save the file. Tell me <em>"Neon done"</em> — I run <code>npm run db:setup</code> and start ingesting.</li>
+    <li>Save the file. Tell me <em>"Neon done"</em> - I run <code>npm run db:setup</code> and start ingesting.</li>
   </ol>
 </section>
 
@@ -193,7 +193,7 @@ GOOGLE_CLIENT_SECRET=">Copy</button></pre>
     <span class="pill opt">optional</span>
     <span class="time">~2 min</span>
   </div>
-  <p>You already have Groq (fast). Claude writes higher-quality summaries / conflict rationales — at the cost of speed.</p>
+  <p>You already have Groq (fast). Claude writes higher-quality summaries / conflict rationales - at the cost of speed.</p>
   <div class="links">
     <a class="btn" href="https://console.anthropic.com/" target="_blank">Open Anthropic Console ↗</a>
   </div>
@@ -223,7 +223,7 @@ GOOGLE_CLIENT_SECRET=">Copy</button></pre>
 AI_EMBED_PROVIDER=openai</code><button class="copy" data-copy="OPENAI_API_KEY=
 AI_EMBED_PROVIDER=openai">Copy</button></pre>
     </li>
-    <li>Tell me — I'll run the re-embed migration (384-dim local → 1536-dim OpenAI) and backfill.</li>
+    <li>Tell me - I'll run the re-embed migration (384-dim local → 1536-dim OpenAI) and backfill.</li>
   </ol>
 </section>
 
@@ -245,7 +245,7 @@ AI_EMBED_PROVIDER=openai">Copy</button></pre>
 </section>
 
 <div class="warn">
-  <strong>After each step</strong> — the dev server <strong>auto-reloads <code>.env</code></strong>. Just save the file. To restart manually: <kbd>Ctrl</kbd>+<kbd>C</kbd> in the dev terminal, then <code>npm run dev</code>.
+  <strong>After each step</strong> - the dev server <strong>auto-reloads <code>.env</code></strong>. Just save the file. To restart manually: <kbd>Ctrl</kbd>+<kbd>C</kbd> in the dev terminal, then <code>npm run dev</code>.
 </div>
 
 <footer>

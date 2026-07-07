@@ -4,7 +4,7 @@
  * Audit H15 (Session 6): tab strip with URL state sync, role=tablist
  * semantics, and arrow-key keyboard navigation.
  *
- *   - `?tab=<id>` is the source of truth — reload-, share-, back-button
+ *   - `?tab=<id>` is the source of truth - reload-, share-, back-button
  *     safe. The first render reads the URL; tab clicks call
  *     `router.replace` so the address bar stays current without polluting
  *     history.

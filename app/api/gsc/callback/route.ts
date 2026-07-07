@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
   const stateParam = request.nextUrl.searchParams.get("state");
   const cookieValue = request.cookies.get(OAUTH_STATE_COOKIE)?.value ?? null;
 
-  // Clear the cookie immediately — single-use, regardless of outcome.
+  // Clear the cookie immediately - single-use, regardless of outcome.
   const clearCookie = (res: NextResponse) => {
     res.cookies.set({
       name: OAUTH_STATE_COOKIE,

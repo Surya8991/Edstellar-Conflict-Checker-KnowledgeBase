@@ -3,8 +3,8 @@
  * content-conflict automation (plans/01-conflict-automation.md).
  *
  * The whole point of the tool is "each human judgment call becomes a
- * deterministic check with a signal and a threshold." Keeping them here —
- * env-overridable — means a site can be tuned without touching code.
+ * deterministic check with a signal and a threshold." Keeping them here -
+ * env-overridable - means a site can be tuned without touching code.
  *
  * Env overrides: any key can be set via `CONFLICT_<UPPER_SNAKE>`, e.g.
  * `CONFLICT_BODY_COSINE_MERGE=0.82`. Winner weights via
@@ -44,10 +44,10 @@ export interface Thresholds {
   /** Slug token overlap ≥ this ⇒ near-duplicate URL. */
   slugOverlapDup: number;
   /** Below this body cosine (and no near-dup metadata) a same-intent pair is
-   *  NOT a conflict — keep both. Guards decidePair when called with a low body. */
+   *  NOT a conflict - keep both. Guards decidePair when called with a low body. */
   noConflictFloor: number;
   /** Conflict Checker course↔course gate (decidePair): two catalog courses are
-   *  "the same offering" only at this cosine — course bodies share heavy
+   *  "the same offering" only at this cosine - course bodies share heavy
    *  template boilerplate which inflates similarity, so a much higher bar is
    *  needed. NOT used by the Content Clusters engine (that's topic-token based). */
   groupSimCourse: number;
@@ -62,7 +62,7 @@ export interface Thresholds {
   /** Content Clusters (topic-token leader clustering, PROJECTLOG §17): tokens
    *  appearing in ≥ this share of the corpus are template noise ("training",
    *  "corporate") and are dropped from topic keys. A DF cap auto-learns the
-   *  template vocabulary — no hardcoded stopword list. */
+   *  template vocabulary - no hardcoded stopword list. */
   topicDfCap: number;
   /** Content Clusters: IDF-weighted distinctive-token Jaccard a page needs vs a
    *  seed to join its cluster. Below this it becomes (or joins) another seed.
@@ -70,7 +70,7 @@ export interface Thresholds {
    *  0.257, hardest false sibling big-data↔data-analytics = 0.046 → 0.18 sits
    *  between with margin on both sides. */
   topicOverlap: number;
-  /** Content Clusters: minimum body cosine a member needs vs its seed — a topic
+  /** Content Clusters: minimum body cosine a member needs vs its seed - a topic
    *  match with near-zero body overlap is demoted to a singleton. */
   topicBodyFloor: number;
   /** Weights used to pick the surviving (canonical) page. */

@@ -72,7 +72,7 @@ async function main() {
 
         // Redirect guard (PROJECTLOG §17H): fetchAndExtract follows redirects,
         // so `page.url` is the FINAL URL. If it differs from the requested URL
-        // this row 301/302'd — storing the target's content under the old URL
+        // this row 301/302'd - storing the target's content under the old URL
         // (and letting canonical_url = EXCLUDED overwrite detect-redirects'
         // mark) would resurrect a stale page as a byte-identical duplicate.
         // Instead: mark the old URL stale, record the target, keep NO content.

@@ -1,9 +1,9 @@
 /**
- * Weekly cron — only re-fetch URLs whose sitemap lastmod changed since the
+ * Weekly cron - only re-fetch URLs whose sitemap lastmod changed since the
  * last crawl. Intended for Vercel Cron (see vercel.json).
  *
  * Audit H10 (Session 6): the prior implementation ran a serial for-loop
- * over the entire sitemap inside a single 300s function — guaranteed to
+ * over the entire sitemap inside a single 300s function - guaranteed to
  * timeout once the sitemap grew past ~600 URLs. Now uses the shared
  * runIngestPool() worker pool with concurrency=10, mirroring audit-links.
  */
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     },
   );
 
-  // #10 — return 5xx if too many rows failed so Vercel's cron dashboard
+  // #10 - return 5xx if too many rows failed so Vercel's cron dashboard
   // shows the job as failed and the team sees it. Threshold: more than 25%
   // of attempted (done+failed) rows. 'skipped' isn't a failure.
   const attempted = done + failed;

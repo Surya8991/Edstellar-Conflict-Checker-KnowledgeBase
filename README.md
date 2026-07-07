@@ -1,6 +1,6 @@
 # Edstellar Conflict Checker
 
-Detect content conflicts (duplication / SEO cannibalization) **before** publishing a blog, course, or page — with a 0–100% conflict score, a per-signal breakdown (title / H1 / URL / body), a rule-based search-intent label, and a deterministic suggested resolution + winner per match. Similar corpus pages are also grouped (connected components of the near-duplicate scan). Google Search Console analytics and competitor research live on their own pages (`/search-console`, `/competitors`).
+Detect content conflicts (duplication / SEO cannibalization) **before** publishing a blog, course, or page - with a 0–100% conflict score, a per-signal breakdown (title / H1 / URL / body), a rule-based search-intent label, and a deterministic suggested resolution + winner per match. Similar corpus pages are also grouped (connected components of the near-duplicate scan). Google Search Console analytics and competitor research live on their own pages (`/search-console`, `/competitors`).
 
 Built with **Next.js 16** (App Router) + **Neon Postgres / pgvector**.
 
@@ -22,7 +22,7 @@ cp .env.example .env   # then fill in values
 ```
 
 Minimum to run conflict checks: `DATABASE_URL` (Neon) + `GROQ_API_KEY` **or** `ANTHROPIC_API_KEY`.
-Embeddings default to a **local** model (`AI_EMBED_PROVIDER=local`, Transformers.js `bge-small-en-v1.5`, 384-dim) — no key needed; the model downloads on first use.
+Embeddings default to a **local** model (`AI_EMBED_PROVIDER=local`, Transformers.js `bge-small-en-v1.5`, 384-dim) - no key needed; the model downloads on first use.
 
 ### 2. Database (Neon + pgvector)
 
@@ -34,7 +34,7 @@ npm run db:setup      # creates the pgvector extension + all tables
 
 ### 3. Ingest the corpus
 
-Crawls the bundled sitemap ([`data/sitemap-urls.csv`](data/sitemap-urls.csv), 2,479 URLs — ~2,461 after junk filtering in [`lib/sitemap.ts`](lib/sitemap.ts) drops tag-archives, `/sitemap`, file downloads etc.), extracts content, and embeds each page. This is the shipped sitemap snapshot, not a live count — the actual `pages` row count drifts as manual additions/removals happen (Corpus page → header shows the current figure); PROJECTLOG's session notes cite whatever the live count was at the time, so don't expect every doc to agree on one number.
+Crawls the bundled sitemap ([`data/sitemap-urls.csv`](data/sitemap-urls.csv), 2,479 URLs - ~2,461 after junk filtering in [`lib/sitemap.ts`](lib/sitemap.ts) drops tag-archives, `/sitemap`, file downloads etc.), extracts content, and embeds each page. This is the shipped sitemap snapshot, not a live count - the actual `pages` row count drifts as manual additions/removals happen (Corpus page → header shows the current figure); PROJECTLOG's session notes cite whatever the live count was at the time, so don't expect every doc to agree on one number.
 
 ```bash
 npm run ingest -- --limit=50      # quick sample first
@@ -54,23 +54,23 @@ Top-level nav: Dashboard, Conflict Checker, Content Clusters, Search Console, Co
 
 | Route | What it does |
 |---|---|
-| `/` | Dashboard — today's signals, needs-attention queue, recent activity. |
-| `/conflict-checker` | The headline tool — URL/topic → summary → scored matches, per-signal breakdown, and a suggested resolution + winner per match. |
-| `/clusters` | Content Clusters — live, corpus-wide grouping by TOPIC across content types (distinctive-token clustering; template words auto-learned & dropped) with a suggested action + winner per cluster. |
+| `/` | Dashboard - today's signals, needs-attention queue, recent activity. |
+| `/conflict-checker` | The headline tool - URL/topic → summary → scored matches, per-signal breakdown, and a suggested resolution + winner per match. |
+| `/clusters` | Content Clusters - live, corpus-wide grouping by TOPIC across content types (distinctive-token clustering; template words auto-learned & dropped) with a suggested action + winner per cluster. |
 | `/bulk-check` | Run the Conflict Checker on up to 100 URLs/topics at once; export as CSV. Under Additional Tools. |
-| `/history` | Score History — timeline of every check run, with editorial outcome tracking. Hidden from the sidebar as of Session 13 (reachable directly + via dashboard links). |
+| `/history` | Score History - timeline of every check run, with editorial outcome tracking. Hidden from the sidebar as of Session 13 (reachable directly + via dashboard links). |
 | `/search-console` | GSC clicks/impressions/CTR/position, 24h–12m, with a trend chart. Click **Connect Google** to authorize. |
 | `/competitors` | SERP-based competitor research per topic (needs `SERPER_API_KEY`). |
 | `/corpus` | Browse/search the ingested pages; CSV export/import. |
-| `/manager` | Manager View — leadership-facing weekly KPIs and per-user activity. |
-| `/audit` | Content Audit — per-page health scan (meta, links, duplicates, images, staleness). |
+| `/manager` | Manager View - leadership-facing weekly KPIs and per-user activity. |
+| `/audit` | Content Audit - per-page health scan (meta, links, duplicates, images, staleness). |
 | `/internal-links` | Suggests existing pages a draft should link to. |
 | `/strategy` | Funnel Strategy. |
 | `/catalog-conflicts` | Precomputed near-duplicate pairs across the catalogue. Build with `npm run catalog-conflicts`. Hidden from the sidebar as of Session 11 (still reachable directly); Content Clusters is the actively-maintained equivalent. |
 
 ## AI providers
 
-Selected via env — no code changes to switch:
+Selected via env - no code changes to switch:
 
 - `AI_CHAT_PROVIDER` = `groq` (default) · `claude` · `openai`
 - `AI_EMBED_PROVIDER` = `local` (default) · `openai`
@@ -94,29 +94,29 @@ OpenAI adapters are wired but **inert until `OPENAI_API_KEY` is set**.
 
 ## Deploy to Vercel
 
-This repo is a single Next.js app at the root — Vercel will auto-detect it.
+This repo is a single Next.js app at the root - Vercel will auto-detect it.
 
 1. **Import** the repo in Vercel.
-2. **Environment variables** — copy every key from [`.env.example`](.env.example) into Vercel → Project → Settings → Environment Variables. At minimum: `DATABASE_URL` + one chat provider key. Set `APP_BASE_URL` to your `https://edstellar-conflict-checker-knowledg.vercel.app` (or custom domain) and `GOOGLE_REDIRECT_URI` to that domain + `/api/gsc/callback`.
-3. **Build** — defaults (`next build`) are correct; no overrides needed.
-4. **First deploy** — pushes succeed but the DB is empty. After deploy:
+2. **Environment variables** - copy every key from [`.env.example`](.env.example) into Vercel → Project → Settings → Environment Variables. At minimum: `DATABASE_URL` + one chat provider key. Set `APP_BASE_URL` to your `https://edstellar-conflict-checker-knowledg.vercel.app` (or custom domain) and `GOOGLE_REDIRECT_URI` to that domain + `/api/gsc/callback`.
+3. **Build** - defaults (`next build`) are correct; no overrides needed.
+4. **First deploy** - pushes succeed but the DB is empty. After deploy:
    ```bash
    # one-off from your laptop, against the same DATABASE_URL Vercel uses
    npm run db:setup
    npm run ingest
    ```
-5. **Crons** — [`vercel.json`](vercel.json) registers three schedules (`/api/cron/reingest`, `/api/cron/audit-links`, `/api/cron/gsc-snapshot`). **`CRON_SECRET` is required** — since the Session 6 audit, every cron route fails **closed** (returns 401) when the bearer header doesn't match. Vercel Cron sends `Authorization: Bearer <CRON_SECRET>` automatically once you set the env var.
-6. **External webhook (optional)** — `WEBHOOK_API_KEY` gates 7 endpoints from external callers: `POST /api/check`, `/api/check/bulk`, `/api/check/outcome`, `/api/pages/owner`, `/api/summarize`, `/api/rewrite-suggestion`, `/api/internal-links/paragraph`. When set, callers must send `X-API-Key: <value>`; when unset, per-IP rate-limiting is the only gate (see AGENTS.md's auth table for the full mechanism per route).
-7. **Run the schema migration** (one-time, after first deploy): `npm run db:setup` against the prod Neon DB. Idempotent — applies any unapplied `drizzle/*.sql` files; safe to re-run.
+5. **Crons** - [`vercel.json`](vercel.json) registers three schedules (`/api/cron/reingest`, `/api/cron/audit-links`, `/api/cron/gsc-snapshot`). **`CRON_SECRET` is required** - since the Session 6 audit, every cron route fails **closed** (returns 401) when the bearer header doesn't match. Vercel Cron sends `Authorization: Bearer <CRON_SECRET>` automatically once you set the env var.
+6. **External webhook (optional)** - `WEBHOOK_API_KEY` gates 7 endpoints from external callers: `POST /api/check`, `/api/check/bulk`, `/api/check/outcome`, `/api/pages/owner`, `/api/summarize`, `/api/rewrite-suggestion`, `/api/internal-links/paragraph`. When set, callers must send `X-API-Key: <value>`; when unset, per-IP rate-limiting is the only gate (see AGENTS.md's auth table for the full mechanism per route).
+7. **Run the schema migration** (one-time, after first deploy): `npm run db:setup` against the prod Neon DB. Idempotent - applies any unapplied `drizzle/*.sql` files; safe to re-run.
 
 ### Vercel pre-deploy checklist
 
-The audit below surfaced four things that need attention **before** the first prod deploy. They aren't auto-fixable without `npm install` (see [`AGENTS.md`](AGENTS.md) — Next 16 config must be written against the installed docs):
+The audit below surfaced four things that need attention **before** the first prod deploy. They aren't auto-fixable without `npm install` (see [`AGENTS.md`](AGENTS.md) - Next 16 config must be written against the installed docs):
 
-1. **`next.config.ts` — add `serverExternalPackages`.** The runtime-only deps (`@xenova/transformers`, `jsdom`, `cheerio`, `googleapis`) should NOT be bundled by Next's tracer. After `npm install`, add them to `serverExternalPackages` in `next.config.ts` (key name + exact shape per Next 16 docs in `node_modules/next/dist/docs/`). Without this, the function bundle balloons past Vercel's size limit and the Transformers.js model loader breaks.
-2. **`next.config.ts` — `outputFileTracingIncludes` for `data/`.** [`lib/sitemap.ts`](lib/sitemap.ts), [`lib/taxonomy.ts`](lib/taxonomy.ts), and [`lib/gsc-insights.ts`](lib/gsc-insights.ts) all do `readFileSync(join(process.cwd(), "data", …))` at runtime. Next's file tracer won't pick those up (the path is dynamic), so add `data/**/*` to `outputFileTracingIncludes` for the API routes that need them (`/api/check/*`, `/api/cron/reingest`, `/api/cron/gsc-snapshot`, `/api/competitors/*`).
-3. **Embedder choice for prod.** The default local embedder downloads `bge-small-en-v1.5` (~30 MB) into `/tmp` on each cold start — fine for the long-lived `/api/cron/reingest` (`maxDuration = 300`), painful for `/api/check` (cold start ≈ 8–15 s the first time after a deploy). For prod, either: (a) set `AI_EMBED_PROVIDER=openai` after running the 384→1536 column-widen + re-ingest (SQL above), or (b) accept the cold-start cost and warm the function with the cron.
-4. **Vercel plan limits for crons.** [`vercel.json`](vercel.json) registers **three** crons, two of them **weekly**. Hobby allows max 2 crons and daily cadence only — you need **Pro** for this config. Also: `/api/cron/reingest` walks all ~2,461 sitemap URLs sequentially with an embed call per URL. Even at 300 s, a full re-ingest from cold will timeout. Seed the corpus locally with `npm run ingest` once, then let the cron handle deltas only.
+1. **`next.config.ts` - add `serverExternalPackages`.** The runtime-only deps (`@xenova/transformers`, `jsdom`, `cheerio`, `googleapis`) should NOT be bundled by Next's tracer. After `npm install`, add them to `serverExternalPackages` in `next.config.ts` (key name + exact shape per Next 16 docs in `node_modules/next/dist/docs/`). Without this, the function bundle balloons past Vercel's size limit and the Transformers.js model loader breaks.
+2. **`next.config.ts` - `outputFileTracingIncludes` for `data/`.** [`lib/sitemap.ts`](lib/sitemap.ts), [`lib/taxonomy.ts`](lib/taxonomy.ts), and [`lib/gsc-insights.ts`](lib/gsc-insights.ts) all do `readFileSync(join(process.cwd(), "data", …))` at runtime. Next's file tracer won't pick those up (the path is dynamic), so add `data/**/*` to `outputFileTracingIncludes` for the API routes that need them (`/api/check/*`, `/api/cron/reingest`, `/api/cron/gsc-snapshot`, `/api/competitors/*`).
+3. **Embedder choice for prod.** The default local embedder downloads `bge-small-en-v1.5` (~30 MB) into `/tmp` on each cold start - fine for the long-lived `/api/cron/reingest` (`maxDuration = 300`), painful for `/api/check` (cold start ≈ 8–15 s the first time after a deploy). For prod, either: (a) set `AI_EMBED_PROVIDER=openai` after running the 384→1536 column-widen + re-ingest (SQL above), or (b) accept the cold-start cost and warm the function with the cron.
+4. **Vercel plan limits for crons.** [`vercel.json`](vercel.json) registers **three** crons, two of them **weekly**. Hobby allows max 2 crons and daily cadence only - you need **Pro** for this config. Also: `/api/cron/reingest` walks all ~2,461 sitemap URLs sequentially with an embed call per URL. Even at 300 s, a full re-ingest from cold will timeout. Seed the corpus locally with `npm run ingest` once, then let the cron handle deltas only.
 
 ## Repository layout
 

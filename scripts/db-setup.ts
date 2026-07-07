@@ -26,7 +26,7 @@ async function main() {
       .split(/;\s*\n/)
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
-    console.log(`\n— ${file}`);
+    console.log(`\n- ${file}`);
     for (const stmt of statements) {
       process.stdout.write(`  → ${stmt.split("\n")[0].slice(0, 70)}...\n`);
       await sql.query(stmt);

@@ -7,11 +7,11 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 /**
- * Weekly cron — HEAD-check every URL, write http_status.
+ * Weekly cron - HEAD-check every URL, write http_status.
  *
  * Optimised vs the v1 implementation:
  *   - HEAD requests are issued with concurrency=10 instead of sequentially
- *     (was the dominant cost — 1500 URLs × ~300ms each = 7.5 min serial).
+ *     (was the dominant cost - 1500 URLs × ~300ms each = 7.5 min serial).
  *   - DB writes batched into a single UNNEST UPDATE per 200 rows instead of
  *     1500 individual UPDATEs. Saves ~1500 round-trips → 8 → fits comfortably
  *     under the 300s function timeout from cold.
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
   let broken = 0;
   const results: { id: number; status: number }[] = [];
 
-  // Concurrent worker pool — probe URLs in parallel.
+  // Concurrent worker pool - probe URLs in parallel.
   let cursor = 0;
   async function worker() {
     while (cursor < rows.length) {
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // #10 — fail the cron when 'broken' (status=0 OR >=400) is more than 30%
+  // #10 - fail the cron when 'broken' (status=0 OR >=400) is more than 30%
   // of the rows checked. Some 4xx is expected in a sitemap; a sudden spike
   // is the signal we want visible on the Vercel cron dashboard.
   const checked = rows.length;

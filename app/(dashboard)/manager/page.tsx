@@ -28,7 +28,7 @@ interface ManagerStats {
 
 function pct(now: number, prev: number): { sign: "+" | "-" | "·"; value: string; cls: string } {
   if (prev === 0) {
-    if (now === 0) return { sign: "·", value: "—", cls: "text-slate-400" };
+    if (now === 0) return { sign: "·", value: "-", cls: "text-slate-400" };
     return { sign: "+", value: "new", cls: "text-emerald-600" };
   }
   const delta = ((now - prev) / prev) * 100;
@@ -188,7 +188,7 @@ export default async function ManagerPage() {
                   // Real, settable outcomes (OutcomeSelect on /history):
                   // published / merged / redirected / discarded, plus the
                   // synthetic 'open' bucket for unresolved checks. No writer
-                  // path ever sets 'blocked' or 'modified' — don't color-code
+                  // path ever sets 'blocked' or 'modified' - don't color-code
                   // values that can't occur.
                   const cls =
                     o.outcome === "published"  ? "bg-emerald-500" :
@@ -262,7 +262,7 @@ export default async function ManagerPage() {
                       <td className="py-1.5 text-right tabular-nums">{u.checks_7d}</td>
                       <td className={`py-1.5 text-right tabular-nums ${u.high_risk_7d > 0 ? "font-semibold text-rose-700" : "text-slate-400"}`}>{u.high_risk_7d}</td>
                       <td className={`py-1.5 pl-2 text-right tabular-nums font-medium ${u.avg_score_7d != null ? scoreTextColor(Math.round(u.avg_score_7d)) : "text-slate-400"}`}>
-                        {u.avg_score_7d != null ? Math.round(u.avg_score_7d) + "%" : "—"}
+                        {u.avg_score_7d != null ? Math.round(u.avg_score_7d) + "%" : "-"}
                       </td>
                     </tr>
                   ))}

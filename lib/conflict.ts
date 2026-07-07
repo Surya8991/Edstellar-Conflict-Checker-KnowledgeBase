@@ -31,7 +31,7 @@ export interface ConflictMatchResult {
    *  + different from the matched URL, the matched page is a non-owner and
    *  the suggested action is "redirect to ownerUrl" (#25). */
   ownerUrl?: string | null;
-  /** 28-day GSC clicks on the matched page — drives business-impact
+  /** 28-day GSC clicks on the matched page - drives business-impact
    *  severity hint. Null when GSC isn't connected or page has no traffic. */
   gscClicks28d?: number | null;
   gscImpressions28d?: number | null;
@@ -88,7 +88,7 @@ async function getCorpusDfIndex(): Promise<DfIndex | undefined> {
        WHERE embedding IS NOT NULL AND COALESCE(is_stale, false) = false`,
     )) as { title: string | null; h1: string | null; url: string }[];
     // Too small a corpus makes DF ratios unreliable (a word in 1 of 5 docs is
-    // "20%") — fall back to raw tokens rather than over-filter.
+    // "20%") - fall back to raw tokens rather than over-filter.
     if (rows.length < 50) return undefined;
     const index = buildDfIndex(rows.map((r) => ({ title: r.title, h1: r.h1, url: r.url })));
     dfCache = { index, at: now };
@@ -105,11 +105,11 @@ async function getCorpusDfIndex(): Promise<DfIndex | undefined> {
  *
  * Audit 10C (Session 8): the owner-bonus condition was inverted. The
  * comment correctly identified "cannibalizing the editorial winner is
- * the worst outcome" — so the +0.25 should apply when the *match* is a
+ * the worst outcome" - so the +0.25 should apply when the *match* is a
  * NON-owner duplicate of the canonical winner (an orphan cannibal),
  * not when the match IS the owner itself. The prior code applied the
  * bonus to the legitimate owner page, ranking it above its own cannibals
- * in the result list — visually backwards. Flipped.
+ * in the result list - visually backwards. Flipped.
  *
  * Multiplier scale (clicks → factor): 0→1.0, 100→1.25, 1000→1.5, 10k→2.0.
  * Owner-cannibal bonus: +0.25.
@@ -207,7 +207,7 @@ export async function runConflictCheck(
     slug: inputMeta.url,
     text: `${inputMeta.text} ${summaryResult.keywords.join(" ")}`,
   }).label;
-  // Content type of the input page (URL inputs only) — drives the
+  // Content type of the input page (URL inputs only) - drives the
   // course↔course template-noise gate in decidePair. Topics have no type.
   const inputContentType: string | null =
     inputType === "url" ? tagUrl(input).contentType : null;
@@ -219,7 +219,7 @@ export async function runConflictCheck(
     limit: vectorLimit,
     excludeUrl: inputType === "url" ? input : undefined,
   });
-  // Drop matches below the threshold — keeps the UI signal-to-noise sane.
+  // Drop matches below the threshold - keeps the UI signal-to-noise sane.
   const meaningful = nearest.filter((m) => m.similarity >= minSimilarity);
 
   // Corpus DF index for template-word denoising of the lexical signals (2c).
@@ -360,7 +360,7 @@ async function persistCheck(
 
   // Audit H8 (Session 6): persist enrichment fields the API response already
   // returns (overlap, issue, ownerUrl, gscClicks28d) so history reads stay
-  // faithful. Also batched into a single UNNEST INSERT — the prior N+1 loop
+  // faithful. Also batched into a single UNNEST INSERT - the prior N+1 loop
   // generated len(matches) round-trips per check.
   if (result.matches.length) {
     const len = result.matches.length;

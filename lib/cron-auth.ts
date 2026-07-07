@@ -1,5 +1,5 @@
 /**
- * Shared cron-auth guard. Audit S1 (Session 6) — the previous
+ * Shared cron-auth guard. Audit S1 (Session 6) - the previous
  * `if (secret && header !== ...)` pattern failed OPEN when CRON_SECRET was
  * unset, making every cron route world-reachable. This helper fails CLOSED:
  * missing or mismatched secret returns 401.

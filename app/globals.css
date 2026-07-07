@@ -11,8 +11,8 @@ body {
 
 /*
  * Audit S8 (Session 6): global keyboard-focus visibility. Before this, every
- * input used `outline-none focus:border-slate-900` — a ~1px border shift that
- * fails WCAG 2.4.7 — and buttons had no focus indicator at all. This rule
+ * input used `outline-none focus:border-slate-900` - a ~1px border shift that
+ * fails WCAG 2.4.7 - and buttons had no focus indicator at all. This rule
  * gives every focusable control a 2px slate ring on keyboard focus only
  * (mouse clicks don't trigger :focus-visible so the look stays clean).
  */

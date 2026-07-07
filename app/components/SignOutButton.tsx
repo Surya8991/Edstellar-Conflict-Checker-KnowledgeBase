@@ -1,7 +1,7 @@
 import { signOut } from "@/auth";
 
 /**
- * Sign-out button — server component using the NextAuth v5 `signOut()`
+ * Sign-out button - server component using the NextAuth v5 `signOut()`
  * server action. The previous implementation posted a plain form to
  * /api/auth/signout, which returns 200 OK but doesn't reliably clear the
  * session cookie in v5 (it expects a CSRF token + callbackUrl form

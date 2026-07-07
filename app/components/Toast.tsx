@@ -1,14 +1,14 @@
 "use client";
 
 /**
- * Audit H14 (Session 6): minimal in-house toast — no new dep. Replaces
+ * Audit H14 (Session 6): minimal in-house toast - no new dep. Replaces
  * the `alert()` modal that blocked the page on every "copy brief" click.
  *
  * Usage: import { useToast } from "@/app/components/Toast" at the page
  * level; render <ToastViewport/> once near the layout root; call
  * `toast.success("…")` / `toast.error("…")` from any client component.
  *
- * Implementation is intentionally tiny — single global emitter, fade
+ * Implementation is intentionally tiny - single global emitter, fade
  * after 4s, max 3 visible. If we ever need queueing, undo actions, or
  * promise-based toasts we can adopt sonner (~4 KB) at that point.
  */

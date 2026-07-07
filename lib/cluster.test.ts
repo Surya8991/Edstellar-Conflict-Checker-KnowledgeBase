@@ -10,7 +10,7 @@ import { buildDfIndex, isDistinctive } from "./signals";
  * ratios where the template word is ~100% of pages (filtered) while a topic
  * word like "big" (0.6%) or "data" (3.8%) stays under the 5% DF cap
  * (distinctive). A small corpus would push the 4–5 big-data occurrences over
- * 5% — the cap is a *ratio*, so the corpus must be corpus-sized.
+ * 5% - the cap is a *ratio*, so the corpus must be corpus-sized.
  */
 function fillerPages(n = 200): ClusterPage[] {
   return Array.from({ length: n }, (_, i) => {

@@ -3,10 +3,10 @@ import { assertSafeOutboundUrl } from "./ssrf-guard";
 
 export interface ExtractedPage {
   /**
-   * The FINAL URL after following redirects — `fetchAndExtract` sets this to the
+   * The FINAL URL after following redirects - `fetchAndExtract` sets this to the
    * last hop, so callers can compare it to the URL they requested to detect a
    * 301/302 (scripts/ingest.ts relies on this to avoid storing a redirect
-   * target's content under the stale source URL — PROJECTLOG §17H).
+   * target's content under the stale source URL - PROJECTLOG §17H).
    */
   url: string;
   title: string | null;
@@ -29,7 +29,7 @@ export interface ExtractedPage {
  *
  * Rules of thumb when adding here:
  *   - Be specific. Substring matches like [class*="ad"] would eat `.heading`,
- *     `.shadow`, `.padding` — never add a 2-char fragment.
+ *     `.shadow`, `.padding` - never add a 2-char fragment.
  *   - Prefer ARIA roles when available; they're load-bearing on accessible sites.
  *   - If something is editorially debatable (e.g. table of contents), leave it.
  */
@@ -67,7 +67,7 @@ const NOISE_SELECTORS = [
   "[class*='comment']", "[id*='comment']",
   "[class*='disqus']", "[id*='disqus']",
 
-  // Social share buttons (not "social proof" testimonials — be specific)
+  // Social share buttons (not "social proof" testimonials - be specific)
   "[class*='share-button']", "[class*='share-bar']", "[class*='share-widget']",
   "[class*='social-share']", "[class*='sharing']",
   "[class*='addthis']", "[class*='sharethis']",
@@ -96,7 +96,7 @@ const NOISE_SELECTORS = [
   "[class*='consent']", "[id*='consent']",
   "[class*='gdpr']", "[class*='ccpa']",
 
-  // Ads (anchor on multi-word fragments only — never bare "ad")
+  // Ads (anchor on multi-word fragments only - never bare "ad")
   "[class*='advertisement']", "[class*='ad-slot']", "[class*='ad-banner']",
   "[class*='banner-ad']", "[class*='sponsored']", "[id*='google_ads']",
 
@@ -129,7 +129,7 @@ const NOISE_SELECTORS = [
  * progressively more generic ones, and only land on <body> as a last resort.
  *
  * A candidate only counts if its post-noise-strip text is at least
- * MIN_ROOT_CHARS long — protects against empty <article> shells.
+ * MIN_ROOT_CHARS long - protects against empty <article> shells.
  */
 const ROOT_CANDIDATES = [
   "article",
@@ -150,7 +150,7 @@ const MIN_ROOT_CHARS = 200;
  * Fetch a URL and extract its main textual content for embedding/summarizing.
  *
  * Audit S3 (Session 6): user-supplied URLs are validated through the SSRF
- * guard BEFORE the fetch — private/loopback/link-local/cloud-metadata IPs are
+ * guard BEFORE the fetch - private/loopback/link-local/cloud-metadata IPs are
  * rejected. Redirects are followed manually so each hop is re-validated; the
  * default `redirect: "follow"` would allow a public host to 302→169.254.169.254.
  */
@@ -201,7 +201,7 @@ export async function fetchAndExtract(
  *   2. Strip every noise selector from the whole document.
  *   3. Pick the most specific content root that has real text in it
  *      (article > schema-tagged > known content classes > main > body).
- *   4. Strip noise *again* from inside the chosen root — related-posts
+ *   4. Strip noise *again* from inside the chosen root - related-posts
  *      blocks frequently live inside <article>.
  *   5. Return whitespace-normalised text.
  */

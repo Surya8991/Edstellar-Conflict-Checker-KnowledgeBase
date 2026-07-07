@@ -1,5 +1,5 @@
 /**
- * SERP overlap, domain comparison, content freshness — built on top of the
+ * SERP overlap, domain comparison, content freshness - built on top of the
  * existing Serper integration + corpus + competitor sitemap fetches.
  */
 import { KNOWN_COMPETITORS, isEdstellarDomain } from "@/lib/competitors";
@@ -18,7 +18,7 @@ interface SerpPeopleAlsoAsk {
 }
 interface SerperResponse {
   organic?: SerpOrganic[];
-  /** Serper has used several field names for AI Overviews — handle both. */
+  /** Serper has used several field names for AI Overviews - handle both. */
   aiOverview?: SerpAiOverview;
   aiOverviews?: SerpAiOverview | SerpAiOverview[];
   answerBox?: { title?: string; link?: string; snippet?: string };
@@ -157,7 +157,7 @@ export async function domainCompare(topics: string[]): Promise<{ topics: string[
 export interface FreshnessResult {
   domain: string;
   totalUrls: number;
-  /** From sitemap <lastmod> — useful for "how big a site is" but unreliable as
+  /** From sitemap <lastmod> - useful for "how big a site is" but unreliable as
    *  a freshness signal (WordPress/HubSpot regenerate it on every rebuild). */
   recent90d: number;
   /** Audit 10C (Session 8): same window, but verified by sampling N pages
@@ -271,7 +271,7 @@ export async function competitorFreshness(domain: string): Promise<FreshnessResu
  *   2. <meta property="og:updated_time">
  *   3. <time itemprop="dateModified" datetime="…"> or <time datetime="…">
  *   4. <meta name="last-modified">
- * Returns null when nothing parseable is found. Lightweight — no DOM parse,
+ * Returns null when nothing parseable is found. Lightweight - no DOM parse,
  * just regex over the first ~256 KB of HTML.
  */
 async function fetchOnPageModified(url: string): Promise<string | null> {

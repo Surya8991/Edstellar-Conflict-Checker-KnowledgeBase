@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-// H5: strict Zod schema — topic unbounded + Number(limit) is an injection
+// H5: strict Zod schema - topic unbounded + Number(limit) is an injection
 // surface (e.g. limit=999 burning 999× Serper credits per call).
 const BodySchema = z.object({
   topic: z.string().min(1, "topic is required").max(500),

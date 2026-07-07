@@ -8,7 +8,7 @@ This repo is a **single Next.js 16 app deployed to Vercel** plus a domain knowle
 |------|------------|
 | [`app/`](../app/) | App Router routes: dashboard pages + `/api/*` endpoints. |
 | [`lib/`](../lib/) | AI providers, conflict pipeline (`conflict.ts`), scoring (`score.ts`), DB schema, GSC, competitors, etc. Conflict-automation modules (Session 11): `thresholds.ts` (config), `signals.ts` (per-signal title/H1/slug/body), `intent.ts` (rule-based search intent), `resolution.ts` (pairwise + cluster decide + winner), `cluster.ts` (connected components), `csv.ts` (corpus import/export). |
-| [`app/api/groups/`](../app/api/groups/) | Similar-page grouping — connected components of `catalog_conflicts` + per-group winner/action (Session 11). |
+| [`app/api/groups/`](../app/api/groups/) | Similar-page grouping - connected components of `catalog_conflicts` + per-group winner/action (Session 11). |
 | [`app/api/pages/export`, `import`](../app/api/pages/) | Corpus CSV download / upsert-by-url import (Session 11). |
 | [`scripts/`](../scripts/) | One-off / cron-target scripts run via `tsx` (`db:setup`, `ingest`, `catalog-conflicts`, ...). |
 | [`data/`](../data/) | Bundled sitemap CSV + taxonomy JSON shipped with the repo. |
@@ -21,7 +21,7 @@ This repo is a **single Next.js 16 app deployed to Vercel** plus a domain knowle
 | [`PROJECTLOG.md`](../PROJECTLOG.md) | Session-by-session shipping log. |
 | [`PRE_PUSH_CHECKLIST.md`](../PRE_PUSH_CHECKLIST.md) | Run through before every push to `main`. |
 | [`SETUP_GUIDE.md`](../SETUP_GUIDE.md) | Long-form `.env` setup walkthrough (Neon, GSC OAuth, Serper, Claude, Google SSO). |
-| [`VERCEL_GITHUB_GUIDE.md`](../VERCEL_GITHUB_GUIDE.md) | Plain-English deploy + update walkthrough — what to do in GitHub and Vercel. |
+| [`VERCEL_GITHUB_GUIDE.md`](../VERCEL_GITHUB_GUIDE.md) | Plain-English deploy + update walkthrough - what to do in GitHub and Vercel. |
 | [`.env.example`](../.env.example) | Every env var the app reads, with comments. |
 | [`.nvmrc`](../.nvmrc) | Node version pin (22). |
 | [`vercel.json`](../vercel.json) | Cron schedules for `/api/cron/*`. |

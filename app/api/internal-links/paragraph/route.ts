@@ -20,7 +20,7 @@ export const maxDuration = 90;
  *
  * For each paragraph we embed and run a small vector search; returns the
  * top `perParagraph` (default 3) suggestions per paragraph. The same page
- * may surface for multiple paragraphs — the UI dedupes by anchor.
+ * may surface for multiple paragraphs - the UI dedupes by anchor.
  *
  * Rate-limited per-IP (20 req/5min) because each call embeds N paragraphs.
  */
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     } else if (input && /^https?:\/\//i.test(input)) {
       const page = await fetchAndExtract(input);
       sourceUrl = input;
-      // Body text was concatenated by the extractor — split on '. ' as a
+      // Body text was concatenated by the extractor - split on '. ' as a
       // weak proxy for paragraphs since whitespace is gone post-normalize.
       // Take 5-sentence groups.
       const sentences = page.contentText.split(/(?<=[.!?])\s+/).filter((s) => s.trim().length);

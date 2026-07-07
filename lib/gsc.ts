@@ -96,7 +96,7 @@ export function resolveRange(
     maxBack.setMonth(maxBack.getMonth() - 16);
     const minStart = fmt(maxBack);
     const start = custom.startDate < minStart ? minStart : custom.startDate;
-    // Don't allow endDate in the future — GSC will 400.
+    // Don't allow endDate in the future - GSC will 400.
     const todayStr = fmt(today);
     const end = custom.endDate > todayStr ? todayStr : custom.endDate;
     return { startDate: start, endDate: end };
@@ -147,7 +147,7 @@ export async function querySearchAnalytics(opts: GscQueryOptions) {
  *
  * GSC distinguishes URL-prefix properties (must match scheme + host + path
  * EXACTLY, including trailing slash) from Domain properties
- * (`sc-domain:example.com` — covers all subdomains and schemes). The user only
+ * (`sc-domain:example.com` - covers all subdomains and schemes). The user only
  * configures one `GSC_SITE_URL` value, but the property that's actually
  * verified for their account might be any of these variants. We try them all.
  */
@@ -169,7 +169,7 @@ export function siteUrlCandidates(envValue: string): string[] {
       out.add(`sc-domain:${host.replace(/^www\./, "")}`);
     }
   } catch {
-    /* not a URL — that's fine */
+    /* not a URL - that's fine */
   }
   return [...out];
 }
@@ -189,7 +189,7 @@ function credsFingerprint(client: any): string {
 /**
  * Pick a siteUrl variant the connected account actually has permission for.
  * Throws a helpful error listing what IS verified if none of the candidates
- * match — saves the "User does not have sufficient permission" debug loop.
+ * match - saves the "User does not have sufficient permission" debug loop.
  */
 export async function resolveSiteUrl(client: any): Promise<string> {
   const env = process.env.GSC_SITE_URL;
@@ -217,7 +217,7 @@ export async function resolveSiteUrl(client: any): Promise<string> {
     const tried = candidates.join(", ");
     const haveAccess = verified.length
       ? verified.join(", ")
-      : "(none — this Google account has no verified Search Console properties)";
+      : "(none - this Google account has no verified Search Console properties)";
     throw new Error(
       `GSC_SITE_URL='${env}' does not match any property this Google account can access. ` +
         `Tried: ${tried}. Account has access to: ${haveAccess}. ` +

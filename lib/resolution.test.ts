@@ -86,7 +86,7 @@ test("topic input (url='') never wins as canonical", () => {
 });
 
 test("topic input: lexicalMeta=false ignores title near-dup gate", () => {
-  // High title Jaccard but low body — must NOT force a merge for a topic input.
+  // High title Jaccard but low body - must NOT force a merge for a topic input.
   const r = decidePair(
     page({ url: "" }), page({ url: "https://x.com/scrum" }),
     sig({ body: 0.3, title: 1.0 }),

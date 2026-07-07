@@ -2,8 +2,8 @@
  * URL → structured tags, using the embedded Intelligence Hub catalog.
  *
  * Data sources (extracted by scripts/extract-taxonomy.py):
- *   data/taxonomy/courses.json    — 1,698 courses with type/category/subcategory
- *   data/taxonomy/blogs.json      — 500 blog posts with category + matched course
+ *   data/taxonomy/courses.json    - 1,698 courses with type/category/subcategory
+ *   data/taxonomy/blogs.json      - 500 blog posts with category + matched course
  *   data/taxonomy/course-types.json
  *
  * Anything that doesn't match a known pattern is content_type='static'
@@ -181,14 +181,14 @@ export function tagUrl(url: string, title?: string | null): PageTags {
     }
   })();
 
-  // 1. Home — classified as a static page (one-off tile in the corpus UI
+  // 1. Home - classified as a static page (one-off tile in the corpus UI
   //    wasn't useful at N=1). The "home" tag is kept so it's still
   //    distinguishable in tag filters.
   if (path === "/" || path === "") {
     return base("static", ["home"]);
   }
 
-  // 1b. Standalone service / solution pages — Managed Training / Platform /
+  // 1b. Standalone service / solution pages - Managed Training / Platform /
   //     Consulting. Matched before the catalog lookups since these are
   //     single-segment marketing pages that would otherwise fall through to
   //     the `static` fallback.
@@ -207,7 +207,7 @@ export function tagUrl(url: string, title?: string | null): PageTags {
     };
   }
 
-  // 1c. Template pages — the /templates/<slug> library plus the L&D templates
+  // 1c. Template pages - the /templates/<slug> library plus the L&D templates
   //     hub. Promoted out of `static` into their own `templates` type.
   if (path.startsWith("/templates/") || path === "/learning-development-templates") {
     const seg = path.split("/").filter(Boolean).pop() || "templates";
@@ -319,7 +319,7 @@ export function tagUrl(url: string, title?: string | null): PageTags {
     };
   }
 
-  // 8. Industry / who-we-serve pages — classified as static per current policy,
+  // 8. Industry / who-we-serve pages - classified as static per current policy,
   //    but we keep the industry slug as a tag so they can still be filtered.
   if (INDUSTRY_PATTERNS.some((p) => path.includes(p))) {
     const seg = path.split("/").filter(Boolean).pop() || "";
@@ -356,7 +356,7 @@ export function tagUrl(url: string, title?: string | null): PageTags {
     };
   }
 
-  // 10. Fallback — everything else is a static marketing page.
+  // 10. Fallback - everything else is a static marketing page.
   const seg = path.split("/").filter(Boolean).pop() || "";
   return base("static", seg ? [titleCase(cleanSlug(seg)), "static"] : ["static"]);
 }

@@ -13,9 +13,9 @@ export const maxDuration = 120;
  * Pre-publish webhook for external systems (CMS, etc.) and dashboard UI.
  *
  * Auth strategy (any ONE of the following grants access):
- *   1. Valid X-Api-Key header matching WEBHOOK_API_KEY — for CMS/webhook callers.
- *   2. Valid NextAuth session cookie (AUTH_ENABLED=true) — for dashboard users.
- *   3. Open (WEBHOOK_API_KEY unset, AUTH_ENABLED=false) — rate-limited per-IP.
+ *   1. Valid X-Api-Key header matching WEBHOOK_API_KEY - for CMS/webhook callers.
+ *   2. Valid NextAuth session cookie (AUTH_ENABLED=true) - for dashboard users.
+ *   3. Open (WEBHOOK_API_KEY unset, AUTH_ENABLED=false) - rate-limited per-IP.
  *
  * Response shape is stable:
  *   { inputType, inputValue, summary, keywords, topScore, matches[], checkId,
@@ -33,7 +33,7 @@ const BodySchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. Auth — valid API key (CMS/webhook) OR valid session (dashboard) are both accepted.
+    // 1. Auth - valid API key (CMS/webhook) OR valid session (dashboard) are both accepted.
     // When WEBHOOK_API_KEY is set without a matching header, fall back to session auth
     // so signed-in dashboard users are never locked out by their own webhook key.
     const required = process.env.WEBHOOK_API_KEY;

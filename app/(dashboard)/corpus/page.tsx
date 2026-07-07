@@ -94,7 +94,7 @@ export default function CorpusPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Import failed");
       setImportMsg(
-        `Imported ${data.received} rows — ${data.upserted} added/updated, ${data.deleted ?? 0} removed.`,
+        `Imported ${data.received} rows - ${data.upserted} added/updated, ${data.deleted ?? 0} removed.`,
       );
       await load(1);
     } catch (e) {
@@ -164,7 +164,7 @@ export default function CorpusPage() {
     <div>
       <PageHeader
         title="Corpus"
-        subtitle="The existing-content index every check is compared against — categorised from the Edstellar catalog."
+        subtitle="The existing-content index every check is compared against - categorised from the Edstellar catalog."
         right={
           <span className="text-sm text-slate-500">
             {total.toLocaleString()} / {totalAll.toLocaleString()} pages
@@ -187,7 +187,7 @@ export default function CorpusPage() {
           ))}
         </div>
 
-        {/* The 6 course types — visible always, highlights when filtering courses */}
+        {/* The 6 course types - visible always, highlights when filtering courses */}
         <div className="rounded-xl border border-slate-200 bg-white p-3">
           <div className="mb-2 flex items-center justify-between">
             <div className="text-xs font-medium uppercase tracking-wider text-slate-500">Course types (the 6)</div>
@@ -215,7 +215,7 @@ export default function CorpusPage() {
           </div>
         </div>
 
-        {/* Top categories — quick filter */}
+        {/* Top categories - quick filter */}
         {topCategories.length > 0 && (
           <div className="rounded-xl border border-slate-200 bg-white p-3">
             <div className="mb-2 flex items-center justify-between">
@@ -337,12 +337,12 @@ export default function CorpusPage() {
                   </td>
                   <td className="px-4 py-2.5 text-slate-600">
                     <div className="max-w-xs truncate" title={r.h1 ?? undefined}>
-                      {r.h1 || <span className="text-slate-300">—</span>}
+                      {r.h1 || <span className="text-slate-300">-</span>}
                     </div>
                   </td>
                   <td className="px-4 py-2.5 text-slate-600">
                     <div className="max-w-sm whitespace-normal break-words">
-                      {r.meta_description || <span className="text-slate-300">—</span>}
+                      {r.meta_description || <span className="text-slate-300">-</span>}
                     </div>
                   </td>
                   <td className="px-4 py-2.5">
@@ -355,7 +355,7 @@ export default function CorpusPage() {
                     )}
                   </td>
                   <td className="px-4 py-2.5 text-slate-600">
-                    <div>{r.category || <span className="text-slate-300">—</span>}</div>
+                    <div>{r.category || <span className="text-slate-300">-</span>}</div>
                     {r.subcategory && <div className="text-xs text-slate-400">{r.subcategory}</div>}
                   </td>
                   <td className="px-4 py-2.5">

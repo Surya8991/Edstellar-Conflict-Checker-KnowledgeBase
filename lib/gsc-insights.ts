@@ -1,7 +1,7 @@
 /**
- * GSC analytics that go beyond "top queries" — cannibalization, striking
+ * GSC analytics that go beyond "top queries" - cannibalization, striking
  * distance, movers (period-over-period), untapped queries, and catalog gap.
- * Single entry point: buildInsights() — one set of API calls, many derived views.
+ * Single entry point: buildInsights() - one set of API calls, many derived views.
  */
 import { google } from "googleapis";
 import { readFileSync, existsSync } from "node:fs";
@@ -232,7 +232,7 @@ export async function buildInsights(
     ? byDate.reduce((s, r) => s + r.position, 0) / byDate.length
     : 0;
 
-  // 1. Cannibalization — same query, multiple ranking pages.
+  // 1. Cannibalization - same query, multiple ranking pages.
   const groups = new Map<string, CannibalGroup>();
   for (const r of byQueryPage) {
     const q = r.keys?.[0] ?? ""; const p = r.keys?.[1] ?? "";
@@ -249,7 +249,7 @@ export async function buildInsights(
     .sort((a, b) => b.totalImpressions - a.totalImpressions)
     .slice(0, 50);
 
-  // 2. Striking distance — positions 8..20, decent impressions.
+  // 2. Striking distance - positions 8..20, decent impressions.
   const striking: StrikingRow[] = byQuery
     .filter((r) => r.position >= 8 && r.position <= 20 && r.impressions >= 20)
     .map((r) => {
@@ -267,7 +267,7 @@ export async function buildInsights(
     .sort((a, b) => b.impressions - a.impressions)
     .slice(0, 50);
 
-  // 3. Movers — period over period.
+  // 3. Movers - period over period.
   const prevMap = new Map<string, GscRow>();
   for (const r of byQueryPrev) prevMap.set(r.keys?.[0] ?? "", r);
   const movers: MoverRow[] = byQuery
@@ -288,7 +288,7 @@ export async function buildInsights(
   const winners = movers.slice().sort((a, b) => b.deltaClicks - a.deltaClicks).slice(0, 25);
   const losers  = movers.slice().sort((a, b) => a.deltaClicks - b.deltaClicks).slice(0, 25);
 
-  // 4. Untapped — high impressions, CTR well below expected for position.
+  // 4. Untapped - high impressions, CTR well below expected for position.
   const untapped: UntappedRow[] = byQuery
     .filter((r) => r.impressions >= 100)
     .map((r) => {
@@ -308,7 +308,7 @@ export async function buildInsights(
     .sort((a, b) => b.lostClicks - a.lostClicks)
     .slice(0, 40);
 
-  // 5. Gap — queries with no matching course/blog/category in the catalog.
+  // 5. Gap - queries with no matching course/blog/category in the catalog.
   const gap: GapRow[] = byQuery
     .slice(0, 300) // cap LLM-free fuzzy match work
     .map((r) => {
@@ -331,7 +331,7 @@ export async function buildInsights(
   // 6. Branded vs non-branded split.
   const branded = computeBrandedSplit(byQuery);
 
-  // 7. Stale-content detector — current period vs previous period per page.
+  // 7. Stale-content detector - current period vs previous period per page.
   const prevPages = await runQuery(client, siteUrl, prev.startDate, prev.endDate, ["page"], 500);
   const prevPageMap = new Map(prevPages.map((r) => [r.keys?.[0] ?? "", r.clicks]));
   const stale: StaleRow[] = byPage
@@ -388,7 +388,7 @@ function computeBrandedSplit(byQuery: GscRow[]): BrandedSplit {
   };
 }
 
-/** Page drilldown — queries / countries / devices for a single page. */
+/** Page drilldown - queries / countries / devices for a single page. */
 export async function pageDrilldown(page: string, range: RangeKey) {
   const client = await getAuthorizedClient();
   if (!client) throw new Error("Not connected to Google Search Console.");
@@ -446,7 +446,7 @@ export async function pageCannibalization(
 }
 
 /**
- * Index coverage — for each sitemap URL, ask GSC if it's indexed.
+ * Index coverage - for each sitemap URL, ask GSC if it's indexed.
  * Quota: 600 inspections / 24h per site. Caller should batch / pass a slice.
  */
 export async function indexCoverage(urls: string[]) {

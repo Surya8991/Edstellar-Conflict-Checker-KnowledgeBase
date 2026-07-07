@@ -12,9 +12,9 @@
  *   - Zero schema change. Works against the data already in `pages`.
  *   - Always up-to-date with the latest crawl.
  * Cons:
- *   - O(N) full-table scan per query — uses a LIKE pattern, not an
+ *   - O(N) full-table scan per query - uses a LIKE pattern, not an
  *     indexed lookup. Acceptable at ~2,500 pages; revisit at 50k+.
- *   - Counts substring matches, not parsed `<a href>` — false-positives
+ *   - Counts substring matches, not parsed `<a href>` - false-positives
  *     when a URL appears in copy text without being a real anchor.
  *     For SEO-internal-linking suggestions this is good enough; the
  *     downstream LLM still picks reasonable anchor variants.
@@ -53,7 +53,7 @@ export async function fetchInboundCounts(
 
   // Raw neon client with a single `$1::text[]` param. Drizzle's sql`` template
   // expands an interpolated JS array into `unnest($1, $2, …)` (a record, not a
-  // text[]), which Postgres rejects — so bind the array positionally instead,
+  // text[]), which Postgres rejects - so bind the array positionally instead,
   // the same way scripts/ingest.ts passes `tags`.
   const client = neon(process.env.DATABASE_URL || "postgresql://user:password@localhost/db");
   const rows = await client.query(
@@ -80,11 +80,11 @@ export async function fetchInboundCounts(
 
 /**
  * Convert an inbound-link count to a weight in [0.85, 1.15]:
- *   - 0 inlinks            → 1.15  (orphan, needs more links — boost)
+ *   - 0 inlinks            → 1.15  (orphan, needs more links - boost)
  *   - 1-3                  → 1.05
- *   - 4-15                 → 1.00  (healthy — neutral)
- *   - 16+                  → 0.90  (already well-linked — slight penalty)
- *   - 50+                  → 0.85  (saturated — stronger penalty)
+ *   - 4-15                 → 1.00  (healthy - neutral)
+ *   - 16+                  → 0.90  (already well-linked - slight penalty)
+ *   - 50+                  → 0.85  (saturated - stronger penalty)
  *
  * Multiplied into the composite score so well-targeted links don't
  * pile onto pages that already have plenty.

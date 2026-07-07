@@ -20,7 +20,7 @@ const BodySchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  // H4: unconditional gate — rate-limit fallback when WEBHOOK_API_KEY is unset
+  // H4: unconditional gate - rate-limit fallback when WEBHOOK_API_KEY is unset
   // so unauthenticated callers can't update arbitrary page ownership records.
   const gate = await gateLlmEndpoint(request, "pages-owner", { max: 60, windowSec: 60 });
   if (gate) return gate;

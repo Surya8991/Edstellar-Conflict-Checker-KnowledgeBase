@@ -27,12 +27,12 @@ export interface SummaryResult {
   summary: string;
   keywords: string[];
   searchSynopsis: string; // dense text used for embedding/search
-  /** The single 4-8 word SEO query this page targets — used for SERP lookups.
+  /** The single 4-8 word SEO query this page targets - used for SERP lookups.
    *  Far more useful than keywords[0], which is usually too short/generic. */
   primaryQuery?: string;
 }
 
-/** Input to `proposeRewrite` — a draft + the conflicting existing pages. */
+/** Input to `proposeRewrite` - a draft + the conflicting existing pages. */
 export interface RewriteProposalInput {
   /** The draft / topic / URL the user is planning to publish. */
   input: string;
@@ -42,7 +42,7 @@ export interface RewriteProposalInput {
   conflicts: { title: string; url: string; rationale?: string }[];
   /**
    * Audit 10C (Session 8): SERP-feature hints from /api/competitors/serp-overlap
-   * — used so the LLM knows what featured-snippet / AI-Overview shape the
+   * - used so the LLM knows what featured-snippet / AI-Overview shape the
    * SERP rewards before suggesting angles. All fields optional; pass what
    * you have.
    */
@@ -72,7 +72,7 @@ export interface RewriteProposal {
 export interface ChatProvider {
   readonly name: string;
   /** Raw chat completion for prompts that don't fit the summarize/classify
-   *  specialisations — e.g. generating content angles, rewrite suggestions.
+   *  specialisations - e.g. generating content angles, rewrite suggestions.
    *  Providers run in JSON-mode at the adapter level, so the returned string
    *  is typically a JSON object the caller parses itself. */
   generate(input: { system: string; prompt: string }): Promise<string>;

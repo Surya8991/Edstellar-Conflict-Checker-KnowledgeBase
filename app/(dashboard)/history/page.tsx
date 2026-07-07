@@ -40,7 +40,7 @@ interface MatchRow {
   rank: number;
 }
 
-// Sidebar list of checks — narrower viewport budget than the data-heavy
+// Sidebar list of checks - narrower viewport budget than the data-heavy
 // audit / corpus views, so keep choices smaller.
 const PAGER_SIZES = [25, 50, 100];
 
@@ -255,7 +255,7 @@ function ScorePill({ score }: { score: number }) {
 }
 
 /**
- * Outcome selector — records what the editor actually did with this check
+ * Outcome selector - records what the editor actually did with this check
  * (published / merged / redirected / discarded). Powers the shipped-vs-
  * blocked reporting on the dashboard. (#36)
  */

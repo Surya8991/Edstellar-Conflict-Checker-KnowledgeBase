@@ -47,7 +47,7 @@ export default function CatalogConflictsPage() {
         {!loading && rows.length === 0 && (
           <Card className="text-sm text-slate-500">
             No precomputed conflicts yet. Ask your admin to refresh the corpus
-            and run the catalog-conflicts script — the snapshot lands here
+            and run the catalog-conflicts script - the snapshot lands here
             once it completes.
           </Card>
         )}

@@ -189,13 +189,13 @@ function SearchConsoleInner() {
           </Card>
         )}
 
-        {/* Inline GSC lookup — search any URL or query */}
+        {/* Inline GSC lookup - search any URL or query */}
         <Card>
           <form onSubmit={runLookup} className="flex flex-wrap gap-2">
             <input
               value={lookupInput}
               onChange={(e) => setLookupInput(e.target.value)}
-              placeholder="Lookup any URL or query — e.g. https://www.edstellar.com/blog/...  or  'leadership training'"
+              placeholder="Lookup any URL or query - e.g. https://www.edstellar.com/blog/...  or  'leadership training'"
               className="flex-1 min-w-[300px] rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900"
             />
             <select
@@ -237,7 +237,7 @@ function SearchConsoleInner() {
             )}
           </div>
 
-          {/* Custom date inputs — only when "Custom…" is the active range. */}
+          {/* Custom date inputs - only when "Custom…" is the active range. */}
           {range === "custom" && (
             <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
               <label className="text-xs text-slate-600">
@@ -400,7 +400,7 @@ function OverviewTab({ data, range }: { data: Insights; range: string }) {
       <Card>
         <h3 className="mb-3 text-sm font-semibold text-slate-900">Branded vs non-branded</h3>
         <p className="mb-2 text-xs text-slate-500">
-          Brand terms: <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px]">{data.branded.brandTerms.join(", ") || "—"}</code>
+          Brand terms: <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px]">{data.branded.brandTerms.join(", ") || "-"}</code>
         </p>
         <div className="flex h-6 w-full overflow-hidden rounded-lg bg-slate-100">
           <div className="bg-slate-900" style={{ width: `${brandPct}%` }} title={`Branded ${brandPct.toFixed(1)}%`} />
@@ -533,7 +533,7 @@ function CannibalTab({ data }: { data: Insights }) {
         <div>
           <h3 className="text-sm font-semibold text-slate-900">Cannibalization</h3>
           <p className="text-xs text-slate-500">
-            Queries where 2+ pages of yours are competing for the same spot — the listed pages split impressions and clicks.
+            Queries where 2+ pages of yours are competing for the same spot - the listed pages split impressions and clicks.
           </p>
         </div>
         <ExportBtn
@@ -628,7 +628,7 @@ function CtrOppTab({ data }: { data: Insights }) {
     .sort((a: any, b: any) => b.potential - a.potential);
 
   if (!rows.length)
-    return <EmptyState text="No clear CTR opportunities — every page-1 query is performing near its expected CTR." />;
+    return <EmptyState text="No clear CTR opportunities - every page-1 query is performing near its expected CTR." />;
 
   return (
     <Card>
@@ -705,7 +705,7 @@ function UntappedTab({ data }: { data: Insights }) {
       <div className="mb-3 flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-slate-900">Untapped queries</h3>
-          <p className="text-xs text-slate-500">High impressions, CTR below what's expected for that position — usually a meta-title / snippet issue.</p>
+          <p className="text-xs text-slate-500">High impressions, CTR below what's expected for that position - usually a meta-title / snippet issue.</p>
         </div>
         <ExportBtn
           onClick={() =>
@@ -738,7 +738,7 @@ function GapTab({ data }: { data: Insights }) {
       <div className="mb-3 flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-slate-900">Catalog gap</h3>
-          <p className="text-xs text-slate-500">Queries you rank for but have no matching course / blog / category — opportunities to create dedicated content.</p>
+          <p className="text-xs text-slate-500">Queries you rank for but have no matching course / blog / category - opportunities to create dedicated content.</p>
         </div>
         <ExportBtn
           onClick={() =>
@@ -828,13 +828,13 @@ function shortenUrl(u: string): string {
 
 function StaleTab({ data, range }: { data: Insights; range: string }) {
   if (!data.stale.length)
-    return <EmptyState text="No stale pages detected — none have lost ≥30% clicks vs the previous period." />;
+    return <EmptyState text="No stale pages detected - none have lost ≥30% clicks vs the previous period." />;
   return (
     <Card>
       <div className="mb-3 flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-slate-900">Stale pages</h3>
-          <p className="text-xs text-slate-500">Pages whose clicks dropped ≥30% vs the previous {range} window — refresh candidates.</p>
+          <p className="text-xs text-slate-500">Pages whose clicks dropped ≥30% vs the previous {range} window - refresh candidates.</p>
         </div>
         <button
           onClick={() => downloadCsv("stale-pages.csv",
@@ -914,8 +914,8 @@ function IndexCoverageTab() {
             rows={data.results.map((r: any) => [
               shortenUrl(r.url),
               r.verdict,
-              r.coverageState || "—",
-              r.lastCrawl ? new Date(r.lastCrawl).toLocaleDateString() : "—",
+              r.coverageState || "-",
+              r.lastCrawl ? new Date(r.lastCrawl).toLocaleDateString() : "-",
             ])}
             linkColumn={0}
             linkValues={data.results.map((r: any) => r.url)}
@@ -987,7 +987,7 @@ function BucketCard({ title, b }: { title: string; b: { clicks: number; impressi
 }
 
 function PageDetailModal({ data, loading, onClose }: { data: any; loading: boolean; onClose: () => void }) {
-  // Esc closes the modal — keyboard parity with the backdrop click.
+  // Esc closes the modal - keyboard parity with the backdrop click.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);

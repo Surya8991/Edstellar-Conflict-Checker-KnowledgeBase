@@ -23,7 +23,7 @@ export const maxDuration = 60;
  * loader uses so noise (tag archives, file downloads) doesn't show up as
  * 'drift'.
  *
- * Cheap to run — one fetch + one DB query. No cron needed; it's a snapshot
+ * Cheap to run - one fetch + one DB query. No cron needed; it's a snapshot
  * computed on demand from the dashboard.
  */
 
@@ -38,7 +38,7 @@ async function fetchSitemapUrls(rootHost: string): Promise<string[]> {
     const $ = cheerio.load(xml, { xmlMode: true });
     const subs = $("sitemap > loc").map((_, el) => $(el).text().trim()).get();
     if (subs.length) {
-      // sitemap index — recurse.
+      // sitemap index - recurse.
       await Promise.all(subs.slice(0, 50).map(visit));
       return;
     }

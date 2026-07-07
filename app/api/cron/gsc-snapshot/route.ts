@@ -10,13 +10,13 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 /**
- * Daily cron — three jobs in one:
+ * Daily cron - three jobs in one:
  *   1. Snapshot yesterday's totals + branded vs non-branded into
  *      gsc_daily_totals (the legacy job).
  *   2. Sync per-page last-28-day clicks/impressions/position onto the
- *      pages row (powers business-impact severity scoring — #26).
+ *      pages row (powers business-impact severity scoring - #26).
  *   3. Mark pages stale: gsc_clicks_28d < 5 AND lastmod older than 12 months
- *      (powers the stale-content tab — #28).
+ *      (powers the stale-content tab - #28).
  */
 const STALE_LASTMOD_DAYS = 365;
 const STALE_CLICKS_THRESHOLD = 5;
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
     });
     const rows = byPage.data.rows ?? [];
 
-    // Batch UNNEST UPDATE — same pattern as audit-links.
+    // Batch UNNEST UPDATE - same pattern as audit-links.
     const urls: string[] = [];
     const clicks: number[] = [];
     const impressions: number[] = [];
@@ -114,7 +114,7 @@ export async function GET(request: NextRequest) {
     }
 
     // --- Job 3: mark stale pages -------------------------------------------
-    // Audit H7 (Session 6): formerly two UPDATEs — `SET is_stale=false`
+    // Audit H7 (Session 6): formerly two UPDATEs - `SET is_stale=false`
     // unconditionally, then `SET is_stale=true WHERE <predicate>`. Between
     // them every page briefly flipped to is_stale=false, visible to any
     // concurrent reader. Replaced with one atomic UPDATE that sets the

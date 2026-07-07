@@ -98,7 +98,7 @@ test("topicKey drops bigrams containing a template word (§17K label fix)", () =
   ];
   const df = buildDfIndex(corpus, 0.05);
   const key = topicKey(corpus[0], df);
-  // Only the both-words-distinctive bigram survives — no "corporate chemical"
+  // Only the both-words-distinctive bigram survives - no "corporate chemical"
   // or "safety corporate" leaking the template word into the label.
   assert.deepEqual(key.bigrams, ["chemical safety"]);
   assert.ok(!key.bigrams.some((b) => b.includes("corporate")));

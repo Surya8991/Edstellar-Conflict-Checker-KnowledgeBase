@@ -40,7 +40,7 @@ export const pages = pgTable(
     tokenCount: integer("token_count"),
     crawledAt: timestamp("crawled_at"),
     createdAt: timestamp("created_at").defaultNow(),
-    // Added in 0004_seo_columns.sql — SEO-features sprint.
+    // Added in 0004_seo_columns.sql - SEO-features sprint.
     ownerUrl: text("owner_url"),
     gscClicks28d: integer("gsc_clicks_28d"),
     gscImpressions28d: integer("gsc_impressions_28d"),
@@ -74,7 +74,7 @@ export const checks = pgTable("checks", {
   topScore: real("top_score"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
-  // Added in 0004_seo_columns.sql — shipped/blocked reporting.
+  // Added in 0004_seo_columns.sql - shipped/blocked reporting.
   verdict: text("verdict"),
   outcome: text("outcome"),
   resolvedAt: timestamp("resolved_at"),
@@ -98,7 +98,7 @@ export const checkMatches = pgTable(
     conflictType: text("conflict_type"), // duplicate | cannibalization | partial-overlap | none
     rationale: text("rationale"),
     rank: integer("rank"),
-    // Audit H8 (Session 6) — added in drizzle/0005_check_match_enrichment.sql.
+    // Audit H8 (Session 6) - added in drizzle/0005_check_match_enrichment.sql.
     overlap: text("overlap").array(),
     issue: text("issue"),
     ownerUrl: text("owner_url"),

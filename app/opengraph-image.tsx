@@ -1,11 +1,11 @@
 import { ImageResponse } from "next/og";
 
-// Open Graph + Twitter card image — what shows up when someone pastes a
+// Open Graph + Twitter card image - what shows up when someone pastes a
 // link to this app into Slack, LinkedIn, X, etc. 1200x630 is the canonical
 // OG card dimension.
 
 export const runtime = "edge";
-export const alt = "Edstellar Conflict Checker — pre-publish SEO duplication detector";
+export const alt = "Edstellar Conflict Checker - pre-publish SEO duplication detector";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -104,7 +104,7 @@ export default function OpengraphImage() {
       // Audit 10C (Session 8): ImageResponse defaults to max-age=0. Override
       // so the rendered OG image lives at Vercel's edge for 24h with a 7-day
       // stale-while-revalidate. The image only changes on redeploy.
-      // next.config.ts headers() can't reach this — ImageResponse owns its
+      // next.config.ts headers() can't reach this - ImageResponse owns its
       // response object.
       headers: {
         "cache-control":

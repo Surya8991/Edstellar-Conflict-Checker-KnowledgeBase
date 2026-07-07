@@ -27,7 +27,7 @@ export default function DashboardError({
         </h2>
         <p className="mt-2 text-sm text-red-800">
           The dashboard hit an error and could not finish rendering. This is
-          almost always a transient database hiccup. Try again — if it keeps
+          almost always a transient database hiccup. Try again - if it keeps
           happening, share the digest below with the engineering team.
         </p>
         {error.digest && (

@@ -108,7 +108,7 @@ export default function HelpButton() {
             className="fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-y-auto border-l border-slate-200 bg-white shadow-2xl"
             role="dialog"
             aria-modal="true"
-            aria-label={`Help — ${entry.title}`}
+            aria-label={`Help - ${entry.title}`}
           >
             <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
               <div>

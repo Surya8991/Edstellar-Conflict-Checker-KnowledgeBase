@@ -2,7 +2,7 @@ import { neon } from "@neondatabase/serverless";
 import type { NextRequest } from "next/server";
 
 /**
- * Postgres-backed sliding-window rate limiter — fits the existing Neon-only
+ * Postgres-backed sliding-window rate limiter - fits the existing Neon-only
  * deploy without adding Upstash/Redis. Cross-instance correct on Vercel.
  *
  * One row per (ip, route). On each call we either:
@@ -48,7 +48,7 @@ export function clientIp(req: NextRequest): string {
  *   - Fail OPEN only in non-production (so local dev without DB still works).
  *   - In production, fall back to an in-memory token bucket per instance so a
  *     transient DB hiccup doesn't open the floodgates. The in-memory bucket
- *     is per-Vercel-function-instance — coarser than per-IP-across-fleet, but
+ *     is per-Vercel-function-instance - coarser than per-IP-across-fleet, but
  *     dramatically tighter than the previous unlimited fallback.
  */
 const inMemoryBuckets = new Map<string, { count: number; windowStart: number }>();

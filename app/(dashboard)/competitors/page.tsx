@@ -19,7 +19,7 @@ export default function CompetitorsPage() {
     <div>
       <PageHeader
         title="Competitor Research"
-        subtitle="Who else ranks, how often, how recently — and what Edstellar can do differently."
+        subtitle="Who else ranks, how often, how recently - and what Edstellar can do differently."
       />
       <div className="space-y-5 p-8">
         <Tabs tabs={TABS} param="tab" />
@@ -241,8 +241,8 @@ function FreshnessTab() {
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <Stat size="sm" label="URLs" value={data.totalUrls.toLocaleString()} />
             <Stat size="sm" label="Updated last 90d" value={data.recent90d.toLocaleString()} />
-            <Stat size="sm" label="Newest lastmod" value={data.newest ?? "—"} />
-            <Stat size="sm" label="Oldest lastmod" value={data.oldest ?? "—"} />
+            <Stat size="sm" label="Newest lastmod" value={data.newest ?? "-"} />
+            <Stat size="sm" label="Oldest lastmod" value={data.oldest ?? "-"} />
           </div>
           <h4 className="mb-2 mt-5 text-xs uppercase tracking-wider text-slate-400">Sample URLs</h4>
           <ul className="space-y-1 text-xs">
@@ -259,5 +259,5 @@ function FreshnessTab() {
   );
 }
 
-// Stat moved to @/app/components/ui — was a tiny inline metric box here;
+// Stat moved to @/app/components/ui - was a tiny inline metric box here;
 // the unified component renders this same shape with size="sm".

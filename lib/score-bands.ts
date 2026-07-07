@@ -5,7 +5,7 @@
  * conflict-checker/page.tsx MatchCard). Any future band change has to
  * update this file once instead of three at-risk-of-drift copies.
  *
- * Bands mirror lib/score.ts conflictTypeFromScore + scoreColor — those
+ * Bands mirror lib/score.ts conflictTypeFromScore + scoreColor - those
  * functions return SCORE → semantic-name and SCORE → hex; this module
  * adds the Tailwind-color companions the UI needs.
  */
