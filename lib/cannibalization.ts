@@ -190,78 +190,97 @@ export function buildConflicts(
   const out: ConflictGroup[] = [];
   for (const [query, pmap] of byQuery) {
     // 2. Keep only pages that actually rank (real impressions).
-    let pages = [...pmap.values()].filter((p) => p.impressions >= opts.minPageImpr);
+    const pages = [...pmap.values()].filter((p) => p.impressions >= opts.minPageImpr);
     if (pages.length < 2) continue;
     const totalImpressions = pages.reduce((s, p) => s + p.impressions, 0);
     if (totalImpressions < opts.minImpr) continue;
-    const totalClicks = pages.reduce((s, p) => s + p.clicks, 0);
-
-    // 3. Order by best (lowest) position first.
-    pages = pages.sort((a, b) => a.position - b.position);
-    const bestPosition = pages[0].position;
-    const positionGap = pages[1].position - pages[0].position;
-
-    const crossType = new Set(pages.map((p) => p.contentType ?? "unknown")).size >= 2;
-    const branded = isBrandedQuery(query, opts.brandTerms);
-
-    // 4. Commercial-at-risk: the most commercial page is NOT the one winning.
-    const maxCommercial = Math.max(...pages.map((p) => commercialRank(p.contentType)));
-    const topCommercial = commercialRank(pages[0].contentType);
-    const commercialAtRisk = maxCommercial > topCommercial;
-
-    // 5. Primary page = who we recommend to keep/win. For a cross-type clash we
-    //    protect the most commercial page (even if it's currently losing); else
-    //    the best current performer (position, then clicks).
-    let primary: ConflictPage;
-    if (crossType && maxCommercial > 1) {
-      primary = pages
-        .filter((p) => commercialRank(p.contentType) === maxCommercial)
-        .sort((a, b) => a.position - b.position || b.clicks - a.clicks)[0];
-    } else {
-      primary = pages.slice().sort((a, b) => a.position - b.position || b.clicks - a.clicks)[0];
-    }
-    for (const p of pages) p.role = p.page === primary.page ? "primary" : "cannibal";
-
-    // 6. Action (rule-based, SEO best practice). "near" = the two pages' avg
-    //    positions are within ±nearGap of each other (Google is undecided).
-    const near = positionGap <= opts.nearGap;
-    let action: ConflictAction;
-    if (crossType && maxCommercial > 1) {
-      // don't 301 across intents - link/deoptimize toward the money page
-      action = commercialAtRisk ? "protect-commercial" : "monitor";
-    } else if (near) {
-      action = "consolidate"; // same intent, fighting each other → 301 losers → primary
-    } else {
-      action = "differentiate"; // same type but far apart → distinct angles/keywords
-    }
-
-    // 7. Severity (explainable to an SEO, not a black box).
-    let severity: Severity = "low";
-    if (commercialAtRisk || totalClicks >= 50 || (near && totalClicks >= 10)) severity = "high";
-    else if (near || totalClicks >= 10 || totalImpressions >= 500) severity = "medium";
-
-    out.push({
-      query,
-      totalClicks,
-      totalImpressions,
-      pageCount: pages.length,
-      bestPosition: round2(bestPosition),
-      positionGap: round2(positionGap),
-      crossType,
-      branded,
-      commercialAtRisk,
-      severity,
-      primaryPage: primary.page,
-      action,
-      pages: pages.map((p) => ({ ...p, position: round2(p.position), ctr: Number(p.ctr.toFixed(4)) })),
-    });
+    // 3. Classify the qualified page set.
+    out.push(classifyGroup(query, pages, opts));
   }
 
+  return sortConflicts(out);
+}
+
+export function sortConflicts(groups: ConflictGroup[]): ConflictGroup[] {
   const sevRank: Record<Severity, number> = { high: 3, medium: 2, low: 1 };
-  return out.sort(
+  return groups.sort(
     (a, b) =>
       sevRank[b.severity] - sevRank[a.severity] ||
       b.totalClicks - a.totalClicks ||
       b.totalImpressions - a.totalImpressions,
   );
+}
+
+/**
+ * Classify one already-grouped set of ≥2 competing pages for a query - severity,
+ * the page to keep (primary) vs cannibals, cross-type, and the recommended
+ * action. Pure over the given pages, so the read layer can RE-classify after
+ * exclusions drop some pages (otherwise the stored gap/severity/action would
+ * describe pages that are no longer shown - PROJECTLOG §18G).
+ */
+export function classifyGroup(
+  query: string,
+  input: ConflictPage[],
+  opts: { nearGap: number; brandTerms: string[] },
+): ConflictGroup {
+  const totalImpressions = input.reduce((s, p) => s + p.impressions, 0);
+  const totalClicks = input.reduce((s, p) => s + p.clicks, 0);
+
+  // Order by best (lowest) position first.
+  const pages = input.slice().sort((a, b) => a.position - b.position);
+  const bestPosition = pages[0].position;
+  const positionGap = pages[1].position - pages[0].position;
+
+  const crossType = new Set(pages.map((p) => p.contentType ?? "unknown")).size >= 2;
+  const branded = isBrandedQuery(query, opts.brandTerms);
+
+  // Commercial-at-risk: the most commercial page is NOT the one winning.
+  const maxCommercial = Math.max(...pages.map((p) => commercialRank(p.contentType)));
+  const topCommercial = commercialRank(pages[0].contentType);
+  const commercialAtRisk = maxCommercial > topCommercial;
+
+  // Primary page = who we recommend to keep/win. For a cross-type clash we
+  // protect the most commercial page (even if it's currently losing); else the
+  // best current performer (position, then clicks).
+  let primary: ConflictPage;
+  if (crossType && maxCommercial > 1) {
+    primary = pages
+      .filter((p) => commercialRank(p.contentType) === maxCommercial)
+      .sort((a, b) => a.position - b.position || b.clicks - a.clicks)[0];
+  } else {
+    primary = pages.slice().sort((a, b) => a.position - b.position || b.clicks - a.clicks)[0];
+  }
+  const scored = pages.map((p) => ({ ...p, role: (p.page === primary.page ? "primary" : "cannibal") as PageRole }));
+
+  // Action (rule-based). "near" = the top-2 avg positions are within ±nearGap.
+  const near = positionGap <= opts.nearGap;
+  let action: ConflictAction;
+  if (crossType && maxCommercial > 1) {
+    action = commercialAtRisk ? "protect-commercial" : "monitor";
+  } else if (near) {
+    action = "consolidate";
+  } else {
+    action = "differentiate";
+  }
+
+  // Severity (explainable).
+  let severity: Severity = "low";
+  if (commercialAtRisk || totalClicks >= 50 || (near && totalClicks >= 10)) severity = "high";
+  else if (near || totalClicks >= 10 || totalImpressions >= 500) severity = "medium";
+
+  return {
+    query,
+    totalClicks,
+    totalImpressions,
+    pageCount: scored.length,
+    bestPosition: round2(bestPosition),
+    positionGap: round2(positionGap),
+    crossType,
+    branded,
+    commercialAtRisk,
+    severity,
+    primaryPage: primary.page,
+    action,
+    pages: scored.map((p) => ({ ...p, position: round2(p.position), ctr: Number(p.ctr.toFixed(4)) })),
+  };
 }

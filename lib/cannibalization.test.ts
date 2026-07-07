@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildConflicts, normalizeUrl, isBrandedQuery, type RawRow } from "./cannibalization";
+import {
+  buildConflicts,
+  classifyGroup,
+  normalizeUrl,
+  isBrandedQuery,
+  type RawRow,
+  type ConflictPage,
+} from "./cannibalization";
 import { THRESHOLDS } from "./thresholds";
 
 const OPTS = {
@@ -91,6 +98,32 @@ test("branded queries are flagged", () => {
   const types = new Map([["https://s.com/a", "blog"], ["https://s.com/b", "blog"]]);
   const [g] = buildConflicts(rows, types, THRESHOLDS, OPTS);
   assert.equal(g.branded, true);
+});
+
+test("classifyGroup recomputes gap/action from the pages given (post-exclusion)", () => {
+  const cp = (page: string, position: number, clicks = 0, impressions = 100): ConflictPage => ({
+    page,
+    contentType: "blog",
+    clicks,
+    impressions,
+    ctr: 0,
+    position,
+    role: "cannibal",
+  });
+  // Full set: two near-top pages (gap 0.6) that will be "excluded".
+  const full = [cp("https://s.com/a", 4), cp("https://s.com/b", 4.6), cp("https://s.com/c", 25), cp("https://s.com/d", 60)];
+  const withTop = classifyGroup("corporate training", full, { nearGap: 10, brandTerms: [] });
+  assert.equal(withTop.positionGap, 0.6);
+  assert.equal(withTop.action, "consolidate"); // near
+
+  // After removing the two excluded top pages, only c(25) + d(60) remain →
+  // gap 35, NOT near → differentiate, and bestPosition is 25 not 4.
+  const survivors = full.slice(2);
+  const after = classifyGroup("corporate training", survivors, { nearGap: 10, brandTerms: [] });
+  assert.equal(after.bestPosition, 25);
+  assert.equal(after.positionGap, 35);
+  assert.equal(after.action, "differentiate"); // no longer near
+  assert.equal(after.pageCount, 2);
 });
 
 test("far-apart same-type pages → differentiate", () => {

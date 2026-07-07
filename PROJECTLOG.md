@@ -2683,3 +2683,26 @@ filtered set; the merge-blogs tab honours the search box. Live-verified.
   Cannibalization** and **Content Clusters** (both dropped their bespoke
   `FilterPill`/`FilterRow`), and the **Edstellar Database** search field. One look
   and one behaviour everywhere; live-verified on all three, no console errors.
+
+### 18G. Bug: stored stats didn't match the pages shown after exclusions
+
+Symptom (spotted on screen): a "corporate training" conflict showed
+"gap 0.6 · best pos 4.0" and sat in the **Nearer avg position** tab, but its
+listed pages started at **pos 25.9** (real gap 33.5). Cause: `/api/cannibalization`
+filtered the excluded pages out of each group's `pages` array at read time but
+kept the STORED `position_gap`/`best_position`/`severity`/`action`/`primary`,
+which were computed at snapshot time over the FULL page set. For "corporate
+training" the stored group had 31 pages - mostly the excluded
+`corporate-training-companies-[country]` series ranking pos 4-5 (hence gap 0.6 /
+best 4). After excluding them only the homepage + 3 generic blogs (pos 25-80)
+remained, but the summary still described the removed pages, and the group was
+mis-filed as "near".
+
+Fix: extracted `classifyGroup(query, pages, opts)` from `buildConflicts` (pure,
+recomputes gap/bestPos/crossType/commercial/primary/action/severity/totals from
+whatever pages it's given) and call it in the API on the SURVIVING pages after
+exclusion. Now every displayed stat matches the visible pages and tab membership
+is correct. `sortConflicts` re-orders after re-classification. Verified live:
+"corporate training" → gap 33.6 / best 25.9 / differentiate, correctly OUT of the
+near tab (near 420 → 357); **0 best-position mismatches across all 1,184 groups**.
+Regression test added (`classifyGroup recomputes … post-exclusion`); 88/88 tests.

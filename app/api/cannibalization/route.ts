@@ -3,6 +3,7 @@ import { neon } from "@neondatabase/serverless";
 import { getExclusions, isExcludedUrl, isExcludedQuery } from "@/lib/exclusions";
 import { THRESHOLDS } from "@/lib/thresholds";
 import { RANGE_LABEL } from "@/lib/cannibalization-snapshot";
+import { classifyGroup, sortConflicts, type ConflictPage, type ConflictGroup } from "@/lib/cannibalization";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,6 +44,10 @@ export async function GET(_req: NextRequest) {
 
     const { url: urlPatterns, query: queryPatterns, exception } = await getExclusions();
     const nearGap = THRESHOLDS.cannibalNearGap;
+    const brandTerms = (process.env.BRAND_TERMS || "edstellar")
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
 
     const groups: any[] = [];
     for (const r of rows) {
@@ -52,22 +57,28 @@ export async function GET(_req: NextRequest) {
         (p: any) => !isExcludedUrl(p.page, urlPatterns, exception),
       );
       if (pages.length < 2) continue;
+      // Re-classify from the SURVIVING pages so gap/bestPos/severity/action/
+      // primary always match what's shown - stored values describe the full
+      // (pre-exclusion) set and would otherwise lie (§18G).
+      const g = classifyGroup(r.query, pages as ConflictPage[], { nearGap, brandTerms });
+      if (g.branded) continue; // brand near-miss that only surfaced post-exclusion
       groups.push({
-        query: r.query,
-        totalClicks: r.total_clicks,
-        totalImpressions: r.total_impressions,
-        pageCount: pages.length,
-        positionGap: r.position_gap,
-        bestPosition: r.best_position,
-        crossType: r.cross_type,
-        commercialAtRisk: r.commercial_at_risk,
-        severity: r.severity,
-        primaryPage: r.primary_page,
-        action: r.recommended_action,
-        pages,
+        query: g.query,
+        totalClicks: g.totalClicks,
+        totalImpressions: g.totalImpressions,
+        pageCount: g.pageCount,
+        positionGap: g.positionGap,
+        bestPosition: g.bestPosition,
+        crossType: g.crossType,
+        commercialAtRisk: g.commercialAtRisk,
+        severity: g.severity,
+        primaryPage: g.primaryPage,
+        action: g.action,
+        pages: g.pages,
       });
     }
 
+    sortConflicts(groups as ConflictGroup[]);
     const near = groups.filter((g) => g.positionGap <= nearGap).length;
     const crossType = groups.filter((g) => g.crossType).length;
 
