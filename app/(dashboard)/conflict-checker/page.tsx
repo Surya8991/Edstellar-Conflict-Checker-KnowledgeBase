@@ -86,6 +86,11 @@ export default function ConflictCheckerPage() {
   const [suggesting, setSuggesting] = useState(false);
   const [suggestions, setSuggestions] = useState<any>(null);
 
+  // Both bottom panels are collapsible dropdowns, closed by default; they
+  // auto-open when their result arrives (see effects below).
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [draftOpen, setDraftOpen] = useState(false);
+
   // AI Draft state (Batch 18). Cache-first synchronous resolver - either
   // returns instantly from pregenerated_drafts or 2-8s via Groq fallback.
   // No polling, no queued/running states.
@@ -102,6 +107,10 @@ export default function ConflictCheckerPage() {
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [draftLoading, setDraftLoading] = useState(false);
   const [draftError, setDraftError] = useState<string | null>(null);
+
+  // Auto-expand each panel once its result is available.
+  useEffect(() => { if (suggestions) setSuggestOpen(true); }, [suggestions]);
+  useEffect(() => { if (draft) setDraftOpen(true); }, [draft]);
 
   // Aborts an in-flight check when a newer one starts, so a slow first request
   // can never clobber a newer result (double-submit race).
@@ -121,6 +130,7 @@ export default function ConflictCheckerPage() {
     // the previous search doesn't silently hide this search's matches.
     setScoreMin(80);
     setDraft(null); setDraftError(null);
+    setSuggestOpen(false); setDraftOpen(false);
     try {
       const res = await fetch("/api/check", {
         method: "POST",
@@ -472,14 +482,19 @@ export default function ConflictCheckerPage() {
               )}
             </div>
 
-            {/* New-content suggestions trigger */}
+            {/* New-content suggestions trigger - collapsible */}
             <Card>
               <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-900">Net-new content suggestions</h3>
-                  <p className="text-xs text-slate-500">LLM proposes angles based on competitors, AI Overview, recent Google updates, and AI platforms.</p>
-                </div>
-                <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSuggestOpen((o) => !o)}
+                  aria-expanded={suggestOpen}
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                >
+                  <span className={`inline-block shrink-0 transition-transform ${suggestOpen ? "rotate-90" : ""} text-slate-400`}>▸</span>
+                  <h3 className="truncate text-sm font-semibold text-slate-900">Net-new content suggestions</h3>
+                </button>
+                <div className="flex shrink-0 items-center gap-2">
                   {suggestions?.suggestions?.angles?.length > 0 && (
                     <button
                       onClick={() => copyWriterBrief(result, suggestions.suggestions, suggestions.serp)}
@@ -495,6 +510,9 @@ export default function ConflictCheckerPage() {
                   </button>
                 </div>
               </div>
+              {suggestOpen && (
+              <div>
+              <p className="mt-3 text-xs text-slate-500">LLM proposes angles based on competitors, AI Overview, recent Google updates, and AI platforms.</p>
               {suggestions?.suggestions?.headline && (
                 <p className="mt-4 text-sm font-medium text-slate-800">{suggestions.suggestions.headline}</p>
               )}
@@ -536,24 +554,23 @@ export default function ConflictCheckerPage() {
                 </div>
               )}
               {suggestions?.error && <div className="mt-3 text-sm text-red-600">{suggestions.error}</div>}
+              </div>
+              )}
             </Card>
 
-            {/* AI Draft panel - cache-first via pregenerated_drafts; Groq fallback. */}
+            {/* AI Draft panel - cache-first via pregenerated_drafts; Groq fallback. Collapsible. */}
             <Card>
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-sm font-semibold text-slate-900">AI Draft</h3>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    Cache-first: looks for the nearest pre-generated draft in the database. If similarity ≥ 85% you get it instantly. Otherwise Groq (llama-3.3-70b-versatile) adapts the nearest match or generates fresh in 2–8s, and the result is cached for next time.
-                  </p>
-                  <ul className="mt-2 space-y-0.5 text-[11px] text-slate-500">
-                    <li>• <strong>Cached</strong> badge = served from the offline-generated library, free + instant.</li>
-                    <li>• <strong>Adapted</strong> badge = Groq rewrote the nearest cached draft for this exact topic.</li>
-                    <li>• <strong>Fresh</strong> badge = Groq generated from scratch (no near-neighbour in cache).</li>
-                    <li>• To grow the cached library, run <code className="rounded bg-slate-100 px-1 text-[10px]">npm run pregen-drafts</code> on your machine (uses Antigravity or Claude Code).</li>
-                  </ul>
-                </div>
-                <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDraftOpen((o) => !o)}
+                  aria-expanded={draftOpen}
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                >
+                  <span className={`inline-block shrink-0 transition-transform ${draftOpen ? "rotate-90" : ""} text-slate-400`}>▸</span>
+                  <h3 className="truncate text-sm font-semibold text-slate-900">AI Draft</h3>
+                </button>
+                <div className="flex shrink-0 items-center gap-2">
                   {draft && (
                     <button
                       onClick={copyDraft}
@@ -581,6 +598,18 @@ export default function ConflictCheckerPage() {
                   )}
                 </div>
               </div>
+
+              {draftOpen && (
+              <div>
+              <p className="mt-3 text-xs text-slate-500">
+                Cache-first: looks for the nearest pre-generated draft in the database. If similarity ≥ 85% you get it instantly. Otherwise Groq (llama-3.3-70b-versatile) adapts the nearest match or generates fresh in 2-8s, and the result is cached for next time.
+              </p>
+              <ul className="mt-2 space-y-0.5 text-[11px] text-slate-500">
+                <li>• <strong>Cached</strong> badge = served from the offline-generated library, free + instant.</li>
+                <li>• <strong>Adapted</strong> badge = Groq rewrote the nearest cached draft for this exact topic.</li>
+                <li>• <strong>Fresh</strong> badge = Groq generated from scratch (no near-neighbour in cache).</li>
+                <li>• To grow the cached library, run <code className="rounded bg-slate-100 px-1 text-[10px]">npm run pregen-drafts</code> on your machine (uses Antigravity or Claude Code).</li>
+              </ul>
 
               {draftLoading && !draft && (
                 <p className="mt-4 text-xs text-slate-500">Checking cache, then falling back to Groq if needed…</p>
@@ -627,6 +656,8 @@ export default function ConflictCheckerPage() {
                     {draft.draftMd}
                   </pre>
                 </div>
+              )}
+              </div>
               )}
             </Card>
           </>
