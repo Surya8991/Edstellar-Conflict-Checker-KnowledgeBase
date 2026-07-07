@@ -48,6 +48,14 @@ export default function SettingsPage() {
   const [sitemapChecking, setSitemapChecking] = useState(false);
   const [sitemapSyncing, setSitemapSyncing] = useState(false);
 
+  // Link Audit (301/308/404/410 -> auto-exclude). Runs daily via GitHub
+  // Actions (.github/workflows/link-audit.yml); this card is the manual
+  // "Run now" trigger + last-run summary.
+  const [linkAuditLast, setLinkAuditLast] = useState<
+    { at: string; checked: number; redirects: number; dead: number; excluded: number } | null | undefined
+  >(undefined);
+  const [linkAuditRunning, setLinkAuditRunning] = useState(false);
+
   async function loadItems() {
     try {
       const res = await fetch("/api/settings/exclusions");
@@ -120,8 +128,32 @@ export default function SettingsPage() {
       if (res.ok) { setCanniLast(data.lastComputed ?? null); setCanniGroups(data.groups ?? 0); }
     } catch { setCanniLast(null); }
   }
+  async function loadLinkAuditLast() {
+    try {
+      const res = await fetch("/api/settings/link-audit");
+      const data = await res.json();
+      if (res.ok) setLinkAuditLast(data.last ?? null);
+    } catch { setLinkAuditLast(null); }
+  }
+  async function runLinkAudit() {
+    setLinkAuditRunning(true);
+    try {
+      const res = await fetch("/api/settings/link-audit", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Link audit failed");
+      setLinkAuditLast({ at: data.at, checked: data.checked, redirects: data.redirects, dead: data.dead, excluded: data.excluded });
+      toast.success(
+        `Link audit: ${data.checked} checked, ${data.redirects} permanent redirects, ${data.dead} dead, ${data.excluded} excluded.`,
+      );
+      await Promise.all([loadItems(), loadMatches(matchPage, matchPageSize)]);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setLinkAuditRunning(false);
+    }
+  }
   useEffect(() => {
-    loadItems(); loadMatches(1, matchPageSize); loadCluster(); loadGscLast(); loadCanniLast();
+    loadItems(); loadMatches(1, matchPageSize); loadCluster(); loadGscLast(); loadCanniLast(); loadLinkAuditLast();
     /* eslint-disable-next-line */
   }, []);
 
@@ -324,6 +356,46 @@ export default function SettingsPage() {
               className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
               {canniRefreshing ? "Scanning…" : "Rescan now"}
+            </button>
+          </div>
+        </Card>
+
+        {/* Link Audit - 301/308/404/410 -> auto-exclude */}
+        <Card>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900">Link Audit</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Probes the whole corpus for 301/308 (permanent move) and 404/410 (dead) pages
+                and auto-excludes them from Content Clusters + Conflict Checker matches (they
+                stay in the Database and in Search Console). Self-healing - a page that starts
+                resolving 200 again drops back out on the next run.
+                {" "}
+                {linkAuditLast != null && (
+                  <>
+                    <strong className="text-slate-700">{linkAuditLast.excluded.toLocaleString()}</strong>{" "}
+                    currently excluded ({linkAuditLast.redirects.toLocaleString()} redirects,{" "}
+                    {linkAuditLast.dead.toLocaleString()} dead, of {linkAuditLast.checked.toLocaleString()}{" "}
+                    checked) ·{" "}
+                  </>
+                )}
+                Last run:{" "}
+                <strong className="text-slate-700">
+                  {linkAuditLast === undefined
+                    ? "…"
+                    : linkAuditLast
+                      ? new Date(linkAuditLast.at).toLocaleString()
+                      : "never"}
+                </strong>
+                . Runs automatically every day at 9:00 AM IST via GitHub Actions.
+              </p>
+            </div>
+            <button
+              onClick={runLinkAudit}
+              disabled={linkAuditRunning}
+              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {linkAuditRunning ? "Auditing…" : "Run now"}
             </button>
           </div>
         </Card>

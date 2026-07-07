@@ -66,7 +66,7 @@ Top-level nav: Edstellar Database (the `/corpus` page), Search Console (an expan
 | `/audit` | Content Audit - per-page health scan (meta, links, duplicates, images, staleness). |
 | `/internal-links` | Suggests existing pages a draft should link to. |
 | `/strategy` | Funnel Strategy. |
-| `/settings` | Project settings: **Content Clusters tuning** (overlap / body floor / merge-max, `app_settings` table), **Search Console** last-refreshed + Refresh, **Sitemap sync** (add live-sitemap pages missing from the DB, by type), and the **exclusion lists** (`excluded_series`: URL patterns hide pages from Clusters + Conflict Checker; keyword patterns hide GSC queries; per-URL Remove/allow-list). Excluded pages stay in the Edstellar Database + GSC. |
+| `/settings` | Project settings: **Content Clusters tuning** (overlap / body floor / merge-max, `app_settings` table), **Search Console** last-refreshed + Refresh, **Link Audit** (daily 301/308/404/410 probe → auto-exclude, manual "Run now"), **Sitemap sync** (add live-sitemap pages missing from the DB, by type), and the **exclusion lists** (`excluded_series`: URL patterns hide pages from Clusters + Conflict Checker; keyword patterns hide GSC queries; per-URL Remove/allow-list). Excluded pages stay in the Edstellar Database + GSC. |
 | `/catalog-conflicts` | Precomputed near-duplicate pairs across the catalogue. Build with `npm run catalog-conflicts`. Hidden from the sidebar as of Session 11 (still reachable directly); Content Clusters is the actively-maintained equivalent. |
 
 ## AI providers
@@ -107,6 +107,7 @@ This repo is a single Next.js app at the root - Vercel will auto-detect it.
    npm run ingest
    ```
 5. **Crons** - [`vercel.json`](vercel.json) registers three schedules (`/api/cron/reingest`, `/api/cron/audit-links`, `/api/cron/gsc-snapshot`). **`CRON_SECRET` is required** - since the Session 6 audit, every cron route fails **closed** (returns 401) when the bearer header doesn't match. Vercel Cron sends `Authorization: Bearer <CRON_SECRET>` automatically once you set the env var.
+   - A **fourth** cron, `/api/cron/link-audit` (daily 301/308/404/410 probe → auto-exclude, §21), runs via **GitHub Actions** instead of `vercel.json` - see [`.github/workflows/link-audit.yml`](.github/workflows/link-audit.yml) - so it doesn't count against Vercel's cron-schedule limit. Add `APP_BASE_URL` and `CRON_SECRET` (same value as the Vercel env var) as **GitHub repo secrets** (Settings → Secrets and variables → Actions) for it to authenticate. Also has a manual "Run now" button on the Settings page.
 6. **External webhook (optional)** - `WEBHOOK_API_KEY` gates 7 endpoints from external callers: `POST /api/check`, `/api/check/bulk`, `/api/check/outcome`, `/api/pages/owner`, `/api/summarize`, `/api/rewrite-suggestion`, `/api/internal-links/paragraph`. When set, callers must send `X-API-Key: <value>`; when unset, per-IP rate-limiting is the only gate (see AGENTS.md's auth table for the full mechanism per route).
 7. **Run the schema migration** (one-time, after first deploy): `npm run db:setup` against the prod Neon DB. Idempotent - applies any unapplied `drizzle/*.sql` files; safe to re-run.
 
@@ -123,6 +124,8 @@ The audit below surfaced four things that need attention **before** the first pr
 
 ```
 .                              ← Next.js app root (deployed by Vercel)
+├── .github/workflows/         ← GitHub Actions crons that don't run via vercel.json
+│   └── link-audit.yml         ← daily 9AM IST → POST /api/cron/link-audit (301/308/404/410 auto-exclude)
 ├── app/                       ← App Router routes (pages + /api/*)
 ├── lib/                       ← AI providers, conflict pipeline, scoring, DB, etc.
 ├── scripts/                   ← One-off / cron-target scripts (tsx)

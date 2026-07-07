@@ -78,6 +78,12 @@ New `/api/*` routes that should be cron-callable must be added to `proxy.ts PUBL
 - Run with `npm run draft-worker`; override per-run: `DRAFT_PROVIDER=agy npm run draft-worker`.
 - Migration `drizzle/0006_drafts.sql` MUST be applied to Neon before the API works.
 
+## Link Audit (§21) - GitHub Actions cron, not vercel.json
+- `lib/link-audit.ts` (`auditLinksAndExclude`) probes the whole corpus with `redirect: "manual"` and classifies each URL: **301/308 ("permanent move")** or **404/410 (dead)** → exclude-worthy (`isExcludeWorthy`, unit-tested in `lib/link-audit.test.ts`). Deliberately does NOT touch `pages.http_status` - that column's semantics (follows redirects to the final status) belong to `lib/http-status.refreshHttpStatus`; mixing raw first-hop status into the same column would make it ambiguous for other consumers.
+- Every run REPLACES (not appends to) the patterns of a single tracked `excluded_series` row (`LINK_AUDIT_EXCLUSION_NAME = "Auto: dead/redirected pages (link audit)"`), found by name. This makes it self-healing: a page that starts resolving 200 again drops out of the exclusion automatically next run.
+- **Runs via `.github/workflows/link-audit.yml`** (daily 9:00 AM IST = 3:30 UTC + `workflow_dispatch`), calling `GET /api/cron/link-audit` (same `CRON_SECRET` bearer auth as every other cron route) - NOT registered in `vercel.json`, so it doesn't count against Vercel's cron-schedule limit. Needs `APP_BASE_URL` + `CRON_SECRET` as **GitHub repo secrets** (must match the Vercel env var), not just Vercel env vars.
+- Manual trigger: `/api/settings/link-audit` (GET = last-run metadata from `app_settings` key `link_audit.last_run`; POST = run now), session-gated like every other `/api/settings/*` route, wired to a "Run now" button on `/settings`.
+
 ## Emergency run-book shortcuts
 - **LLM cost runaway** → set `LLM_KILL_SWITCH=1` env var + redeploy. Disables all AI calls instantly without a code push.
 - **DB unreachable** → check Neon console → wake endpoint or rotate `DATABASE_URL` to read-replica.
@@ -86,4 +92,4 @@ New `/api/*` routes that should be cron-callable must be added to `proxy.ts PUBL
 ## What NOT to do
 - Do not force-push `main`. No exceptions.
 - Do not run destructive migrations without a DB backup - migrations are forward-only with no transactional wrapper.
-- Do not add routes to `/api/cron/*` without adding them to `vercel.json` crons AND noting the Vercel Hobby 2-cron cap in README.
+- Do not add routes to `/api/cron/*` without either (a) adding them to `vercel.json` crons AND noting the Vercel Hobby 2-cron cap in README, or (b) scheduling them via a GitHub Actions workflow under `.github/workflows/` instead (see Link Audit above) - the latter doesn't need a `vercel.json` entry, but still needs the route added to `proxy.ts PUBLIC_PATHS` coverage (already true for anything under `/api/cron/`) and documented here.

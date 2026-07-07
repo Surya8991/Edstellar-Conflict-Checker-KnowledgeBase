@@ -35,6 +35,7 @@
 - [18. Session 14 - Keyword Cannibalization promoted to a top-level tool + 4-tab upgrade](#18-session-14---keyword-cannibalization-promoted-to-a-top-level-tool--4-tab-upgrade-2026-07-07)
 - [19. Session 15 - Full project audit + scoped non-"Additional Tools" audit](#19-session-15---full-project-audit--scoped-non-additional-tools-audit-2026-07-07)
 - [20. Session 16 - §19 critical/high/medium fixes shipped](#20-session-16---19-criticalhighmedium-fixes-shipped-2026-07-07)
+- [21. Session 17 - Link Audit: daily 301/404/permanent-move auto-exclude](#21-session-17---link-audit-daily-301404permanent-move-auto-exclude-2026-07-08)
 
 *(Note: there is no "§5" - a section by that number existed early on and was
 later removed/merged during reorganization; a handful of older entries below
@@ -3198,3 +3199,50 @@ intermittently stuck rendering their loading fallback for 30s+ regardless of
 which page or edit was involved, including on a from-scratch `.next` rebuild) -
 not attributable to these changes given clean typecheck + full test pass, but
 noted here rather than silently claimed as fully click-tested.
+
+## 21. Session 17 - Link Audit: daily 301/404/permanent-move auto-exclude (2026-07-08)
+
+**Ask:** a daily 9:00 AM IST cron that checks corpus URLs for 301/404/permanent
+redirects and adds them to the exclude list, run via GitHub Actions (not
+`vercel.json`), plus a manual trigger on the Settings page.
+
+- **`lib/link-audit.ts`** (`auditLinksAndExclude`, unit-tested in
+  `lib/link-audit.test.ts`) probes every corpus URL with `redirect: "manual"` -
+  deliberately different from `lib/http-status.refreshHttpStatus`, which
+  follows redirects to record the FINAL status for the Keyword Cannibalization
+  dead-page filter (§18L); this module needs the raw first-hop status to tell
+  a 301 apart from wherever it points, so it never writes `pages.http_status`
+  and the two probes' semantics can't collide on that column.
+- **Classification** (`isExcludeWorthy`): 301/308 ("permanent move") or
+  404/410 (permanently gone) → exclude-worthy. 302/303/307 (temporary) and 5xx
+  are deliberately left alone - they may resolve on their own.
+- **Self-healing by construction:** every run REPLACES (not appends to) the
+  patterns of a single tracked `excluded_series` row, found by name
+  (`"Auto: dead/redirected pages (link audit)"`). A page that starts
+  resolving 200 again automatically drops out of the exclusion next run - no
+  separate healing pass needed, unlike `scripts/detect-redirects.ts`'s
+  explicit healed-list logic for `pages.is_stale`.
+- **Cron:** `GET /api/cron/link-audit` (same `CRON_SECRET` bearer-auth as
+  every other cron route; already covered by proxy.ts's `/api/cron`
+  `PUBLIC_PATHS` prefix - no proxy change needed). Scheduled via
+  **`.github/workflows/link-audit.yml`** (`30 3 * * *` UTC = 9:00 AM IST, plus
+  `workflow_dispatch` for a manual GitHub-side run) instead of `vercel.json`,
+  per explicit instruction to keep it off Vercel's cron-schedule limit. Needs
+  `APP_BASE_URL` + `CRON_SECRET` as **GitHub repo secrets**, matching the
+  Vercel env var values - documented in the workflow file + README + AGENTS.md.
+- **Manual trigger:** `/api/settings/link-audit` (GET = last-run metadata
+  persisted via `app_settings` key `link_audit.last_run`; POST = run now),
+  session-gated like every other `/api/settings/*` route (not in
+  `PUBLIC_PATHS`). Wired to a new "Link Audit" card on `/settings` with a
+  "Run now" button, showing last-run time + excluded/redirect/dead/checked
+  counts, right below the Keyword Cannibalization data card.
+- Last-run metadata is a small JSON blob (`{at, checked, redirects, dead,
+  excluded}`) rather than a new table - reuses the existing `app_settings`
+  key-value store (§17R) the same way Content Clusters tuning does.
+
+**Verification:** `npm run typecheck` clean; full `npm test` suite
+**100/100 passing** (4 new: `isExcludeWorthy` classification + the
+permanent-redirect/dead-status sets don't overlap). GitHub Actions workflow
+YAML validated by parsing it (`js-yaml`) to confirm structure; the actual
+scheduled/dispatched run itself can only be exercised once pushed with the two
+repo secrets configured - not done in this session.

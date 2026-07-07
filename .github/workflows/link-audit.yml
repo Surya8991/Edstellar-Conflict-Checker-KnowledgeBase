@@ -1,0 +1,43 @@
+name: Link Audit (301/404/permanent-move exclusion)
+
+# Daily at 9:00 AM IST (UTC+5:30) = 3:30 UTC. Calls the deployed app's
+# /api/cron/link-audit endpoint, which probes the corpus for 301/308
+# ("permanent move") and 404/410 URLs and mirrors that set into the
+# excluded_series exclusion list (Settings page). Runs via GitHub Actions
+# instead of vercel.json so it doesn't count against Vercel's cron-schedule
+# limit (see README "Vercel plan limits for crons").
+#
+# Required repo secrets (Settings -> Secrets and variables -> Actions):
+#   APP_BASE_URL - the deployed app's base URL, e.g. https://edstellar-conflict-checker-knowledg.vercel.app
+#   CRON_SECRET  - must match the CRON_SECRET env var configured on Vercel
+
+on:
+  schedule:
+    - cron: "30 3 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  link-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Call /api/cron/link-audit
+        run: |
+          set -euo pipefail
+          if [ -z "${APP_BASE_URL:-}" ] || [ -z "${CRON_SECRET:-}" ]; then
+            echo "::error::APP_BASE_URL and/or CRON_SECRET repo secrets are not set."
+            exit 1
+          fi
+          http_code=$(curl -sS -o response.json -w "%{http_code}" \
+            --max-time 300 \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${APP_BASE_URL%/}/api/cron/link-audit")
+          echo "HTTP status: $http_code"
+          cat response.json
+          if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+            echo "::error::link-audit cron returned HTTP $http_code"
+            exit 1
+          fi
+        env:
+          APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
