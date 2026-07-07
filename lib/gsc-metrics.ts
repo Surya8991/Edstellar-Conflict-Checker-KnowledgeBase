@@ -15,8 +15,8 @@ const WINDOWS = [
   { label: "3m", n: 3 },
   { label: "6m", n: 6 },
 ] as const;
-/** Top queries are taken over this many full months. */
-const TOPQ_MONTHS = 3;
+/** Top queries are taken over the last full calendar month (§17Q). */
+const TOPQ_MONTHS = 1;
 const TOPQ_PER_PAGE = 5;
 /** GSC caps a single call at 25k rows; paginate a little for query coverage. */
 const ROW_LIMIT = 25000;

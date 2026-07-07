@@ -2299,6 +2299,44 @@ Live-verified: seeding + the two series drop the analysis corpus 2,458 → 2,363
 (~95 pages), 0 excluded pages leak into any cluster, Settings page renders the
 two rows editable. 76/76 tests, build clean.
 
+### 17Q. Exclusions v2 (keyword queries + full URLs) + GSC panel layout
+
+**Already DONE (§17O + §17P):**
+- Per-member GSC panel in Content Clusters: 1m/3m/6m full-month totals + top
+  queries, populated by `lib/gsc-metrics.snapshotGscMetrics` into `gsc_metrics`,
+  read by `lib/gsc-cluster-metrics.fetchGscForUrls`, rendered as two stacked
+  tables (`GscBlock`), behind a "show GSC" toggle.
+- Editable blog-series exclusion (`excluded_series` table, `/settings` CRUD,
+  `lib/exclusions.ts`), applied to Content Clusters + Conflict Checker matches
+  (not corpus/GSC/ingest). Seeded with In-Demand Skills + Corporate Training
+  Companies in [Country].
+
+**DONE (this pass) - all six, verified live + build clean:**
+1. **GSC tables side by side.** `GscBlock` is now a `flex` row (period metrics
+   fixed-~300px, top queries flex-1; wraps to stacked on narrow), tighter type.
+   16 side-by-side blocks confirmed in the browser.
+2. **Top queries = last FULL month.** `snapshotGscMetrics` TOPQ 3 → 1; re-ran
+   `npm run gsc-metrics` (19,644 page rows + 6,902 query rows). Table header
+   reads "Top queries · last month".
+3. **Keyword-query exclusion.** `type` column (`drizzle/0010`), `getExclusions()`
+   returns `{url, query}`, `isExcludedQuery()`; query patterns filter the GSC
+   top-queries in `fetchGscForUrls` (part of the `/api/groups` cache key).
+   Settings has a second "Excluded keyword queries" section. Verified: adding
+   "can you provide" removed it from all 840 top-query entries.
+4. **Full-URL inputs.** Matcher handles a pasted full URL (substring of itself);
+   UI hint says "slug substring or full URL". Regression-tested.
+5. **Excluded-URLs viewer.** `/api/settings/exclusions/matches` (paginated)
+   returns the actual `pages.url`s; Settings shows "95 corpus pages" with the
+   full URLs.
+6. **Pagination.** Content Clusters list (25/page, `Pagination.tsx`) + the
+   excluded-URLs viewer (25/page). Both verified.
+
+Files touched as planned: `drizzle/0010_excluded_series_type.sql`,
+`lib/db/schema.ts`, `lib/exclusions.ts` (+test), `lib/gsc-metrics.ts`,
+`lib/gsc-cluster-metrics.ts`, `app/api/settings/exclusions/route.ts` + new
+`.../matches/route.ts`, `app/(dashboard)/settings/page.tsx`,
+`app/(dashboard)/clusters/page.tsx`, `app/api/groups/route.ts`. 78/78 tests.
+
 ### 17I. Deferred (tracked, not this pass)
 
 - **GSC query-overlap edges - the gold-standard upgrade** (17F #1–2): once

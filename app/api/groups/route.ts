@@ -4,7 +4,7 @@ import { neonRows } from "@/lib/db";
 import { clusterByTopic, type ClusterPage } from "@/lib/cluster";
 import { SERIES } from "@/lib/series";
 import { fetchGscForUrls } from "@/lib/gsc-cluster-metrics";
-import { getExclusionPatterns, isExcludedUrl } from "@/lib/exclusions";
+import { getExclusions, isExcludedUrl } from "@/lib/exclusions";
 import { classifyIntent, type Intent } from "@/lib/intent";
 import { pageAuthority, pickWinner, groupAction, type AuthorityInput } from "@/lib/resolution";
 import { THRESHOLDS } from "@/lib/thresholds";
@@ -83,9 +83,10 @@ export async function GET(request: NextRequest) {
     const minSize = Math.max(2, Number(p.get("minSize")) || 2);
     const limit = clamp(Number(p.get("limit")) || 100, 1, 500);
 
-    // Exclusions affect the result, so they're part of the cache key.
-    const exclusions = await getExclusionPatterns();
-    const cacheKey = `${overlap}|${floor}|${minSize}|${limit}|${exclusions.join(",")}`;
+    // Exclusions affect the result (URL filter + GSC query filter), so they're
+    // part of the cache key.
+    const { url: exclusions, query: queryExclusions } = await getExclusions();
+    const cacheKey = `${overlap}|${floor}|${minSize}|${limit}|${exclusions.join(",")}|${queryExclusions.join(",")}`;
     if (
       !p.get("fresh") &&
       groupsCache &&

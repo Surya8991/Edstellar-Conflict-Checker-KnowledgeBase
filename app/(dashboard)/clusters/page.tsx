@@ -6,6 +6,7 @@ import {
   INTENT_STYLE, ACTION_STYLE, pathOf,
   type Intent, type ClusterAction,
 } from "@/app/components/ui";
+import { Pagination } from "@/app/components/Pagination";
 
 interface GscWindow {
   clicks: number;
@@ -81,6 +82,9 @@ export default function ClustersPage() {
   const [showIntent, setShowIntent] = useState(false);
   // GSC metrics (1m/3m/6m + top queries) per member, off by default.
   const [showGsc, setShowGsc] = useState(false);
+  // Pagination for the cluster list.
+  const [cPage, setCPage] = useState(1);
+  const [cPageSize, setCPageSize] = useState(25);
 
   // `fresh` bypasses the server-side scan cache (the Rescan button).
   async function load(fresh = false) {
@@ -137,6 +141,13 @@ export default function ClustersPage() {
         ),
       );
   }, [groups, actionFilter, typeFilter, q]);
+
+  // Reset to page 1 whenever the filter set changes.
+  useEffect(() => { setCPage(1); }, [actionFilter, typeFilter, q, groups]);
+  const paginatedClusters = useMemo(
+    () => (filtered ? filtered.slice((cPage - 1) * cPageSize, cPage * cPageSize) : null),
+    [filtered, cPage, cPageSize],
+  );
 
   return (
     <div>
@@ -228,9 +239,22 @@ export default function ClustersPage() {
         )}
 
         {filtered && filtered.length > 0 && (
-          <div className="space-y-2.5">
-            {filtered.map((g, i) => <ClusterCard key={`${g.seedUrl}#${i}`} g={g} showIntent={showIntent} showGsc={showGsc} />)}
-          </div>
+          <>
+            <div className="space-y-2.5">
+              {paginatedClusters!.map((g, i) => <ClusterCard key={`${g.seedUrl}#${i}`} g={g} showIntent={showIntent} showGsc={showGsc} />)}
+            </div>
+            {filtered.length > cPageSize && (
+              <Pagination
+                page={cPage}
+                pageSize={cPageSize}
+                total={filtered.length}
+                onJump={setCPage}
+                onPageSize={setCPageSize}
+                pageSizes={[25, 50, 100]}
+                unit="clusters"
+              />
+            )}
+          </>
         )}
         {filtered && filtered.length === 0 && !loading && (
           <Card className="text-sm text-slate-400">
@@ -383,37 +407,38 @@ function GscBlock({ gsc }: { gsc: PageGsc | null }) {
     return <div className="mt-1.5 text-[10px] text-slate-300">no GSC data for this page</div>;
   }
   const windows: [string, GscWindow | null][] = [
-    ["Last 1 month", gsc.m1],
-    ["Last 3 months", gsc.m3],
-    ["Last 6 months", gsc.m6],
+    ["1 month", gsc.m1],
+    ["3 months", gsc.m3],
+    ["6 months", gsc.m6],
   ];
-  const numTh = "px-2.5 py-1.5 text-right font-semibold";
-  const numTd = "px-2.5 py-1 text-right tabular-nums text-slate-700";
+  const th = "px-2 py-1 text-right font-semibold";
+  const td = "px-2 py-0.5 text-right tabular-nums text-slate-700";
   return (
-    <div className="mt-2 space-y-2">
+    // Two compact tables side by side (wraps to stacked on narrow screens).
+    <div className="mt-2 flex flex-col gap-2 lg:flex-row lg:items-start">
       {/* Search Console performance by period */}
-      <div className="overflow-hidden rounded-lg border border-slate-200">
-        <table className="w-full border-collapse text-[11px]">
+      <div className="overflow-hidden rounded-lg border border-slate-200 lg:w-[300px] lg:shrink-0">
+        <table className="w-full border-collapse text-[10px]">
           <thead>
-            <tr className="bg-slate-50 text-[9px] uppercase tracking-wider text-slate-400">
-              <th className="px-2.5 py-1.5 text-left font-semibold">Search Console</th>
-              <th className={numTh}>Clicks</th>
-              <th className={numTh}>Impressions</th>
-              <th className={numTh}>Avg pos</th>
+            <tr className="bg-slate-50 text-[8px] uppercase tracking-wider text-slate-400">
+              <th className="px-2 py-1 text-left font-semibold">Search Console</th>
+              <th className={th}>Clicks</th>
+              <th className={th}>Impr</th>
+              <th className={th}>Pos</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {windows.map(([label, w]) => (
               <tr key={label}>
-                <td className="px-2.5 py-1 font-medium text-slate-500">{label}</td>
+                <td className="px-2 py-0.5 font-medium text-slate-500">{label}</td>
                 {w ? (
                   <>
-                    <td className={numTd}>{w.clicks.toLocaleString()}</td>
-                    <td className={numTd}>{w.impressions.toLocaleString()}</td>
-                    <td className={numTd}>{w.position}</td>
+                    <td className={td}>{w.clicks.toLocaleString()}</td>
+                    <td className={td}>{w.impressions.toLocaleString()}</td>
+                    <td className={td}>{w.position}</td>
                   </>
                 ) : (
-                  <td className="px-2.5 py-1 text-center text-[10px] text-slate-300" colSpan={3}>
+                  <td className="px-2 py-0.5 text-center text-[9px] text-slate-300" colSpan={3}>
                     no data
                   </td>
                 )}
@@ -423,27 +448,27 @@ function GscBlock({ gsc }: { gsc: PageGsc | null }) {
         </table>
       </div>
 
-      {/* Top queries */}
+      {/* Top queries (last full month) */}
       {gsc.topQueries.length > 0 && (
-        <div className="overflow-hidden rounded-lg border border-slate-200">
-          <table className="w-full border-collapse text-[11px]">
+        <div className="min-w-0 flex-1 overflow-hidden rounded-lg border border-slate-200">
+          <table className="w-full border-collapse text-[10px]">
             <thead>
-              <tr className="bg-slate-50 text-[9px] uppercase tracking-wider text-slate-400">
-                <th className="px-2.5 py-1.5 text-left font-semibold">Top queries</th>
-                <th className={`${numTh} w-px whitespace-nowrap`}>Clicks</th>
-                <th className={`${numTh} w-px whitespace-nowrap`}>Impr</th>
-                <th className={`${numTh} w-px whitespace-nowrap`}>Pos</th>
+              <tr className="bg-slate-50 text-[8px] uppercase tracking-wider text-slate-400">
+                <th className="px-2 py-1 text-left font-semibold">Top queries · last month</th>
+                <th className={`${th} w-px whitespace-nowrap`}>Clicks</th>
+                <th className={`${th} w-px whitespace-nowrap`}>Impr</th>
+                <th className={`${th} w-px whitespace-nowrap`}>Pos</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {gsc.topQueries.map((query) => (
                 <tr key={query.query}>
-                  <td className="max-w-0 truncate px-2.5 py-1 text-slate-700" title={query.query}>
+                  <td className="max-w-0 truncate px-2 py-0.5 text-slate-700" title={query.query}>
                     {query.query}
                   </td>
-                  <td className={`${numTd} w-px whitespace-nowrap`}>{query.clicks.toLocaleString()}</td>
-                  <td className={`${numTd} w-px whitespace-nowrap text-slate-600`}>{query.impressions.toLocaleString()}</td>
-                  <td className={`${numTd} w-px whitespace-nowrap text-slate-600`}>{query.position}</td>
+                  <td className={`${td} w-px whitespace-nowrap`}>{query.clicks.toLocaleString()}</td>
+                  <td className={`${td} w-px whitespace-nowrap text-slate-600`}>{query.impressions.toLocaleString()}</td>
+                  <td className={`${td} w-px whitespace-nowrap text-slate-600`}>{query.position}</td>
                 </tr>
               ))}
             </tbody>

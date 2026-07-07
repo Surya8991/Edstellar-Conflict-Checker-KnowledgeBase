@@ -4,6 +4,7 @@
  * for a batch of member URLs in one query. Pure DB read - no live GSC calls.
  */
 import { neon } from "@neondatabase/serverless";
+import { getExclusions, isExcludedQuery } from "@/lib/exclusions";
 
 export interface GscWindow {
   clicks: number;
@@ -77,8 +78,13 @@ export async function fetchGscForUrls(urls: string[]): Promise<Map<string, PageG
     else if (r.range_label === "6m") g.m6 = win(r);
   }
 
-  // Keep the 5 best queries per page (clicks desc, then impressions).
+  // Drop excluded keyword queries (Settings, §17Q), then keep the 5 best per
+  // page (clicks desc, then impressions).
+  const { query: queryExclusions } = await getExclusions();
   for (const g of out.values()) {
+    if (queryExclusions.length) {
+      g.topQueries = g.topQueries.filter((q) => !isExcludedQuery(q.query, queryExclusions));
+    }
     g.topQueries.sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions);
     g.topQueries = g.topQueries.slice(0, 5);
   }

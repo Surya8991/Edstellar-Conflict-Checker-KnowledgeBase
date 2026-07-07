@@ -17,10 +17,12 @@ function normPatterns(input: unknown): string[] {
   return [...new Set(arr.map((x) => String(x).trim().toLowerCase()).filter(Boolean))];
 }
 
+const asType = (t: unknown): "url" | "query" => (t === "query" ? "query" : "url");
+
 export async function GET() {
   try {
     const rows = await db().query(
-      `SELECT id, name, patterns, enabled FROM excluded_series ORDER BY id`,
+      `SELECT id, name, patterns, type, enabled FROM excluded_series ORDER BY id`,
     );
     return NextResponse.json({ exclusions: rows });
   } catch (e) {
@@ -33,13 +35,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const name = String(body.name ?? "").trim();
     const patterns = normPatterns(body.patterns);
+    const type = asType(body.type);
     if (!name || patterns.length === 0) {
       return NextResponse.json({ error: "A name and at least one pattern are required." }, { status: 400 });
     }
     const rows = (await db().query(
-      `INSERT INTO excluded_series (name, patterns) VALUES ($1, $2::text[])
-       RETURNING id, name, patterns, enabled`,
-      [name, patterns],
+      `INSERT INTO excluded_series (name, patterns, type) VALUES ($1, $2::text[], $3)
+       RETURNING id, name, patterns, type, enabled`,
+      [name, patterns, type],
     )) as any[];
     invalidateExclusionsCache();
     return NextResponse.json({ exclusion: rows[0] });
@@ -73,13 +76,17 @@ export async function PATCH(request: NextRequest) {
       sets.push(`enabled = $${i++}`);
       params.push(!!body.enabled);
     }
+    if (body.type !== undefined) {
+      sets.push(`type = $${i++}`);
+      params.push(asType(body.type));
+    }
     if (sets.length === 0) return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
     sets.push(`updated_at = now()`);
     params.push(id);
 
     const rows = (await db().query(
       `UPDATE excluded_series SET ${sets.join(", ")} WHERE id = $${i}
-       RETURNING id, name, patterns, enabled`,
+       RETURNING id, name, patterns, type, enabled`,
       params,
     )) as any[];
     invalidateExclusionsCache();

@@ -147,6 +147,8 @@ export const excludedSeries = pgTable("excluded_series", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   patterns: text("patterns").array().notNull().default([]),
+  /** 'url' = slug/full-URL patterns (hide pages); 'query' = GSC keyword patterns. */
+  type: text("type").notNull().default("url"),
   enabled: boolean("enabled").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
