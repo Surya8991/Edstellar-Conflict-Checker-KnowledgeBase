@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PageHeader, Card, TYPE_COLORS } from "@/app/components/ui";
 import { Pagination as SharedPagination } from "@/app/components/Pagination";
 import { FilterSelect, SearchBox } from "@/app/components/Filters";
@@ -55,15 +55,25 @@ export default function CorpusPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Guards against out-of-order responses: rapid filter changes can let an
+  // older request resolve after a newer one, silently showing a stale page
+  // (§19B). Only the most recently *started* request is allowed to apply.
+  const loadReqIdRef = useRef(0);
 
   async function load(targetPage = page) {
+    const reqId = ++loadReqIdRef.current;
     setLoading(true);
+    setLoadError(null);
     try {
       const qs = new URLSearchParams({
         q, type, courseType, category, tag, limit: String(pageSize), page: String(targetPage),
       });
       const res = await fetch(`/api/pages?${qs}`);
       const data = await res.json();
+      if (reqId !== loadReqIdRef.current) return; // superseded by a newer request
+      if (!res.ok) throw new Error(data.error || "Failed to load pages.");
       setRows(data.rows ?? []);
       setTotal(data.total ?? 0);
       setByType(data.byType ?? []);
@@ -71,8 +81,13 @@ export default function CorpusPage() {
       setTopCategories(data.topCategories ?? []);
       setPage(data.page ?? targetPage);
       setTotalPages(data.totalPages ?? 1);
+    } catch (e) {
+      if (reqId !== loadReqIdRef.current) return; // superseded by a newer request
+      setLoadError((e as Error).message);
+      setRows([]);
+      setTotal(0);
     } finally {
-      setLoading(false);
+      if (reqId === loadReqIdRef.current) setLoading(false);
     }
   }
 
@@ -188,32 +203,23 @@ export default function CorpusPage() {
           ))}
         </div>
 
-        {/* The 6 course types - visible always, highlights when filtering courses */}
-        <div className="rounded-xl border border-slate-200 bg-white p-3">
-          <div className="mb-2 flex items-center justify-between">
-            <div className="text-xs font-medium uppercase tracking-wider text-slate-500">Course types (the 6)</div>
-            {courseType && (
-              <button onClick={() => setCourseType("")} className="text-xs text-slate-500 hover:text-slate-700">clear ×</button>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {COURSE_TYPES.map((ct) => {
-              const found = byCourseType.find((b) => b.course_type === ct);
-              return (
-                <button
-                  key={ct}
-                  onClick={() => { setType("course"); setCourseType(courseType === ct ? "" : ct); }}
-                  className={`flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${
-                    courseType === ct
-                      ? "border-indigo-600 bg-indigo-600 text-white"
-                      : "border-slate-300 bg-white text-slate-700 hover:border-slate-400"
-                  }`}
-                >
-                  {ct} <span className={`tabular-nums ${courseType === ct ? "text-indigo-100" : "text-slate-400"}`}>{found?.n ?? 0}</span>
-                </button>
-              );
-            })}
-          </div>
+        {/* The 6 course types - visible always, highlights when filtering courses.
+            §18I: 6+ options → FilterSelect, not hand-rolled chips. */}
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
+          <FilterSelect
+            label="Course type"
+            value={courseType}
+            onChange={(v) => { setType(v ? "course" : type); setCourseType(v); }}
+            options={COURSE_TYPES.map((ct) => ({
+              value: ct,
+              label: ct,
+              count: byCourseType.find((b) => b.course_type === ct)?.n ?? 0,
+            }))}
+            allLabel="All course types"
+          />
+          {courseType && (
+            <button onClick={() => setCourseType("")} className="text-xs text-slate-500 hover:text-slate-700">clear ×</button>
+          )}
         </div>
 
         {/* Top categories - dropdown (20+ options would wrap into a chip wall) */}
@@ -375,7 +381,14 @@ export default function CorpusPage() {
                   </td>
                 </tr>
               ))}
-              {!loading && rows.length === 0 && (
+              {!loading && loadError && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-red-600">
+                    Couldn&apos;t load pages: {loadError}
+                  </td>
+                </tr>
+              )}
+              {!loading && !loadError && rows.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
                     No pages match. Try clearing the active filters above.

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PageHeader, Card, ConflictBadge, ScoreBar, TypeChip, TYPE_COLORS, INTENT_STYLE, ACTION_STYLE, type Intent } from "@/app/components/ui";
-import { FilterChip } from "@/app/components/Filters";
+import { FilterChip, FilterGroup, FilterSelect, dotColor } from "@/app/components/Filters";
 import { Pagination } from "@/app/components/Pagination";
 import { toast } from "@/app/components/Toast";
 import { scoreBarColor as bandBarColor, scoreTextColor as bandTextColor, intentStage } from "@/lib/score-bands";
@@ -117,6 +117,13 @@ export default function ConflictCheckerPage() {
   // can never clobber a newer result (double-submit race).
   const checkAbortRef = useRef<AbortController | null>(null);
 
+  // Bumped every time a new check starts. generateDraft/fetchSuggestions
+  // capture this at call time and refuse to apply their response if it's
+  // moved on - otherwise a slow draft/suggestions request from a superseded
+  // check can land after the user has already started a new one and silently
+  // repopulate the panel with data belonging to the old result (§19B).
+  const resultGenRef = useRef(0);
+
   async function run(e: React.FormEvent) {
     e.preventDefault();
     if (!input.trim()) return;
@@ -124,6 +131,7 @@ export default function ConflictCheckerPage() {
     checkAbortRef.current?.abort();
     const controller = new AbortController();
     checkAbortRef.current = controller;
+    resultGenRef.current += 1;
 
     setLoading(true); setError(null); setResult(null); setSuggestions(null);
     setExplained({}); setPage(1);
@@ -188,6 +196,7 @@ export default function ConflictCheckerPage() {
   // cache hit, ~2-8s on Groq fallback. No polling, no queue.
   async function generateDraft(forceFresh = false) {
     if (!result || draftLoading) return;
+    const gen = resultGenRef.current;
     setDraftLoading(true);
     setDraftError(null);
     try {
@@ -201,6 +210,7 @@ export default function ConflictCheckerPage() {
         }),
       });
       const data = await res.json();
+      if (resultGenRef.current !== gen) return; // superseded by a newer check
       if (!res.ok) throw new Error(data.error || "Draft generation failed");
       setDraft({
         id: data.id,
@@ -218,11 +228,12 @@ export default function ConflictCheckerPage() {
         "Groq generated a fresh draft.";
       toast.success(label);
     } catch (e) {
+      if (resultGenRef.current !== gen) return; // superseded by a newer check
       const msg = (e as Error).message;
       setDraftError(msg);
       toast.error(`Draft failed: ${msg}`);
     } finally {
-      setDraftLoading(false);
+      if (resultGenRef.current === gen) setDraftLoading(false);
     }
   }
 
@@ -236,6 +247,7 @@ export default function ConflictCheckerPage() {
 
   async function fetchSuggestions() {
     if (!result) return;
+    const gen = resultGenRef.current;
     setSuggesting(true);
     try {
       const suggestTopic =
@@ -251,9 +263,15 @@ export default function ConflictCheckerPage() {
           url: result.inputType === "url" ? result.inputValue : undefined,
         }),
       });
-      setSuggestions(await res.json());
+      const data = await res.json();
+      if (resultGenRef.current !== gen) return; // superseded by a newer check
+      if (!res.ok) throw new Error(data.error || "Couldn't generate suggestions.");
+      setSuggestions(data);
+    } catch (e) {
+      if (resultGenRef.current !== gen) return; // superseded by a newer check
+      toast.error(`Suggestions failed: ${(e as Error).message}`);
     } finally {
-      setSuggesting(false);
+      if (resultGenRef.current === gen) setSuggesting(false);
     }
   }
 
@@ -389,28 +407,27 @@ export default function ConflictCheckerPage() {
             {/* Filters - visible when there's anything to filter */}
             {result.matches.length > 0 && (
               <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-slate-500">Type:</span>
-                <button
-                  onClick={() => setTypeFilter("")}
-                  className={`rounded px-2 py-1 ${typeFilter === "" ? "bg-slate-900 text-white" : "border border-slate-300 bg-white text-slate-600"}`}
-                >all</button>
-                {typesInResult.map((t) => {
-                  const active = typeFilter === t;
-                  const colorClass = TYPE_COLORS[t] ?? "bg-slate-100 text-slate-600";
-                  return (
-                    <button
-                      key={t}
-                      onClick={() => setTypeFilter(active ? "" : t)}
-                      className={`rounded px-2 py-1 capitalize ${
-                        active
-                          ? "bg-slate-900 text-white ring-2 ring-slate-900 ring-offset-1"
-                          : `${colorClass} hover:opacity-80`
-                      }`}
-                    >
-                      {t.replace("-", " ")}
-                    </button>
-                  );
-                })}
+                {typesInResult.length > 5 ? (
+                  <FilterSelect
+                    label="Type"
+                    value={typeFilter}
+                    onChange={setTypeFilter}
+                    options={typesInResult.map((t) => ({ value: t, label: t.replace("-", " ") }))}
+                  />
+                ) : (
+                  <FilterGroup label="Type">
+                    <FilterChip label="all" active={typeFilter === ""} onClick={() => setTypeFilter("")} />
+                    {typesInResult.map((t) => (
+                      <FilterChip
+                        key={t}
+                        label={t.replace("-", " ")}
+                        active={typeFilter === t}
+                        dotClass={dotColor(TYPE_COLORS[t])}
+                        onClick={() => setTypeFilter(typeFilter === t ? "" : t)}
+                      />
+                    ))}
+                  </FilterGroup>
+                )}
                 <span className="ml-2 text-slate-500">Min score:</span>
                 <input
                   type="range" min={0} max={100} value={scoreMin}

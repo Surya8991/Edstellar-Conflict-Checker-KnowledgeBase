@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader, Card, TypeChip } from "@/app/components/ui";
 import { Pagination } from "@/app/components/Pagination";
+import { toast } from "@/app/components/Toast";
 import {
   FilterBar,
   FilterRow,
@@ -58,7 +59,7 @@ const TABS = [
   {
     slug: "cross-type",
     label: "Course / other-page conflicts",
-    desc: "Pages and keywords conflicting with a course or other pages - different content types competing (e.g. a blog outranking a course). Protects revenue pages.",
+    desc: "Pages and keywords conflicting with a course or other pages - different content types competing (e.g. a blog outranking a course).",
   },
   {
     slug: "merge-blogs",
@@ -227,7 +228,9 @@ function Inner() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ query, status: next.status, note: next.note }),
-      }).catch(() => {});
+      })
+        .then((r) => { if (!r.ok) throw new Error(); })
+        .catch(() => toast.error("Couldn't save that status/note - try again."));
       return { ...prev, [query]: next };
     });
   }, []);
@@ -252,18 +255,24 @@ function Inner() {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ queries, status }),
-    }).catch(() => {});
+    })
+      .then((r) => { if (!r.ok) throw new Error(); })
+      .catch(() => toast.error(`Couldn't save status for ${queries.length} conflict(s) - try again.`));
     setSelected(new Set());
   }, []);
 
+  // Guards the mount-time load against a user-triggered Rescan (refresh())
+  // resolving out of order - whichever fires last should win (§19B).
+  const groupsReqIdRef = useRef(0);
+
   // Tabs 1-3: pre-computed keyword conflicts.
   useEffect(() => {
-    let alive = true;
+    const reqId = ++groupsReqIdRef.current;
     setLoading(true);
     fetch("/api/cannibalization")
       .then((r) => r.json())
       .then((d) => {
-        if (!alive) return;
+        if (reqId !== groupsReqIdRef.current) return;
         if (d.error) setError(d.error);
         else {
           setGroups(d.groups ?? []);
@@ -271,20 +280,20 @@ function Inner() {
           setLastComputed(d.lastComputed ?? null);
         }
       })
-      .catch((e) => alive && setError(String(e)))
-      .finally(() => alive && setLoading(false));
-    return () => {
-      alive = false;
-    };
+      .catch((e) => reqId === groupsReqIdRef.current && setError(String(e)))
+      .finally(() => reqId === groupsReqIdRef.current && setLoading(false));
   }, []);
 
-  // Per-conflict annotations (status + notes).
+  // Per-conflict annotations (status + notes). Merge rather than replace: if
+  // the user changes a status/note while this fetch is still in flight, the
+  // optimistic update already in `annos` must win over the (now-stale) GET
+  // response instead of being silently reverted (§19B).
   useEffect(() => {
     let alive = true;
     fetch("/api/cannibalization/annotation")
       .then((r) => r.json())
       .then((d) => {
-        if (alive && d.annotations) setAnnos(d.annotations);
+        if (alive && d.annotations) setAnnos((prev) => ({ ...d.annotations, ...prev }));
       })
       .catch(() => {});
     return () => {
@@ -292,10 +301,13 @@ function Inner() {
     };
   }, []);
 
+  const [mergeError, setMergeError] = useState<string | null>(null);
+
   // Tab 4: blog merge candidates from the content-cluster engine.
   useEffect(() => {
     let alive = true;
     setMergeLoading(true);
+    setMergeError(null);
     fetch("/api/groups")
       .then((r) => r.json())
       .then((d) => {
@@ -311,7 +323,7 @@ function Inner() {
           .map((g: any) => ({ label: g.label, action: g.action, winnerUrl: g.winnerUrl, members: g.members }));
         setMerge(clusters);
       })
-      .catch(() => {})
+      .catch((e) => alive && setMergeError((e as Error).message || "Couldn't load merge candidates."))
       .finally(() => alive && setMergeLoading(false));
     return () => {
       alive = false;
@@ -440,9 +452,11 @@ function Inner() {
   }
 
   async function refresh() {
+    const reqId = ++groupsReqIdRef.current;
     setLoading(true);
     await fetch("/api/settings/cannibalization-refresh", { method: "POST" }).catch(() => {});
     const d = await fetch("/api/cannibalization").then((r) => r.json());
+    if (reqId !== groupsReqIdRef.current) return;
     setGroups(d.groups ?? []);
     setLastComputed(d.lastComputed ?? null);
     setLoading(false);
@@ -600,7 +614,7 @@ function Inner() {
       {tab === "assistant" ? (
         <AssistantTab />
       ) : tab === "merge-blogs" ? (
-        <MergeTab clusters={mergeFiltered} loading={mergeLoading} />
+        <MergeTab clusters={mergeFiltered} loading={mergeLoading} error={mergeError} />
       ) : loading ? (
         <Card>
           <p className="text-sm text-slate-400">Loading conflicts…</p>
@@ -881,11 +895,17 @@ function ConflictCard({
   );
 }
 
-function MergeTab({ clusters, loading }: { clusters: MergeCluster[]; loading: boolean }) {
+function MergeTab({ clusters, loading, error }: { clusters: MergeCluster[]; loading: boolean; error?: string | null }) {
   if (loading)
     return (
       <Card>
         <p className="text-sm text-slate-400">Scanning blog clusters…</p>
+      </Card>
+    );
+  if (error)
+    return (
+      <Card className="border-red-200 bg-red-50 text-sm text-red-700">
+        Couldn&apos;t load merge candidates: {error}
       </Card>
     );
   if (clusters.length === 0)

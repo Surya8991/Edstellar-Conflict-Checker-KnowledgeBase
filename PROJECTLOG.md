@@ -10,6 +10,41 @@
 
 ---
 
+## Table of contents
+
+**Reference (living docs - kept current, not session narrative):**
+- [1. What this project is](#1-what-this-project-is)
+- [2. Tech stack](#2-tech-stack)
+- [2b. Data flow - where the categorisation on /corpus comes from](#2b-data-flow---where-the-categorisation-on-corpus-comes-from)
+- [3. Data model](#3-data-model)
+- [4. Session log](#4-session-log) (Sessions 1-5; Session 6 onward each get their own numbered section below)
+- [6. Environment](#6-environment)
+- [7. Operational commands](#7-operational-commands)
+- [8. Conventions / things that bit us](#8-conventions--things-that-bit-us)
+- [9. Improvement backlog](#9-improvement-backlog-post-launch-audit-2026-06-25)
+
+**Session history (chronological, newest last):**
+- [10. Session 6 - Full Project Audit](#10-session-6---full-project-audit-2026-06-25)
+- [11. Session 7 - Audit fixes shipped](#11-session-7---audit-fixes-shipped-2026-06-25)
+- [12. Session 8 - Medium-batch cleanup + product upgrades](#12-session-8---medium-batch-cleanup--product-upgrades-2026-06-25)
+- [13. Session 9 - Final polish + inbound-link signal](#13-session-9---final-polish--lightweight-inbound-link-signal-2026-06-25)
+- [14. Session 10 - 9-persona audit](#14-session-10---9-persona-audit-2026-06-25)
+- [15. Session 11 - conflict automation + grouping; GSC/SERP removed](#15-session-11---conflict-automation--grouping-gscserp-removed-2026-07-06)
+- [16. Session 12 - Full project audit: 4 section reviews + 5 persona audits](#16-session-12---full-project-audit-4-section-reviews--5-persona-audits-2026-07-06)
+- [17. Session 13 - Topic-based Content Clusters rewrite + UX cleanups](#17-session-13---topic-based-content-clusters-rewrite--ux-cleanups-2026-07-06)
+- [18. Session 14 - Keyword Cannibalization promoted to a top-level tool + 4-tab upgrade](#18-session-14---keyword-cannibalization-promoted-to-a-top-level-tool--4-tab-upgrade-2026-07-07)
+- [19. Session 15 - Full project audit + scoped non-"Additional Tools" audit](#19-session-15---full-project-audit--scoped-non-additional-tools-audit-2026-07-07)
+- [20. Session 16 - §19 critical/high/medium fixes shipped](#20-session-16---19-criticalhighmedium-fixes-shipped-2026-07-07)
+
+*(Note: there is no "§5" - a section by that number existed early on and was
+later removed/merged during reorganization; a handful of older entries below
+still reference it by number and are marked inline as orphaned rather than
+rewritten, to preserve the historical record. Section numbers 10+ are cited
+elsewhere in this repo as `§NN` anchors (AGENTS.md, code comments) - do not
+renumber them.)*
+
+---
+
 ## 1. What this project is
 
 A content-intelligence app for Edstellar's marketing team. Before publishing any
@@ -1009,8 +1044,11 @@ from a REPL/script against prod silently writes `checks`/`check_matches` rows.
   and picks the first match the account is verified on. If nothing matches
   the error message lists exactly which properties ARE accessible.
 - **Local embedder dim = 384.** Switching to OpenAI = 1536. That's a schema
-  change (new column, drop old) - documented in §5. Don't mix dimensions in
-  one column.
+  change (new column, drop old) - documented in §5 *(orphaned reference - §5
+  no longer exists as a standalone section after later reorganization; the
+  authoritative version of this is AGENTS.md's "Embedding dimension" note,
+  which lists all 4 files that encode `vector(384)`)*. Don't mix dimensions
+  in one column.
 - **`AGENTS.md` says "this Next.js has breaking changes"** - read
   `node_modules/next/dist/docs/` before adding new framework features.
 - **Never commit `.env`.** Top-level `.gitignore` covers `**/.env*`.
@@ -1085,7 +1123,7 @@ becomes opinionated.
 | 25 | **Owner-URL per topic** - let an SEO mark "/courses/aws-saa is the canonical page for `aws saa certification`". The checker then says "your new blog overlaps the OWNER - merge or redirect" instead of "73% similarity". | This is the single biggest gap vs TrueRanker / SEO AI. Editorial decisions encoded in the data, not in the editor's head. |
 | 26 | **Business-impact severity** - weight conflict score by current GSC clicks/impressions on the existing page (already in `gsc_metrics`). A 70% conflict with a 12k-clicks/mo page should outrank a 90% conflict with a dead page. | Currently a 0–100 conflict score with no context. Reference tools (Unclash AI, Incremys) all do business-weighted prioritisation. |
 | 27 | **CTR opportunity column on /search-console** - pages with high impressions + low CTR are title-rewrite candidates, not duplicates. Show position 4-10 + CTR below site-median as a separate tab. | We have the data but the metric isn't surfaced. |
-| 28 | **Stale-content detector** - pages with declining clicks over a sliding window + `lastmod` > 12 mo old. Refresh-or-prune queue. | Mentioned in §5 roadmap but never built; the data is in `gsc_daily_totals` + `pages.lastmod`. |
+| 28 | **Stale-content detector** - pages with declining clicks over a sliding window + `lastmod` > 12 mo old. Refresh-or-prune queue. | Mentioned in the old §5 roadmap *(section no longer exists - orphaned reference)* but never built; the data is in `gsc_daily_totals` + `pages.lastmod`. |
 | 29 | **Cannibalization confirmed by GSC** - pgvector says two pages are similar; GSC tells us if Google actually swaps them in the SERP for the same query. Join `check_matches` to `gsc_metrics` on common query, flag the ones where rank position oscillates. | Vector similarity is a *signal*; SERP behaviour is the *symptom*. Surfacing both kills false positives. |
 | 30 | **Sitemap-drift report** - diff `data/sitemap-urls.csv` against a fresh fetch of the live sitemap to surface pages published but not ingested, or removed but still in corpus. | Today the corpus drifts silently between weekly cron runs. |
 | 31 | **No SERP-feature awareness** - Serper returns People Also Ask, Featured Snippet, AI Overview blocks. We only read `organic`. Should surface "your topic targets a question - write FAQ schema" etc. | `lib/competitors-extra.ts` already parses AI Overview; PAA + FS just need wiring. |
@@ -1095,7 +1133,7 @@ becomes opinionated.
 
 | # | Item | Why |
 |---|---|---|
-| 33 | **No user concept → no assignment, no approval, no audit trail.** A check is run by "whoever opened the URL". Add NextAuth + Google SSO @edstellar.com (already sketched in §5.workflow). | Without this, the tool can't ever be a publish gate - there's no one to gate the publish against. |
+| 33 | **No user concept → no assignment, no approval, no audit trail.** A check is run by "whoever opened the URL". Add NextAuth + Google SSO @edstellar.com (already sketched in the old §5.workflow *(section no longer exists - orphaned reference)*). | Without this, the tool can't ever be a publish gate - there's no one to gate the publish against. Note: NextAuth + Google SSO were since added (see §6 Environment / `auth.ts`) - this backlog item may be stale, re-verify before picking it up. |
 | 34 | **No CMS integration / publish gate.** `/api/check` exists as a webhook but no Edstellar CMS hook calls it. Either a Webflow webhook or a Zapier action. | Today the tool is *advisory*. To matter, a publish in the CMS should be conditional on a passing check. |
 | 35 | **No writer brief export.** The "Net-new content suggestions" panel shows 6 angles in the UI but you can't copy/paste them into a Notion brief. Add a one-click "Export as brief (Markdown)". | Marketers ship in writer briefs, not in JSON. |
 | 36 | **No "shipped vs blocked" reporting** - leadership wants to see "we caught 27 duplicates this quarter, blocked 12 publishes, refreshed 8 stale pages." | Without this the team can't defend the tool's existence at review time. |
@@ -1128,7 +1166,7 @@ in future sessions):
 - **Multi-signal triangulation** (GSC + crawl + rank) is what the field
   recommends. We have GSC + crawl; Serper covers occasional rank checks.
   Full rank tracking (DataForSEO / Ahrefs) is the third pillar - optional
-  per §5 Tier C.
+  per the old §5 Tier C *(section no longer exists - orphaned reference)*.
 - **Editorial rules > raw scores** is the 2026 differentiator
   (update-before-create, owner-page assignment). Items 25 + 33 + 34 are how
   we'd close that gap.
@@ -2464,7 +2502,13 @@ live corpus - strictly better:
 
 ---
 
-## 18. Keyword Cannibalization - promoted to a top-level tool + 4-tab upgrade (PLAN)
+## 18. Session 14 - Keyword Cannibalization promoted to a top-level tool + 4-tab upgrade (2026-07-07)
+
+*(Heading originally read "...4-tab upgrade (PLAN)" and carried no session
+number - corrected editorially, since every subsection below through §18S
+documents this as shipped and it's cited as live behavior throughout
+AGENTS.md. See the "Last updated" banner at the top of this file, which
+already called this Session 14.)*
 
 **Ask:** pull the Cannibalization view OUT of Search Console, make it a
 top-level sidebar item **directly below Search Console** named **"Keyword
@@ -2906,3 +2950,251 @@ job4_gsc_metrics, job5_cannibalization, job6_http_status, total}_ms` in the JSON
 response + `log.info`) so each production run's budget is verifiable from the
 Vercel cron dashboard. Corpus HTTP-status health at audit: 2,461/2,464 audited,
 0 currently broken, 3 never-audited.
+
+## 19. Session 15 - Full project audit + scoped non-"Additional Tools" audit (2026-07-07)
+
+Fresh clone + `npm install` on a new machine, no `.env`/DB configured. Ran two
+read-only audits in parallel: (1) a whole-repo pass (security, correctness,
+deps, tests, config) and (2) a scoped pass over everything **outside** the
+sidebar's "Additional Tools" group - i.e. `/corpus`, `/conflict-checker`,
+`/clusters`, `/search-console` (all 8 sub-sections), `/keyword-cannibalization`,
+`/settings` - since Manager View/Competitors/Bulk Check/Content Audit/Internal
+Links/Funnel Strategy/Catalog Conflicts were deliberately out of scope this
+round. No fixes applied yet - findings only, verified live where possible by
+booting `npm run dev` against an unconfigured DB.
+
+**Live verification:** server boots clean on Node 24 / Next 16.2.9 (Turbopack),
+zero console errors, `AUTH_ENABLED` unset so the site is open as documented.
+Confirmed two findings directly against the running app: `GET /api/pages`
+returns `500` with no `DATABASE_URL` set, yet `/corpus` silently renders "0
+pages" with no error banner (§19C); the "Protects revenue pages" string is
+present verbatim in `keyword-cannibalization/page.tsx:61` and only revealed by
+clicking the "Course / other-page conflicts" tab (§19A).
+
+### 19A. 🚨 Critical
+
+- **`app/(dashboard)/keyword-cannibalization/page.tsx:61`** - the "cross-type"
+  tab description ends `"...Protects revenue pages."` This is exactly the
+  money-page/commercial-risk framing §18H says must never render in this UI.
+  The backend correctly keeps `intentMismatch` out of the `/api/cannibalization`
+  payload - this is a leftover hardcoded UI string that reintroduces the
+  forbidden framing. Reword to neutral SEO language (e.g. "content-type
+  conflicts").
+
+### 19B. 🟠 High
+
+- **`app/api/check/classify-one/route.ts`** - this LLM-calling endpoint has no
+  `WEBHOOK_API_KEY`/rate-limit gate, unlike its sibling LLM routes
+  (`/api/summarize`, `/api/rewrite-suggestion`) which AGENTS.md documents as
+  webhook-gated. It relies on `proxy.ts` session auth alone; any
+  misconfiguration (`AUTH_ENABLED=false`, or an accidental `PUBLIC_PATHS`
+  addition) turns it into an open, cost-incurring LLM endpoint.
+- **Missing request-sequencing across most in-scope pages** - none of these use
+  an `AbortController` or an ignore-stale-response guard, so rapid user input
+  can let an older response overwrite a newer one:
+  - `conflict-checker/page.tsx` - `generateDraft` (189-227) and
+    `fetchSuggestions` (237-258) don't reset/guard against `run()` clearing
+    `draft`/`suggestions` mid-flight.
+  - `corpus/page.tsx` - `load()` (59-77) re-fires on every filter change
+    (156-160) with no cancellation.
+  - `search-console/page.tsx` - main `load()` (187-264) on range-button clicks,
+    and `OverviewTab`'s `drilldown()` (413-423) on table-row clicks; neither
+    disables its trigger while in flight.
+  - `keyword-cannibalization/page.tsx` - the annotation GET effect (282-293)
+    unconditionally replaces the whole annotations map, racing with optimistic
+    `saveAnno`/`bulkSetStatus` updates (222-257); mount-time fetch vs. a
+    user-triggered Rescan (442-449) has the same last-write-wins race.
+
+### 19C. 🟡 Medium
+
+- **Errors silently swallowed, indistinguishable from "no data":**
+  - `corpus/page.tsx:65-68` - `res.ok` never checked; a `500` renders as "0
+    pages" with the generic empty-filter message. **Live-reproduced** (see
+    above).
+  - `conflict-checker/page.tsx:237-258` (`fetchSuggestions`) - no `catch`
+    around the fetch; a network failure throws unhandled and leaves no error
+    surfaced (contrast `generateDraft`, which does `toast.error`).
+  - `keyword-cannibalization/page.tsx` - `saveAnno`/`bulkSetStatus` (222-257)
+    and the merge-clusters fetch (296-319) both `.catch(() => {})`; a failed
+    annotation save or merge-candidate fetch looks identical to success/empty.
+  - `settings/page.tsx:99-105` (`loadCluster`) - silent catch means a failed
+    fetch just hides the whole Content Clusters tuning card with no
+    explanation.
+- **Filter-policy (§18I) misses** - hand-rolled buttons instead of the shared
+  `FilterChip`/`FilterSelect` primitives, inconsistent with correct usage
+  elsewhere in the same files:
+  - `conflict-checker/page.tsx:392-413` - Type filter (Sort right below it at
+    434-435 uses `FilterChip` correctly).
+  - `corpus/page.tsx:199-216` - the 6 `COURSE_TYPES` chips.
+  - `search-console/page.tsx:245-264` - the 7-option range selector (incl.
+    "Custom…") should be `FilterSelect`, not buttons.
+  - `search-console/page.tsx:870-876` (`IndexCoverageTab`) - 5 options passed
+    to `FilterSelect`; §18I says 2-5 options should be `FilterChip` instead.
+- **`settings/page.tsx:485-488` (`ClusterTuningCard`)** - `overlap`/`floor`/
+  `maxSize` seed from the `cluster` prop via `useState` with no re-sync effect;
+  if the prop changes for a reason other than this component's own save, the
+  form silently shows stale values while `dirty` compares against the new prop.
+- **`settings/page.tsx:505,532` (`NumField`)** - `Number(overlap)` etc. has no
+  NaN/empty guard; clearing an input yields `Number("") === 0`, silently
+  accepted as a valid threshold save.
+- **`lib/inbound-links.ts:63-65`** - self-reference exclusion compares a raw DB
+  URL against a trailing-slash-stripped pattern; a stored URL with a trailing
+  slash slips past the exclusion, letting a page count as its own inbound
+  link and skew `pageAuthority`/winner selection in `resolution.ts`.
+- **`lib/score-bands.ts:57-64`** - `INTENT_MAP` only covers the original
+  content types (`blog/topic/category/subcategory/course/mentor`); newer
+  taxonomy types (`managed-training`, `platform`, `consulting`, `templates`,
+  `location`, `excellence-program`, `static`) silently get a `null` funnel-
+  stage badge - a stale map missed when the taxonomy grew.
+- **API-key comparisons use `===`/`!==`** (`lib/api-gate.ts:31`,
+  `app/api/check/route.ts:41`, `app/api/drafts/route.ts:42`,
+  `app/api/drafts/[id]/route.ts:29`) instead of the `timingSafeEqual` pattern
+  already established in `lib/cron-auth.ts` - low real-world exploitability,
+  but an inconsistency worth closing.
+
+### 19D. 🟢 Low
+
+- Accessibility gaps (missing `<label>`/`aria-label`, no keyboard handler):
+  `conflict-checker/page.tsx:307-312` (main URL/topic input), `settings/page.tsx:608-623`
+  (`ExclusionRow` checkbox + text inputs), `search-console/page.tsx:221-235`
+  (lookup input + as-URL/as-query select), `search-console/page.tsx:507`
+  (clickable `<tr>` with no `role="button"`/keyboard handler),
+  `search-console/page.tsx:976-977` (`PageDetailModal` missing
+  `role="dialog"`/`aria-modal`/focus trap), `keyword-cannibalization/page.tsx:621-632,779-793`
+  (select-all checkbox and per-row status `<select>` both lack accessible names).
+- `clusters/page.tsx:427-431` - GSC `position` renders unrounded, inconsistent
+  with `%`-formatted scores elsewhere.
+- `lib/inbound-links.ts:63` - `ILIKE '%' || t.url || '%'` doesn't escape
+  `%`/`_`, causing false-positive matches on slugs containing those chars (not
+  an injection risk - values are parameterized).
+- `lib/gsc-metrics.ts:52-69` - per-page GSC totals use a single un-paginated
+  25k-row fetch with no `capHit` signal if the corpus/GSC data grows past it.
+- Error responses across `app/api/**/route.ts` return raw `(e as Error).message`
+  in JSON bodies - minor internal-detail leakage.
+
+### 19E. Test coverage gaps
+
+Well-tested (`node:test`, `lib/*.test.ts`): `cannibalization.ts`, `cluster.ts`,
+`exclusions.ts`, `gsc.ts`, `http-status.ts`, `intent.ts`, `resolution.ts`,
+`series.ts`, `signals.ts`, `thresholds.ts`, `csv.ts`, `cannibalization-assistant.ts`.
+
+**Zero coverage** on: `conflict.ts` (main orchestration, only exercised
+end-to-end), `cannibalization-snapshot.ts`, `app-settings.ts`,
+`inbound-links.ts`, `gsc-cluster-metrics.ts`, `gsc-metrics.ts`, `score.ts`,
+`score-bands.ts`, `url.ts` (used app-wide for URL-equality checks),
+`taxonomy.ts` (large rule-based classifier), `country.ts`. The last three are
+pure/deterministic like already-tested modules - cheap, high-value candidates.
+
+### 19F. `npm audit` (10 vulnerabilities: 6 moderate, 3 high, 1 critical)
+
+- **Critical/high** - `protobufjs <=7.6.2` (code-exec/prototype-pollution CVEs)
+  via `onnx-proto` → `onnxruntime-web` → `@xenova/transformers`. This **is**
+  exercised at runtime (it's the local `bge-small-en-v1.5` embedding model,
+  the default `AI_EMBED_PROVIDER`), not a dev-only dependency. Fix requires
+  bumping `@xenova/transformers` (breaking per npm).
+- **Moderate** - `esbuild <=0.24.2` via `drizzle-kit`'s dev-time
+  `@esbuild-kit` chain - dev-only, low real risk; fix path is a breaking
+  downgrade to `drizzle-kit@0.18.1`.
+- **Moderate** - `postcss <8.5.10` (stringify XSS) via `next`'s bundled copy -
+  npm's suggested fix path (`next@9.3.3`) is a nonsensical major downgrade;
+  needs a targeted override, not `npm audit fix --force`.
+
+### 19G. Clean
+
+No hardcoded secrets found. `auth.ts`, `proxy.ts`, `lib/cron-auth.ts`,
+`lib/ssrf-guard.ts`, `lib/rate-limit.ts`, `lib/oauth-state.ts` all checked
+clean (parameterized queries throughout, SSRF guard comprehensive, OAuth CSRF
+state HMAC-signed and constant-time compared). No injection risk, race
+condition, or logic bug found in `conflict.ts`, `signals.ts`, `intent.ts`,
+`resolution.ts`, `cluster.ts`, `cannibalization.ts`, `thresholds.ts`, or
+`exclusions.ts` - threshold/weight logic is internally consistent with its
+documented rationale. No dead code, `console.log`/`debugger`, or stray
+TODO/FIXME/HACK comments found across any in-scope file. `vercel.json`,
+`next.config.ts`, `drizzle.config.ts` all clean; cron paths match `proxy.ts`
+`PUBLIC_PATHS` and each cron route enforces its own `CRON_SECRET`; security
+headers present.
+
+**Left open for a future session:** none of the above have been fixed yet -
+this is a findings-only pass, prioritize 19A → 19B before the next deploy.
+
+## 20. Session 16 - §19 critical/high/medium fixes shipped (2026-07-07)
+
+Fixed every critical, high, and medium finding from §19 in one pass. Low-severity
+items (19D: a11y gaps, unrounded GSC position, ILIKE wildcard escaping,
+un-paginated GSC totals, raw error-message leakage) were deliberately left open -
+not requested this round.
+
+### 20A. Critical + high fixed
+
+- **19A** - removed the "Protects revenue pages." commercial-risk framing from
+  the Keyword Cannibalization cross-type tab description
+  (`keyword-cannibalization/page.tsx:61`). Live-verified the string is gone
+  from source.
+- **19B (classify-one gate)** - `/api/check/classify-one` had no rate limit at
+  all (session auth only, and no webhook caller exists for it - adding a
+  WEBHOOK_API_KEY requirement like `/api/summarize` would have broken the
+  dashboard UI, since the browser never sends that header). Added a per-IP
+  rate limit (`lib/rate-limit.ts`, 30 req/min) as defense-in-depth so a future
+  `AUTH_ENABLED=false` or `PUBLIC_PATHS` misconfiguration can't turn it into
+  an unbounded LLM-cost sink.
+- **19B (races)** - added request-sequencing guards (a bumped ref counter,
+  checked before every `setState` in the async continuation) everywhere a
+  slow response from a superseded request could otherwise overwrite fresher
+  state: conflict-checker's `generateDraft`/`fetchSuggestions` vs. a new
+  `run()`; corpus's `load()` vs. rapid filter changes; search-console's
+  range-change `load()` and `OverviewTab`'s `drilldown()`; keyword-
+  cannibalization's mount-fetch vs. `refresh()`, and its annotation GET
+  effect (changed from clobbering to merging - `{...serverData, ...localState}`
+  - so an optimistic status/note update survives a slower in-flight GET).
+
+### 20B. Medium fixed
+
+- **Silent error swallowing** - corpus now checks `res.ok` and shows
+  "Couldn't load pages: …" instead of silently rendering "0 pages" on a
+  server error (**live-verified**: reproduced the real `/api/pages` 500 with
+  no DB configured and confirmed the error banner renders in place of the old
+  silent empty state). `fetchSuggestions` now has a real `catch` + toast
+  (previously threw unhandled on network failure). Keyword Cannibalization's
+  `saveAnno`/`bulkSetStatus` and the merge-clusters fetch now surface failures
+  via toast/inline error instead of `.catch(() => {})`. Settings'
+  `loadCluster` now toasts on failure instead of an empty catch block.
+- **Filter-policy (§18I) violations fixed** - conflict-checker's Type filter
+  (now `FilterChip`/`FilterSelect` depending on option count), corpus's 6
+  course-type chips (now `FilterSelect`), search-console's 7-option range
+  selector (now `FilterSelect`, disabled while loading) and its Index
+  Coverage 5-option type filter (now `FilterChip`, was wrongly a
+  `FilterSelect`). Added a `disabled` prop to the shared `FilterSelect`
+  primitive to support this.
+- **Settings `ClusterTuningCard`** - added a prop-resync `useEffect` so the
+  three number inputs re-sync when the server-truth `cluster` prop changes
+  for a reason other than this card's own save (previously could show stale
+  values while `dirty` compared against the new prop). `NumField`/Save now
+  reject empty or non-finite input (`Number("") === 0` was previously
+  silently accepted) - Save disables and shows an inline error until all
+  three fields parse.
+- **`lib/inbound-links.ts`** - self-reference exclusion compared a raw
+  (possibly trailing-slash) `p.url` against the already-stripped `t.url`;
+  normalized both sides with `regexp_replace(p.url, '/$', '')` so a page with
+  a trailing-slash URL can no longer count as its own inbound link.
+- **`lib/score-bands.ts`** - `INTENT_MAP` only covered the original 6 content
+  types; added the newer taxonomy types (`managed-training`, `consulting`,
+  `excellence-program`, `location` → BOFU; `platform` → MOFU; `templates` →
+  TOFU), keeping `static` unmapped since it's the genuinely-unclassified
+  fallback bucket.
+- **Constant-time API-key comparisons** - added `lib/timing-safe.ts`
+  (`safeEqual`, mirrors the pattern already in `lib/cron-auth.ts`) and
+  replaced `===`/`!==` key checks in `lib/api-gate.ts`, `app/api/check/route.ts`,
+  `app/api/drafts/route.ts`, and `app/api/drafts/[id]/route.ts`.
+
+### 20C. Verification
+
+`npm run typecheck` clean. Full `npm test` suite: **96/96 passing**, no
+regressions. Live-verified in a real (unconfigured-DB) dev server: the corpus
+error-banner fix reproduces exactly as designed against a genuine `/api/pages`
+500; the Keyword Cannibalization framing fix is confirmed removed from
+source. Deeper live click-through of every fixed page was cut short by
+Turbopack/dev-server compile-time flakiness in this sandbox (some routes
+intermittently stuck rendering their loading fallback for 30s+ regardless of
+which page or edit was involved, including on a from-scratch `.next` rebuild) -
+not attributable to these changes given clean typecheck + full test pass, but
+noted here rather than silently claimed as fully click-tested.

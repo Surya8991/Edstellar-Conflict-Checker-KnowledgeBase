@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   LineChart,
@@ -12,7 +12,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { PageHeader, Card } from "@/app/components/ui";
-import { FilterSelect } from "@/app/components/Filters";
+import { FilterChip, FilterGroup, FilterSelect } from "@/app/components/Filters";
 import { countryName } from "@/lib/country";
 
 const RANGES = [
@@ -157,9 +157,15 @@ function SearchConsoleInner() {
     finally { setLookupLoading(false) }
   }
 
+  // Guards against out-of-order responses: rapidly switching ranges can let
+  // an older request resolve after a newer one, silently showing stale KPI
+  // data for the wrong range (§19B).
+  const loadReqIdRef = useRef(0);
+
   async function load() {
     // For custom ranges, only fire when the date pair is valid.
     if (range === "custom" && customError) return;
+    const reqId = ++loadReqIdRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -174,13 +180,15 @@ function SearchConsoleInner() {
         body: JSON.stringify(body),
       });
       const json = await res.json();
+      if (reqId !== loadReqIdRef.current) return; // superseded by a newer request
       if (json.error) throw new Error(json.error);
       setData(json);
     } catch (e) {
+      if (reqId !== loadReqIdRef.current) return; // superseded by a newer request
       setError((e as Error).message);
       setData(null);
     } finally {
-      setLoading(false);
+      if (reqId === loadReqIdRef.current) setLoading(false);
     }
   }
 
@@ -243,19 +251,16 @@ function SearchConsoleInner() {
 
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            {RANGES.map((r) => (
-              <button
-                key={r.key}
-                onClick={() => setRange(r.key)}
-                className={`rounded-lg px-3 py-1.5 text-sm ${
-                  range === r.key
-                    ? "bg-slate-900 text-white"
-                    : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                {r.label}
-              </button>
-            ))}
+            {/* §18I: 6+ options → FilterSelect, not a hand-rolled button row. */}
+            <FilterSelect
+              label="Range"
+              value={range}
+              onChange={setRange}
+              options={RANGES.map((r) => ({ value: r.key, label: r.label }))}
+              allLabel={null}
+              defaultValue="28d"
+              disabled={loading}
+            />
             {data && range !== "custom" && (
               <span className="ml-2 text-xs text-slate-400">
                 {data.startDate} → {data.endDate}
@@ -411,13 +416,19 @@ function ExportBtn({ onClick }: { onClick: () => void }) {
 function OverviewTab({ data, range }: { data: Insights; range: string }) {
   const [pageDetail, setPageDetail] = useState<any>(null);
   const [pdLoading, setPdLoading] = useState(false);
+  // Guards against out-of-order responses: clicking a second row before the
+  // first drilldown resolves can otherwise let the earlier response land
+  // after the later one, showing the wrong page's detail (§19B).
+  const pdReqIdRef = useRef(0);
   async function drilldown(page: string) {
+    const reqId = ++pdReqIdRef.current;
     setPdLoading(true); setPageDetail({ page });
     const res = await fetch("/api/gsc/page-detail", {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ page, range }),
     });
     const json = await res.json();
+    if (reqId !== pdReqIdRef.current) return; // superseded by a newer click
     setPageDetail(json);
     setPdLoading(false);
   }
@@ -867,13 +878,13 @@ function IndexCoverageTab() {
             {[10,25,50,100].map((n) => <option key={n}>{n}</option>)}
           </select>
         </label>
-        <FilterSelect
-          label="Type"
-          value={type}
-          onChange={setType}
-          options={["course", "blog", "category", "subcategory", "static"].map((t) => ({ value: t, label: t }))}
-          allLabel="All types"
-        />
+        {/* §18I: 2-5 options → FilterChip group, not a dropdown. */}
+        <FilterGroup label="Type">
+          <FilterChip label="all" active={type === ""} onClick={() => setType("")} />
+          {["course", "blog", "category", "subcategory", "static"].map((t) => (
+            <FilterChip key={t} label={t} active={type === t} onClick={() => setType(type === t ? "" : t)} />
+          ))}
+        </FilterGroup>
         <button onClick={run} disabled={loading} className="rounded-lg bg-slate-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-50">
           {loading ? "Inspecting…" : "Run inspection"}
         </button>

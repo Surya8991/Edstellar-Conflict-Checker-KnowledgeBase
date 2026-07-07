@@ -13,6 +13,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { clientIp, consume, denied } from "@/lib/rate-limit";
+import { safeEqual } from "@/lib/timing-safe";
 
 export interface GateOpts {
   /** Max requests per window when WEBHOOK_API_KEY is unset. */
@@ -28,7 +29,7 @@ export async function gateLlmEndpoint(
   const required = process.env.WEBHOOK_API_KEY;
   if (required) {
     const sent = request.headers.get("x-api-key");
-    if (sent !== required) {
+    if (!safeEqual(sent, required)) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
     }
     return null;

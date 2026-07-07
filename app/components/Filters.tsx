@@ -129,6 +129,7 @@ export function FilterSelect({
   allLabel = "All",
   defaultValue = "",
   className = "",
+  disabled = false,
 }: {
   label: string;
   /** Current value; equal to `defaultValue` means "no filter applied". */
@@ -141,6 +142,7 @@ export function FilterSelect({
    *  or the default sort key for sorts. */
   defaultValue?: string;
   className?: string;
+  disabled?: boolean;
 }) {
   const active = value !== defaultValue;
   return (
@@ -150,7 +152,8 @@ export function FilterSelect({
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className={`appearance-none rounded-full border py-1 pl-3 pr-7 text-xs font-medium capitalize transition focus:outline-none focus:ring-2 focus:ring-slate-900/10 ${
+          disabled={disabled}
+          className={`appearance-none rounded-full border py-1 pl-3 pr-7 text-xs font-medium capitalize transition focus:outline-none focus:ring-2 focus:ring-slate-900/10 disabled:opacity-50 ${
             active
               ? "border-slate-900 bg-slate-900 text-white shadow-sm"
               : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"

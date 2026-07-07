@@ -100,8 +100,11 @@ export default function SettingsPage() {
     try {
       const res = await fetch("/api/settings/app");
       const data = await res.json();
-      if (res.ok) setCluster(data.cluster);
-    } catch { /* ignore */ }
+      if (!res.ok) throw new Error(data.error ?? "Failed to load cluster settings.");
+      setCluster(data.cluster);
+    } catch (e) {
+      toast.error((e as Error).message || "Couldn't load cluster tuning settings.");
+    }
   }
   async function loadGscLast() {
     try {
@@ -485,10 +488,25 @@ function ClusterTuningCard({
   const [overlap, setOverlap] = useState(String(cluster.topicOverlap));
   const [floor, setFloor] = useState(String(cluster.bodyFloor));
   const [maxSize, setMaxSize] = useState(String(cluster.mergeMaxSize));
+  // Re-sync local edit buffers whenever the server-truth prop changes for a
+  // reason other than this card's own save (e.g. the server clamps a value,
+  // or another tab's edit is reloaded) - otherwise the inputs silently show
+  // stale values while `dirty` compares against the new prop (§19C).
+  useEffect(() => {
+    setOverlap(String(cluster.topicOverlap));
+    setFloor(String(cluster.bodyFloor));
+    setMaxSize(String(cluster.mergeMaxSize));
+  }, [cluster.topicOverlap, cluster.bodyFloor, cluster.mergeMaxSize]);
   const dirty =
     Number(overlap) !== cluster.topicOverlap ||
     Number(floor) !== cluster.bodyFloor ||
     Number(maxSize) !== cluster.mergeMaxSize;
+  const parsedOverlap = Number(overlap);
+  const parsedFloor = Number(floor);
+  const parsedMaxSize = Number(maxSize);
+  const invalid =
+    overlap.trim() === "" || floor.trim() === "" || maxSize.trim() === "" ||
+    !Number.isFinite(parsedOverlap) || !Number.isFinite(parsedFloor) || !Number.isFinite(parsedMaxSize);
   return (
     <Card>
       <h2 className="text-sm font-semibold text-slate-900">Content Clusters tuning</h2>
@@ -502,12 +520,15 @@ function ClusterTuningCard({
       </div>
       <div className="mt-3">
         <button
-          onClick={() => onSave({ topicOverlap: Number(overlap), bodyFloor: Number(floor), mergeMaxSize: Number(maxSize) })}
-          disabled={saving || !dirty}
+          onClick={() => onSave({ topicOverlap: parsedOverlap, bodyFloor: parsedFloor, mergeMaxSize: parsedMaxSize })}
+          disabled={saving || !dirty || invalid}
           className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
           Save
         </button>
+        {invalid && (
+          <p className="mt-2 text-xs text-red-600">All three fields must be valid numbers.</p>
+        )}
       </div>
     </Card>
   );

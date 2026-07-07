@@ -13,12 +13,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { neon } from "@neondatabase/serverless";
 import { getChat } from "@/lib/ai";
 import { blendScore, similarityToBaseScore, conflictTypeFromScore } from "@/lib/score";
+import { clientIp, consume, denied } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+/**
+ * Session auth (via proxy.ts) is the primary gate - this route isn't in
+ * PUBLIC_PATHS, and it has no webhook caller (unlike /api/summarize etc), so
+ * a WEBHOOK_API_KEY requirement would break the dashboard UI. Per-IP rate
+ * limit is defense-in-depth so a misconfiguration (AUTH_ENABLED=false, or an
+ * accidental PUBLIC_PATHS addition) can't turn this into an unbounded
+ * LLM-cost sink (§19B).
+ */
 export async function POST(request: NextRequest) {
+  const rl = await consume(clientIp(request), "check-classify-one", { max: 30, windowSec: 60 });
+  if (!rl.ok) return denied(rl) as NextResponse;
   try {
     const body = await request.json().catch(() => ({}));
     const url = (body.url ?? "").toString();

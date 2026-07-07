@@ -56,13 +56,17 @@ export async function fetchInboundCounts(
   // text[]), which Postgres rejects - so bind the array positionally instead,
   // the same way scripts/ingest.ts passes `tags`.
   const client = neon(process.env.DATABASE_URL || "postgresql://user:password@localhost/db");
+  // Compare p.url with its own trailing slash stripped - t.url is already
+  // stripped (see `patterns` above), so a stored URL with a trailing slash
+  // would otherwise never equal t.url and slip past the self-reference
+  // exclusion, letting a page count as its own inbound link (§19C).
   const rows = await client.query(
     `SELECT t.url, count(p.id)::int AS inbound
      FROM unnest($1::text[]) AS t(url)
      LEFT JOIN pages p
        ON p.content_text ILIKE '%' || t.url || '%'
-       AND p.url <> t.url
-       AND p.url <> $2
+       AND regexp_replace(p.url, '/$', '') <> t.url
+       AND regexp_replace(p.url, '/$', '') <> regexp_replace($2, '/$', '')
      GROUP BY t.url`,
     [patterns, exclude],
   );

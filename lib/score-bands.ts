@@ -54,13 +54,24 @@ export function scoreType(score: number): ConflictVerdict["conflictType"] {
 
 export type IntentStage = "TOFU" | "MOFU" | "BOFU";
 
+// Kept in sync with lib/taxonomy.ts's ContentType union (§19C - this map had
+// gone stale when the taxonomy grew past the original 6 types, so newer
+// pages silently got no funnel-stage badge). `static` is the catch-all
+// fallback for genuinely unclassified pages, so it's deliberately left out -
+// no funnel stage applies to "we don't know what this is".
 const INTENT_MAP: Record<string, IntentStage> = {
-  blog:        "TOFU",
-  topic:       "TOFU",
-  category:    "MOFU",
-  subcategory: "MOFU",
-  course:      "BOFU",
-  mentor:      "BOFU",
+  blog:               "TOFU",
+  topic:               "TOFU",
+  templates:           "TOFU",
+  category:            "MOFU",
+  subcategory:         "MOFU",
+  platform:            "MOFU",
+  course:              "BOFU",
+  mentor:              "BOFU",
+  location:            "BOFU",
+  "managed-training":  "BOFU",
+  consulting:          "BOFU",
+  "excellence-program": "BOFU",
 };
 
 /** Map a content-type string to a funnel stage badge, or null if unknown. */
