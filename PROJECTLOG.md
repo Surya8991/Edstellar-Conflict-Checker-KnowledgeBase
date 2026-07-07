@@ -2838,3 +2838,21 @@ which re-classifies each group from the surviving (post-exclusion) pages at read
 time (§18G). Data already stored per page: clicks/impr/ctr/position/role/type.
 Available-but-unshown (in `gsc_metrics`, keyed by page): 1/3/6-month
 clicks/impr/position windows + top-5 queries per page - the next data to surface.
+
+### 18L. Hide dead (404 / removed) pages from Keyword Cannibalization
+
+Symptom (user-reported): a HIGH conflict "training needs analysis services"
+listed `https://www.edstellar.com/blog/best-training-needs-analysis-tools`, which
+404s. GSC keeps reporting impressions for a URL for a while after it's removed, so
+the snapshot still had it - and because it wasn't in the corpus its stored
+`contentType` was `null` (the card rendered it as the "static" fallback badge).
+
+Fix (read-time, like exclusions/§18G - no re-snapshot needed): `/api/cannibalization`
+now loads `SELECT url, http_status FROM pages` into a `normalizeUrl`-keyed map and
+drops any competing page that isn't a **live corpus page** before re-classifying.
+Pure helper `isLivePageStatus(status)` in `lib/cannibalization.ts` (unit-tested):
+`undefined` (URL absent from the corpus → removed/404/never-ingested) → drop;
+`>= 400` (in corpus but 4xx/5xx) → drop; `null` (unaudited) / `2xx` / `3xx` → keep.
+A group that falls below 2 live pages disappears (no real conflict with one page).
+Live-verified: the dead URL is gone from every group, its 2-page group collapsed,
+0 non-corpus pages survive; total groups 1,184 → 1,130. 10 cannibalization tests.

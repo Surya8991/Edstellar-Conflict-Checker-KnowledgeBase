@@ -3,7 +3,7 @@ import { neon } from "@neondatabase/serverless";
 import { getExclusions, isExcludedUrl, isExcludedQuery } from "@/lib/exclusions";
 import { THRESHOLDS } from "@/lib/thresholds";
 import { RANGE_LABEL } from "@/lib/cannibalization-snapshot";
-import { classifyGroup, sortConflicts, type ConflictPage, type ConflictGroup } from "@/lib/cannibalization";
+import { classifyGroup, sortConflicts, normalizeUrl, isLivePageStatus, type ConflictPage, type ConflictGroup } from "@/lib/cannibalization";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,6 +43,19 @@ export async function GET(_req: NextRequest) {
     )) as any[];
 
     const { url: urlPatterns, query: queryPatterns, exception } = await getExclusions();
+
+    // Corpus membership + HTTP status, so we never show a competing page that no
+    // longer exists (GSC keeps reporting impressions for URLs after they 404 /
+    // are removed). Keyed by the same normalizeUrl the snapshot matched on.
+    // Map value: http_status (number), null (unaudited), or absent (not in corpus).
+    const corpusRows = (await sql.query(`SELECT url, http_status FROM pages`)) as any[];
+    const corpusStatus = new Map<string, number | null>();
+    for (const p of corpusRows) corpusStatus.set(normalizeUrl(p.url), p.http_status ?? null);
+    const isLivePage = (u: string) => {
+      const key = normalizeUrl(u);
+      return isLivePageStatus(corpusStatus.has(key) ? corpusStatus.get(key)! : undefined);
+    };
+
     const nearGap = THRESHOLDS.cannibalNearGap;
     const brandTerms = (process.env.BRAND_TERMS || "edstellar")
       .split(",")
@@ -54,7 +67,7 @@ export async function GET(_req: NextRequest) {
       if (r.branded) continue;
       if (isExcludedQuery(r.query, queryPatterns)) continue;
       const pages = (Array.isArray(r.pages) ? r.pages : []).filter(
-        (p: any) => !isExcludedUrl(p.page, urlPatterns, exception),
+        (p: any) => !isExcludedUrl(p.page, urlPatterns, exception) && isLivePage(p.page),
       );
       if (pages.length < 2) continue;
       // Re-classify from the SURVIVING pages so gap/bestPos/severity/action/

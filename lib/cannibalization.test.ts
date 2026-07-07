@@ -5,6 +5,7 @@ import {
   classifyGroup,
   normalizeUrl,
   isBrandedQuery,
+  isLivePageStatus,
   type RawRow,
   type ConflictPage,
 } from "./cannibalization";
@@ -88,6 +89,15 @@ test("URL variants of one page do not fabricate a conflict", () => {
   ];
   const g = buildConflicts(rows, new Map(), THRESHOLDS, OPTS);
   assert.equal(g.length, 0); // collapses to one page → no conflict
+});
+
+test("isLivePageStatus: only corpus pages that aren't 4xx/5xx are shown", () => {
+  assert.equal(isLivePageStatus(undefined), false); // not in the corpus → 404/removed
+  assert.equal(isLivePageStatus(404), false); // in corpus but broken
+  assert.equal(isLivePageStatus(500), false);
+  assert.equal(isLivePageStatus(null), true); // in corpus, unaudited → keep
+  assert.equal(isLivePageStatus(200), true);
+  assert.equal(isLivePageStatus(301), true); // redirects still resolve to a live page
 });
 
 test("branded queries are flagged", () => {

@@ -111,6 +111,23 @@ export function normalizeUrl(u: string): string {
   }
 }
 
+/**
+ * Should a competing page still be shown? A conflict page is "live" only if it
+ * exists in the corpus and isn't returning a 4xx/5xx. Callers pass the page's
+ * `pages.http_status`:
+ *   - `undefined` → the URL isn't in the corpus at all (removed / 404 / never
+ *     ingested) → NOT live.
+ *   - `null`      → in the corpus but never audited (status unknown) → keep.
+ *   - `>= 400`    → in the corpus but broken (4xx/5xx) → NOT live.
+ * This is what keeps dead URLs GSC still has impressions for out of the
+ * Keyword Cannibalization view (§18L).
+ */
+export function isLivePageStatus(status: number | null | undefined): boolean {
+  if (status === undefined) return false;
+  if (status != null && status >= 400) return false;
+  return true;
+}
+
 /** Levenshtein distance, capped for speed (returns cap+1 once it's exceeded). */
 function editDistance(a: string, b: string, cap = 3): number {
   const m = a.length;
