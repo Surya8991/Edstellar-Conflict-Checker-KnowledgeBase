@@ -8,6 +8,7 @@ import {
   conflictTypeFromScore,
 } from "@/lib/score";
 import { signalScores, buildDfIndex, type SignalScores, type DfIndex } from "@/lib/signals";
+import { getExclusionPatterns, isExcludedUrl } from "@/lib/exclusions";
 import { classifyIntent, type Intent } from "@/lib/intent";
 import { decidePair, type PairResolution, type AuthorityInput } from "@/lib/resolution";
 import { tagUrl } from "@/lib/taxonomy";
@@ -219,8 +220,13 @@ export async function runConflictCheck(
     limit: vectorLimit,
     excludeUrl: inputType === "url" ? input : undefined,
   });
-  // Drop matches below the threshold - keeps the UI signal-to-noise sane.
-  const meaningful = nearest.filter((m) => m.similarity >= minSimilarity);
+  // Drop matches below the threshold - keeps the UI signal-to-noise sane. Also
+  // drop pages in an excluded blog series (Settings -> /settings); they stay in
+  // the corpus + GSC but must not surface as conflict matches.
+  const exclusions = await getExclusionPatterns();
+  const meaningful = nearest.filter(
+    (m) => m.similarity >= minSimilarity && !isExcludedUrl(m.url, exclusions),
+  );
 
   // Corpus DF index for template-word denoising of the lexical signals (2c).
   const dfIndex = await getCorpusDfIndex();

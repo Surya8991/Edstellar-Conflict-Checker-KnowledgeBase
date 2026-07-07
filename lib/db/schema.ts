@@ -141,6 +141,17 @@ export const gscMetrics = pgTable(
   (t) => [index("gsc_metrics_date_page_idx").on(t.date, t.page)],
 );
 
+/** Editable exclusion list: blog series hidden from Clusters + Conflict Checker
+ *  (not the corpus/Database, not GSC). Managed from /settings. */
+export const excludedSeries = pgTable("excluded_series", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  patterns: text("patterns").array().notNull().default([]),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 /** Precomputed near-duplicate page pairs across the corpus. */
 export const catalogConflicts = pgTable(
   "catalog_conflicts",

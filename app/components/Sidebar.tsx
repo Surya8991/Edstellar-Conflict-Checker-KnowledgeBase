@@ -15,6 +15,7 @@ import {
   BarChart3,
   Compass,
   Boxes,
+  Settings,
   Menu,
   X,
   ChevronDown,
@@ -63,6 +64,7 @@ const ADDITIONAL_NAV: { href: string; label: string; icon: any }[] = [
   { href: "/audit",              label: "Content Audit",     icon: ClipboardCheck },
   { href: "/internal-links",     label: "Internal Links",    icon: Link2 },
   { href: "/strategy",           label: "Funnel Strategy",   icon: Compass },
+  { href: "/settings",           label: "Settings",          icon: Settings },
 ];
 
 export default function Sidebar({ user, signOutSlot }: { user?: SidebarUser | null; signOutSlot?: React.ReactNode }) {

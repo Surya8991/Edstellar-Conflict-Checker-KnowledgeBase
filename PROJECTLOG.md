@@ -2272,6 +2272,33 @@ queries finland / финляндия / finlande / … The 4 without data are zer
 pages (real, not a bug). Needs `GSC_SITE_URL` set (it's in Vercel prod env; pass
 it inline for a local run). 73/73 tests, build clean.
 
+### 17P. Editable blog-series exclusion list + Settings page
+
+New **Settings** page (`/settings`, under Additional Tools) to manage blog series
+excluded from the ANALYSIS features - **Content Clusters + Conflict Checker
+matches** - while keeping them in the corpus/**Edstellar Database** and in **GSC**
+(user's chosen scope: analysis-only, keep ingesting).
+
+- **`excluded_series` table** (`drizzle/0009`): `name`, `patterns` (slug
+  substrings, text[]), `enabled`. Seeded with the two the user asked for:
+  **In-Demand Skills** (`skills-in-demand-in-`, `in-demand-skills`,
+  `most-in-demand`) and **Corporate Training Companies in [Country]**
+  (`corporate-training-companies-`). The country pattern is specific - it
+  excludes the 41 country listicles but NOT the other 19 `-training-companies`
+  blogs (big-data, AI, web-development, …).
+- **`lib/exclusions.ts`**: `getExclusionPatterns()` (enabled patterns, cached
+  60s, empty on any error) + `isExcludedUrl(url, patterns)` (case-insensitive
+  substring). Unit-tested.
+- **`/api/settings/exclusions`**: GET/POST/PATCH/DELETE CRUD; every write drops
+  the pattern cache. The Settings page adds / edits / toggles / deletes series.
+- **Applied** in `/api/groups` (filter pages before clustering; exclusions are
+  part of the cache key) and `lib/conflict.ts` (filter vector-search matches).
+  NOT in `lib/gsc*`, `/api/pages` (corpus), or ingest.
+
+Live-verified: seeding + the two series drop the analysis corpus 2,458 → 2,363
+(~95 pages), 0 excluded pages leak into any cluster, Settings page renders the
+two rows editable. 76/76 tests, build clean.
+
 ### 17I. Deferred (tracked, not this pass)
 
 - **GSC query-overlap edges - the gold-standard upgrade** (17F #1–2): once

@@ -4,6 +4,7 @@ import { neonRows } from "@/lib/db";
 import { clusterByTopic, type ClusterPage } from "@/lib/cluster";
 import { SERIES } from "@/lib/series";
 import { fetchGscForUrls } from "@/lib/gsc-cluster-metrics";
+import { getExclusionPatterns, isExcludedUrl } from "@/lib/exclusions";
 import { classifyIntent, type Intent } from "@/lib/intent";
 import { pageAuthority, pickWinner, groupAction, type AuthorityInput } from "@/lib/resolution";
 import { THRESHOLDS } from "@/lib/thresholds";
@@ -82,7 +83,9 @@ export async function GET(request: NextRequest) {
     const minSize = Math.max(2, Number(p.get("minSize")) || 2);
     const limit = clamp(Number(p.get("limit")) || 100, 1, 500);
 
-    const cacheKey = `${overlap}|${floor}|${minSize}|${limit}`;
+    // Exclusions affect the result, so they're part of the cache key.
+    const exclusions = await getExclusionPatterns();
+    const cacheKey = `${overlap}|${floor}|${minSize}|${limit}|${exclusions.join(",")}`;
     if (
       !p.get("fresh") &&
       groupsCache &&
@@ -103,9 +106,15 @@ export async function GET(request: NextRequest) {
          WHERE embedding IS NOT NULL AND ${LIVE("p")}`,
       ),
     );
-    const corpusSize = rows.length;
-    const meta = new Map(rows.map((r) => [r.url, r]));
-    const pages: ClusterPage[] = rows.map((r) => ({
+    // Drop pages in an excluded blog series (Settings → /settings). They stay in
+    // the corpus/Database + GSC; this only hides them from clustering.
+    const liveRows = exclusions.length
+      ? rows.filter((r) => !isExcludedUrl(r.url, exclusions))
+      : rows;
+
+    const corpusSize = liveRows.length;
+    const meta = new Map(liveRows.map((r) => [r.url, r]));
+    const pages: ClusterPage[] = liveRows.map((r) => ({
       url: r.url,
       title: r.title,
       h1: r.h1,
