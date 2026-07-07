@@ -12,11 +12,13 @@ import { neon } from "@neondatabase/serverless";
 export interface ExclusionSets {
   url: string[];
   query: string[];
+  /** Full URLs manually re-included despite matching a url pattern (allow-list). */
+  exception: string[];
 }
 
 let cache: { sets: ExclusionSets; at: number } | null = null;
 const TTL_MS = 60_000;
-const EMPTY: ExclusionSets = { url: [], query: [] };
+const EMPTY: ExclusionSets = { url: [], query: [], exception: [] };
 
 /** Enabled patterns grouped by type, lowercased. Cached ~60s; empty on any
  *  error (missing table / no DB) so a failure never blocks a query. */
@@ -29,9 +31,10 @@ export async function getExclusions(): Promise<ExclusionSets> {
     const rows = (await sql.query(
       `SELECT type, patterns FROM excluded_series WHERE enabled = true`,
     )) as { type: string | null; patterns: string[] | null }[];
-    const sets: ExclusionSets = { url: [], query: [] };
+    const sets: ExclusionSets = { url: [], query: [], exception: [] };
     for (const r of rows) {
-      const bucket = r.type === "query" ? sets.query : sets.url;
+      const bucket =
+        r.type === "query" ? sets.query : r.type === "exception" ? sets.exception : sets.url;
       for (const p of r.patterns ?? []) {
         const v = String(p).trim().toLowerCase();
         if (v) bucket.push(v);
@@ -54,12 +57,18 @@ export function invalidateExclusionsCache(): void {
   cache = null;
 }
 
-/** True if `url` contains any excluded URL pattern (case-insensitive substring).
- *  A full URL entered as a pattern matches only that page. */
-export function isExcludedUrl(url: string | null | undefined, patterns: string[]): boolean {
+/** True if `url` contains any excluded URL pattern (case-insensitive substring),
+ *  UNLESS it's on the exceptions allow-list. A full URL entered as a pattern
+ *  matches only that page. */
+export function isExcludedUrl(
+  url: string | null | undefined,
+  patterns: string[],
+  exceptions: string[] = [],
+): boolean {
   if (!url || patterns.length === 0) return false;
   const u = url.toLowerCase();
-  return patterns.some((p) => u.includes(p));
+  if (!patterns.some((p) => u.includes(p))) return false;
+  return !exceptions.some((e) => u.includes(e)); // manually re-included → not excluded
 }
 
 /** True if `query` contains any excluded keyword pattern (case-insensitive). */

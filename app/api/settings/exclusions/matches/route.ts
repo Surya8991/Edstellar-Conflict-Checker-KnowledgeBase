@@ -14,22 +14,26 @@ export async function GET(request: NextRequest) {
     const p = new URL(request.url).searchParams;
     const page = Math.max(1, Number(p.get("page")) || 1);
     const pageSize = Math.min(200, Math.max(1, Number(p.get("pageSize")) || 25));
-    const { url: patterns } = await getExclusions();
-    if (patterns.length === 0) return NextResponse.json({ urls: [], total: 0, page, pageSize });
+    const { url: patterns, exception: exceptions } = await getExclusions();
+    if (patterns.length === 0) {
+      return NextResponse.json({ urls: [], total: 0, page, pageSize, exceptions });
+    }
 
     const sql = neon(process.env.DATABASE_URL!);
-    const where = `EXISTS (SELECT 1 FROM unnest($1::text[]) ex(pat) WHERE lower(pages.url) LIKE '%' || ex.pat || '%')`;
+    // $1 = patterns, $2 = exceptions allow-list. Matches a pattern AND not an exception.
+    const where = `EXISTS (SELECT 1 FROM unnest($1::text[]) ex(pat) WHERE lower(pages.url) LIKE '%' || ex.pat || '%')
+      AND NOT EXISTS (SELECT 1 FROM unnest($2::text[]) al(u) WHERE lower(pages.url) LIKE '%' || al.u || '%')`;
     const countRows = (await sql.query(
       `SELECT count(*)::int n FROM pages WHERE ${where}`,
-      [patterns],
+      [patterns, exceptions],
     )) as { n: number }[];
     const total = countRows[0]?.n ?? 0;
     const rows = (await sql.query(
-      `SELECT url, title, content_type FROM pages WHERE ${where} ORDER BY url LIMIT $2 OFFSET $3`,
-      [patterns, pageSize, (page - 1) * pageSize],
+      `SELECT url, title, content_type FROM pages WHERE ${where} ORDER BY url LIMIT $3 OFFSET $4`,
+      [patterns, exceptions, pageSize, (page - 1) * pageSize],
     )) as { url: string; title: string | null; content_type: string | null }[];
 
-    return NextResponse.json({ urls: rows, total, page, pageSize });
+    return NextResponse.json({ urls: rows, total, page, pageSize, exceptions });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message, urls: [], total: 0 }, { status: 500 });
   }

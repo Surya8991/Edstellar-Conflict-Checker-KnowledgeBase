@@ -2357,6 +2357,23 @@ Build + typecheck clean; APIs + cluster-tuning effect verified live. (The dev
 preview tab hung during the browser check - a tooling issue; SSR HTML + the API
 checks confirm the pages render.)
 
+### 17S. Per-URL exclusion exceptions (allow-list)
+
+The "Currently excluded URLs" viewer now has a **Remove** button per page: it
+adds the URL to an **exceptions** allow-list so that one page is re-included in
+Content Clusters + Conflict Checker even though it still matches an exclusion
+pattern (the rest of the series stays excluded). Reversible via a "Manually
+re-included pages" section ("Exclude again").
+
+- Stored as a single `type='exception'` row in `excluded_series`;
+  `getExclusions()` returns `{url, query, exception}`.
+- `isExcludedUrl(url, patterns, exceptions)` = matches a pattern AND not on the
+  allow-list. Wired into `/api/groups` + `lib/conflict.ts` (part of the cache key).
+- `/api/settings/exclusions/exception` POST/DELETE (append/remove a URL);
+  `.../matches` filters out exceptions and returns them for the undo list.
+- Verified live: Remove drops the excluded count 98 → 97, "Exclude again" restores
+  it. 79/79 tests, build clean.
+
 ### 17I. Deferred (tracked, not this pass)
 
 - **GSC query-overlap edges - the gold-standard upgrade** (17F #1–2): once

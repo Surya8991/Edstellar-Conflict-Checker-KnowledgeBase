@@ -96,8 +96,8 @@ export async function GET(request: NextRequest) {
 
     // Exclusions affect the result (URL filter + GSC query filter), so they're
     // part of the cache key.
-    const { url: exclusions, query: queryExclusions } = await getExclusions();
-    const cacheKey = `${overlap}|${floor}|${t.groupMergeMaxSize}|${minSize}|${limit}|${exclusions.join(",")}|${queryExclusions.join(",")}`;
+    const { url: exclusions, query: queryExclusions, exception: exceptions } = await getExclusions();
+    const cacheKey = `${overlap}|${floor}|${t.groupMergeMaxSize}|${minSize}|${limit}|${exclusions.join(",")}|${queryExclusions.join(",")}|${exceptions.join(",")}`;
     if (
       !p.get("fresh") &&
       groupsCache &&
@@ -121,7 +121,7 @@ export async function GET(request: NextRequest) {
     // Drop pages in an excluded blog series (Settings → /settings). They stay in
     // the corpus/Database + GSC; this only hides them from clustering.
     const liveRows = exclusions.length
-      ? rows.filter((r) => !isExcludedUrl(r.url, exclusions))
+      ? rows.filter((r) => !isExcludedUrl(r.url, exclusions, exceptions))
       : rows;
 
     const corpusSize = liveRows.length;

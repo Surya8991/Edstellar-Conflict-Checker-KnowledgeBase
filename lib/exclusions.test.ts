@@ -24,6 +24,14 @@ test("case-insensitive; empty patterns/url never exclude", () => {
   assert.equal(isExcludedUrl("", PATTERNS), false);
 });
 
+test("an exception URL is re-included despite matching a pattern (§17S)", () => {
+  const u = "https://www.edstellar.com/blog/skills-in-demand-in-norway";
+  assert.equal(isExcludedUrl(u, PATTERNS), true);
+  assert.equal(isExcludedUrl(u, PATTERNS, [u.toLowerCase()]), false);
+  // A different excluded page is unaffected by that exception.
+  assert.equal(isExcludedUrl("https://www.edstellar.com/blog/skills-in-demand-in-spain", PATTERNS, [u.toLowerCase()]), true);
+});
+
 test("full URL entered as a pattern matches only that page", () => {
   const p = ["https://www.edstellar.com/blog/some-specific-post"];
   assert.equal(isExcludedUrl("https://www.edstellar.com/blog/some-specific-post", p), true);

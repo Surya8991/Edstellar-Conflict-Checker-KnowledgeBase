@@ -30,6 +30,8 @@ export default function SettingsPage() {
   const [matchTotal, setMatchTotal] = useState(0);
   const [matchPage, setMatchPage] = useState(1);
   const [matchPageSize, setMatchPageSize] = useState(25);
+  // URLs manually re-included (removed from exclusion despite matching a pattern).
+  const [exceptions, setExceptions] = useState<string[]>([]);
 
   // Cluster tuning + GSC data.
   const [cluster, setCluster] = useState<{ topicOverlap: number; bodyFloor: number; mergeMaxSize: number } | null>(null);
@@ -53,6 +55,33 @@ export default function SettingsPage() {
       if (!res.ok) throw new Error(data.error ?? "Failed to load matches");
       setMatches(data.urls ?? []);
       setMatchTotal(data.total ?? 0);
+      setExceptions(data.exceptions ?? []);
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
+  async function addException(url: string) {
+    try {
+      const res = await fetch("/api/settings/exclusions/exception", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      await loadMatches(matchPage, matchPageSize);
+      toast.success("Removed from exclusion.");
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+  async function removeException(url: string) {
+    try {
+      const res = await fetch(`/api/settings/exclusions/exception?url=${encodeURIComponent(url)}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      await loadMatches(1, matchPageSize);
+      setMatchPage(1);
+      toast.success("Excluded again.");
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -170,7 +199,7 @@ export default function SettingsPage() {
     }
   }
 
-  const urlItems = (items ?? []).filter((i) => i.type !== "query");
+  const urlItems = (items ?? []).filter((i) => i.type === "url" || i.type == null);
   const queryItems = (items ?? []).filter((i) => i.type === "query");
 
   return (
@@ -258,9 +287,16 @@ export default function SettingsPage() {
             {matches.map((m) => (
               <li key={m.url} className="flex items-center gap-2 py-1.5 text-sm">
                 {m.content_type && <TypeChip type={m.content_type} size="xs" />}
-                <a href={m.url} target="_blank" rel="noreferrer" className="truncate font-medium text-slate-700 hover:underline" title={m.title || m.url}>
+                <a href={m.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate font-medium text-slate-700 hover:underline" title={m.title || m.url}>
                   {m.url}
                 </a>
+                <button
+                  onClick={() => addException(m.url)}
+                  className="shrink-0 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-500 hover:border-rose-300 hover:text-rose-600"
+                  title="Stop excluding this specific page (keep it in Clusters + Conflict Checker)"
+                >
+                  Remove
+                </button>
               </li>
             ))}
           </ul>
@@ -278,6 +314,32 @@ export default function SettingsPage() {
             </div>
           )}
         </Card>
+
+        {/* Manually re-included (exception) pages */}
+        {exceptions.length > 0 && (
+          <Card>
+            <h3 className="text-sm font-semibold text-slate-900">Manually re-included pages</h3>
+            <p className="mt-1 text-xs text-slate-500">
+              These {exceptions.length} page{exceptions.length === 1 ? "" : "s"} match an exclusion pattern but were removed from the exclusion, so they still appear in Clusters + Conflict Checker.
+            </p>
+            <ul className="mt-3 divide-y divide-slate-50">
+              {exceptions.map((url) => (
+                <li key={url} className="flex items-center gap-2 py-1.5 text-sm">
+                  <a href={url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate font-medium text-slate-700 hover:underline" title={url}>
+                    {url}
+                  </a>
+                  <button
+                    onClick={() => removeException(url)}
+                    className="shrink-0 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-500 hover:border-slate-400 hover:text-slate-700"
+                    title="Exclude this page again"
+                  >
+                    Exclude again
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
       </div>
     </div>
   );
