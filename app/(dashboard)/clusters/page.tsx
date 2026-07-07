@@ -16,14 +16,14 @@ interface GroupMember {
   matchSim: number;
   /** Body cosine vs the seed (null for the seed itself). */
   bodySim: number | null;
-  /** Distinctive topic tokens shared with the seed — the "why grouped" tags. */
+  /** Distinctive topic tokens shared with the seed - the "why grouped" tags. */
   sharedTerms: string[];
   isWinner: boolean;
   isSeed: boolean;
 }
 interface GroupSummary {
   size: number;
-  /** Topic label — the seed's distinctive tokens, e.g. "big data". */
+  /** Topic label - the seed's distinctive tokens, e.g. "big data". */
   label: string;
   seedUrl: string;
   action: ClusterAction;
@@ -49,12 +49,15 @@ export default function ClustersPage() {
   const [actionFilter, setActionFilter] = useState<string>("");
   const [typeFilter, setTypeFilter] = useState<string>("");
   const [q, setQ] = useState("");
+  // Search intent is hidden by default (clusters are about topic, not intent);
+  // opt in with the checkbox to surface the per-member intent badge.
+  const [showIntent, setShowIntent] = useState(false);
 
   async function load() {
     setLoading(true);
     setError(null);
     try {
-      // 500 is the API's own hard cap (app/api/groups/route.ts) — request it
+      // 500 is the API's own hard cap (app/api/groups/route.ts) - request it
       // directly rather than an arbitrary lower number so "N clusters" in the
       // meta line always matches what's actually rendered below it.
       const res = await fetch("/api/groups?limit=500");
@@ -105,7 +108,7 @@ export default function ClustersPage() {
     <div>
       <PageHeader
         title="Content Clusters"
-        subtitle="Corpus pages grouped by TOPIC across content types — a category page, its blog, and its courses land in one cluster. Distinctive topic tokens (template words auto-learned & dropped) decide membership; each cluster gets a suggested action + winner."
+        subtitle="Corpus pages grouped by TOPIC across content types - a category page, its blog, and its courses land in one cluster. Distinctive topic tokens (template words auto-learned & dropped) decide membership; each cluster gets a suggested action + winner."
         right={
           <button
             type="button"
@@ -131,13 +134,13 @@ export default function ClustersPage() {
             live corpus pages clustered · {meta.singletonCount.toLocaleString()} unique-topic pages.
             {groups && meta.totalGroups > groups.length && (
               <span className="ml-1 font-medium text-amber-700">
-                {" "}Showing the largest {groups.length.toLocaleString()} — {(meta.totalGroups - groups.length).toLocaleString()} smaller clusters aren't listed.
+                {" "}Showing the largest {groups.length.toLocaleString()} - {(meta.totalGroups - groups.length).toLocaleString()} smaller clusters aren't listed.
               </span>
             )}
           </div>
         )}
 
-        {/* Filter bar — action pills, content-type pills, text search. */}
+        {/* Filter bar - action pills, content-type pills, text search. */}
         {groups && groups.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex flex-wrap gap-1.5">
@@ -162,25 +165,33 @@ export default function ClustersPage() {
                 />
               ))}
             </div>
+            <label className="ml-auto flex items-center gap-1.5 text-xs text-slate-600">
+              <input
+                type="checkbox"
+                checked={showIntent}
+                onChange={(e) => setShowIntent(e.target.checked)}
+              />
+              show intent
+            </label>
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Filter by title or URL…"
-              className="ml-auto w-56 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs outline-none focus:border-slate-900"
+              className="w-56 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs outline-none focus:border-slate-900"
             />
           </div>
         )}
 
         {filtered && filtered.length > 0 && (
           <div className="space-y-2.5">
-            {filtered.map((g, i) => <ClusterCard key={`${g.winnerUrl}#${i}`} g={g} />)}
+            {filtered.map((g, i) => <ClusterCard key={`${g.winnerUrl}#${i}`} g={g} showIntent={showIntent} />)}
           </div>
         )}
         {filtered && filtered.length === 0 && !loading && (
           <Card className="text-sm text-slate-400">
             {groups && groups.length > 0
               ? "No clusters match the active filters."
-              : "No clusters found — no pages are near-duplicates at the current thresholds."}
+              : "No clusters found - no pages are near-duplicates at the current thresholds."}
           </Card>
         )}
       </div>
@@ -204,7 +215,7 @@ function FilterPill({ label, active, onClick }: { label: string; active: boolean
   );
 }
 
-function ClusterCard({ g }: { g: GroupSummary }) {
+function ClusterCard({ g, showIntent }: { g: GroupSummary; showIntent: boolean }) {
   const [open, setOpen] = useState(false);
   const style = ACTION_STYLE[g.action] ?? ACTION_STYLE.differentiate;
   const shown = open ? g.members : g.members.slice(0, 4);
@@ -222,7 +233,7 @@ function ClusterCard({ g }: { g: GroupSummary }) {
         </span>
         <span
           className="min-w-0 flex-1 truncate text-xs font-medium text-slate-600"
-          title={`Topic: ${g.label} — pillar: ${pathOf(g.seedUrl)}`}
+          title={`Topic: ${g.label} - pillar: ${pathOf(g.seedUrl)}`}
         >
           topic: <span className="text-slate-800">{g.label}</span>
         </span>
@@ -250,9 +261,11 @@ function ClusterCard({ g }: { g: GroupSummary }) {
                 >
                   {m.title || pathOf(m.url)}
                 </a>
-                <span className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-medium capitalize ${INTENT_STYLE[m.intent] ?? "bg-slate-100 text-slate-500 border-slate-200"}`}>
-                  {m.intent ?? "unknown"}
-                </span>
+                {showIntent && (
+                  <span className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-medium capitalize ${INTENT_STYLE[m.intent] ?? "bg-slate-100 text-slate-500 border-slate-200"}`}>
+                    {m.intent ?? "unknown"}
+                  </span>
+                )}
               </div>
               <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
                 {m.type && <TypeChip type={m.type} size="xs" />}
