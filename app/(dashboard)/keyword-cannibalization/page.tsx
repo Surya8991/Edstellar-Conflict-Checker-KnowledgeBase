@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader, Card, TypeChip } from "@/app/components/ui";
 import { Pagination } from "@/app/components/Pagination";
-import { Star, Download, RefreshCw, ExternalLink, ArrowRight } from "lucide-react";
+import { Star, Download, RefreshCw, ExternalLink, ArrowRight, Search, X } from "lucide-react";
 
 // ── types (mirror /api/cannibalization + /api/groups) ──────────────────────
 type Severity = "high" | "medium" | "low";
@@ -136,6 +136,10 @@ function Inner() {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PER_PAGE);
+  // Filters (contextual - counts respect the other active filters + search).
+  const [search, setSearch] = useState("");
+  const [sevFilter, setSevFilter] = useState<Severity | null>(null);
+  const [actionFilter, setActionFilter] = useState<string | null>(null);
 
   // Tabs 1-3: pre-computed keyword conflicts.
   useEffect(() => {
@@ -199,7 +203,50 @@ function Inner() {
   };
   const rows = tab === "near-position" ? near : tab === "all-keywords" ? groups : tab === "cross-type" ? crossType : [];
 
-  useEffect(() => setPage(1), [tab]);
+  const matchesSearch = useMemo(() => {
+    const s = search.trim().toLowerCase();
+    return (g: CGroup) =>
+      !s || g.query.toLowerCase().includes(s) || g.pages.some((p) => p.page.toLowerCase().includes(s));
+  }, [search]);
+
+  // Contextual counts: each dimension respects the OTHER active filters + search.
+  const sevCounts = useMemo(() => {
+    const c: Record<Severity, number> = { high: 0, medium: 0, low: 0 };
+    for (const g of rows) if (matchesSearch(g) && (!actionFilter || g.action === actionFilter)) c[g.severity]++;
+    return c;
+  }, [rows, matchesSearch, actionFilter]);
+  const actionCounts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const g of rows) if (matchesSearch(g) && (!sevFilter || g.severity === sevFilter)) c[g.action] = (c[g.action] ?? 0) + 1;
+    return c;
+  }, [rows, matchesSearch, sevFilter]);
+
+  const filtered = useMemo(
+    () =>
+      rows.filter(
+        (g) => matchesSearch(g) && (!sevFilter || g.severity === sevFilter) && (!actionFilter || g.action === actionFilter),
+      ),
+    [rows, matchesSearch, sevFilter, actionFilter],
+  );
+  const mergeFiltered = useMemo(() => {
+    const s = search.trim().toLowerCase();
+    if (!s) return merge;
+    return merge.filter((c) => c.label.toLowerCase().includes(s) || c.members.some((m) => m.url.toLowerCase().includes(s)));
+  }, [merge, search]);
+
+  const hasFilter = !!(search.trim() || sevFilter || actionFilter);
+  function clearFilters() {
+    setSearch("");
+    setSevFilter(null);
+    setActionFilter(null);
+  }
+
+  // Reset page on tab/filter change; drop severity/action filters when switching tabs.
+  useEffect(() => setPage(1), [tab, search, sevFilter, actionFilter]);
+  useEffect(() => {
+    setSevFilter(null);
+    setActionFilter(null);
+  }, [tab]);
 
   function go(slug: TabSlug) {
     router.replace(`/keyword-cannibalization?tab=${slug}`, { scroll: false });
@@ -215,7 +262,7 @@ function Inner() {
   }
 
   const activeTab = TABS.find((t) => t.slug === tab)!;
-  const paged = rows.slice((page - 1) * pageSize, page * pageSize);
+  const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <div>
@@ -256,7 +303,63 @@ function Inner() {
         ))}
       </div>
 
-      <p className="mb-4 text-xs text-slate-500">{activeTab.desc}</p>
+      <p className="mb-3 text-xs text-slate-500">{activeTab.desc}</p>
+
+      {/* filters */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search query or page URL…"
+            className="w-56 rounded-lg border border-slate-200 py-1.5 pl-8 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
+          />
+        </div>
+
+        {tab !== "merge-blogs" && (
+          <>
+            <span className="ml-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">Severity</span>
+            <FilterPill label="All" active={!sevFilter} onClick={() => setSevFilter(null)} />
+            {(["high", "medium", "low"] as Severity[])
+              .filter((s) => sevCounts[s] > 0 || sevFilter === s)
+              .map((s) => (
+                <FilterPill
+                  key={s}
+                  label={`${s[0].toUpperCase()}${s.slice(1)}`}
+                  count={sevCounts[s]}
+                  active={sevFilter === s}
+                  cls={SEV_STYLE[s]}
+                  onClick={() => setSevFilter(sevFilter === s ? null : s)}
+                />
+              ))}
+
+            <span className="ml-2 text-[11px] font-medium uppercase tracking-wide text-slate-400">Action</span>
+            <FilterPill label="All" active={!actionFilter} onClick={() => setActionFilter(null)} />
+            {Object.keys(ACTION_STYLE)
+              .filter((a) => (actionCounts[a] ?? 0) > 0 || actionFilter === a)
+              .map((a) => (
+                <FilterPill
+                  key={a}
+                  label={ACTION_STYLE[a].label}
+                  count={actionCounts[a] ?? 0}
+                  active={actionFilter === a}
+                  cls={ACTION_STYLE[a].cls}
+                  onClick={() => setActionFilter(actionFilter === a ? null : a)}
+                />
+              ))}
+          </>
+        )}
+
+        {hasFilter && (
+          <button
+            onClick={clearFilters}
+            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-slate-500 hover:bg-slate-100"
+          >
+            <X size={12} /> Clear
+          </button>
+        )}
+      </div>
 
       {error && (
         <Card>
@@ -265,7 +368,7 @@ function Inner() {
       )}
 
       {tab === "merge-blogs" ? (
-        <MergeTab clusters={merge} loading={mergeLoading} />
+        <MergeTab clusters={mergeFiltered} loading={mergeLoading} />
       ) : loading ? (
         <Card>
           <p className="text-sm text-slate-400">Loading conflicts…</p>
@@ -276,15 +379,23 @@ function Inner() {
             No conflicts in this view. {lastComputed ? "" : "Run a scan from Settings → Keyword Cannibalization first."}
           </p>
         </Card>
+      ) : filtered.length === 0 ? (
+        <Card>
+          <p className="text-sm text-slate-500">No conflicts match the current filters.</p>
+        </Card>
       ) : (
         <>
-          <div className="mb-3 flex justify-end">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-xs text-slate-500 tabular-nums">
+              {filtered.length} {filtered.length === 1 ? "conflict" : "conflicts"}
+              {filtered.length !== rows.length ? ` of ${rows.length}` : ""}
+            </span>
             <button
               onClick={() =>
                 downloadCsv(
                   `cannibalization-${tab}.csv`,
                   ["query", "severity", "action", "page", "role", "type", "position", "impressions", "clicks"],
-                  rows.flatMap((g) =>
+                  filtered.flatMap((g) =>
                     g.pages.map((p) => [
                       g.query,
                       g.severity,
@@ -311,12 +422,12 @@ function Inner() {
             ))}
           </div>
 
-          {rows.length > pageSize && (
+          {filtered.length > pageSize && (
             <div className="mt-4">
               <Pagination
                 page={page}
                 pageSize={pageSize}
-                total={rows.length}
+                total={filtered.length}
                 onJump={setPage}
                 onPageSize={setPageSize}
                 pageSizes={[25, 50, 100]}
@@ -328,6 +439,33 @@ function Inner() {
       )}
       </div>
     </div>
+  );
+}
+
+function FilterPill({
+  label,
+  count,
+  active,
+  cls,
+  onClick,
+}: {
+  label: string;
+  count?: number;
+  active: boolean;
+  cls?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition ${
+        active ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+      }`}
+    >
+      {!active && cls && <span className={`h-2 w-2 rounded-full ${cls.split(" ")[0]}`} />}
+      {label}
+      {count != null && <span className={active ? "text-slate-300" : "text-slate-400"}>{count}</span>}
+    </button>
   );
 }
 

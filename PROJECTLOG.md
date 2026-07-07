@@ -2612,6 +2612,14 @@ NOT a live GSC call.
   Cannibalization SC sub-tab + `CannibalTab` were removed. **Settings**: a
   "Keyword Cannibalization data" card (last computed + group count + Rescan).
 
+**Filters (follow-up):** the page has contextual filters mirroring Content
+Clusters - a **search** box (matches query OR any page URL), **severity** pills
+(High/Med/Low) and **action** pills, each showing counts that respect the OTHER
+active filters + search, with zero-count pills hidden (e.g. selecting
+"Differentiate" hides the High pill because no differentiate conflict is
+high-severity). A "X of Y" count + Clear; CSV export + pagination follow the
+filtered set; the merge-blogs tab honours the search box. Live-verified.
+
 **SEO-manager review on the live 724-group result - one real bug fixed:**
 - **Brand-navigational SERPs were masquerading as cannibalization.** Top
   "conflicts" `ed stellar` / `edsteller` (misspellings of the brand) had 8
