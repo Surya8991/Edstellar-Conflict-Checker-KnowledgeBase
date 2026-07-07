@@ -376,47 +376,78 @@ function ClusterCard({ g, showIntent, showGsc }: { g: GroupSummary; showIntent: 
   );
 }
 
-function GscWin({ label, w }: { label: string; w: GscWindow | null }) {
-  return (
-    <span className="whitespace-nowrap">
-      <span className="font-semibold text-slate-500">{label}</span>{" "}
-      {w ? (
-        <>
-          <span className="text-slate-700">{w.clicks.toLocaleString()}</span> clicks ·{" "}
-          <span className="text-slate-700">{w.impressions.toLocaleString()}</span> impr · pos{" "}
-          <span className="text-slate-700">{w.position}</span>
-        </>
-      ) : (
-        <span className="text-slate-300">n/a</span>
-      )}
-    </span>
-  );
-}
-
+/** GSC per-member panel: a period-metrics table + a top-queries table. */
 function GscBlock({ gsc }: { gsc: PageGsc | null }) {
   const hasData = gsc && (gsc.m1 || gsc.m3 || gsc.m6 || gsc.topQueries.length > 0);
   if (!hasData) {
     return <div className="mt-1.5 text-[10px] text-slate-300">no GSC data for this page</div>;
   }
+  const windows: [string, GscWindow | null][] = [
+    ["Last 1 month", gsc.m1],
+    ["Last 3 months", gsc.m3],
+    ["Last 6 months", gsc.m6],
+  ];
+  const numTh = "px-2.5 py-1.5 text-right font-semibold";
+  const numTd = "px-2.5 py-1 text-right tabular-nums text-slate-700";
   return (
-    <div className="mt-1.5 rounded-md border border-slate-100 bg-slate-50 px-2 py-1.5 text-[11px]">
-      <div className="flex flex-wrap gap-x-3 gap-y-0.5 tabular-nums text-slate-500">
-        <GscWin label="1m" w={gsc.m1} />
-        <GscWin label="3m" w={gsc.m3} />
-        <GscWin label="6m" w={gsc.m6} />
+    <div className="mt-2 space-y-2">
+      {/* Search Console performance by period */}
+      <div className="overflow-hidden rounded-lg border border-slate-200">
+        <table className="w-full border-collapse text-[11px]">
+          <thead>
+            <tr className="bg-slate-50 text-[9px] uppercase tracking-wider text-slate-400">
+              <th className="px-2.5 py-1.5 text-left font-semibold">Search Console</th>
+              <th className={numTh}>Clicks</th>
+              <th className={numTh}>Impressions</th>
+              <th className={numTh}>Avg pos</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {windows.map(([label, w]) => (
+              <tr key={label}>
+                <td className="px-2.5 py-1 font-medium text-slate-500">{label}</td>
+                {w ? (
+                  <>
+                    <td className={numTd}>{w.clicks.toLocaleString()}</td>
+                    <td className={numTd}>{w.impressions.toLocaleString()}</td>
+                    <td className={numTd}>{w.position}</td>
+                  </>
+                ) : (
+                  <td className="px-2.5 py-1 text-center text-[10px] text-slate-300" colSpan={3}>
+                    no data
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
+
+      {/* Top queries */}
       {gsc.topQueries.length > 0 && (
-        <div className="mt-1 flex flex-wrap items-center gap-1">
-          <span className="text-[10px] uppercase tracking-wider text-slate-400">top queries</span>
-          {gsc.topQueries.map((query) => (
-            <span
-              key={query.query}
-              title={`${query.clicks} clicks · ${query.impressions} impr · pos ${query.position}`}
-              className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] text-slate-600"
-            >
-              {query.query}
-            </span>
-          ))}
+        <div className="overflow-hidden rounded-lg border border-slate-200">
+          <table className="w-full border-collapse text-[11px]">
+            <thead>
+              <tr className="bg-slate-50 text-[9px] uppercase tracking-wider text-slate-400">
+                <th className="px-2.5 py-1.5 text-left font-semibold">Top queries</th>
+                <th className={`${numTh} w-px whitespace-nowrap`}>Clicks</th>
+                <th className={`${numTh} w-px whitespace-nowrap`}>Impr</th>
+                <th className={`${numTh} w-px whitespace-nowrap`}>Pos</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {gsc.topQueries.map((query) => (
+                <tr key={query.query}>
+                  <td className="max-w-0 truncate px-2.5 py-1 text-slate-700" title={query.query}>
+                    {query.query}
+                  </td>
+                  <td className={`${numTd} w-px whitespace-nowrap`}>{query.clicks.toLocaleString()}</td>
+                  <td className={`${numTd} w-px whitespace-nowrap text-slate-600`}>{query.impressions.toLocaleString()}</td>
+                  <td className={`${numTd} w-px whitespace-nowrap text-slate-600`}>{query.position}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

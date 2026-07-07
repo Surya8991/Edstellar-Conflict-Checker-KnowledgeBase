@@ -27,7 +27,6 @@ interface SidebarUser {
 }
 
 const NAV: { href: string; label: string; icon: any }[] = [
-  { href: "/",                   label: "Dashboard",         icon: LayoutDashboard },
   { href: "/corpus",             label: "Edstellar Database", icon: Database },
   { href: "/conflict-checker",   label: "Conflict Checker",  icon: ScanSearch },
   { href: "/clusters",           label: "Content Clusters",  icon: Boxes },
@@ -53,6 +52,7 @@ const SEARCH_CONSOLE_SECTIONS = [
 ];
 
 const ADDITIONAL_NAV: { href: string; label: string; icon: any }[] = [
+  { href: "/",                   label: "Dashboard",         icon: LayoutDashboard },
   { href: "/manager",            label: "Manager View",      icon: BarChart3 },
   { href: "/competitors",        label: "Competitors",       icon: Swords },
   { href: "/bulk-check",         label: "Bulk Check",        icon: Layers },
