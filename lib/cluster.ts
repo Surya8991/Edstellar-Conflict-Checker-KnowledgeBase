@@ -23,6 +23,7 @@ import {
   type SignalInput,
   type TopicKey,
 } from "@/lib/signals";
+import { matchSeries, type Series } from "@/lib/series";
 
 export interface ClusterPage {
   url: string;
@@ -50,6 +51,10 @@ export interface TopicCluster {
   /** Human-readable topic label, e.g. "big data" (seed's distinctive terms). */
   label: string;
   members: ClusterMember[];
+  /** True when this is a programmatic blog SERIES (lib/series.ts) grouped by
+   *  slug template, not by topic-token overlap. Series are always
+   *  "differentiate" and skip the body floor. */
+  isSeries?: boolean;
 }
 
 export interface ClusterResult {
@@ -99,6 +104,13 @@ export interface ClusterOpts {
    * unknown → the body floor is skipped for that pair.
    */
   bodySim?: (seedUrl: string, memberUrl: string) => number | null | undefined;
+  /**
+   * Programmatic blog series (lib/series.SERIES). When provided, pages matching
+   * a series template are pulled OUT of topic clustering and grouped into one
+   * cluster per series (overrides topic membership). Omit to disable (pure
+   * topic clustering - used by the unit tests).
+   */
+  series?: Series[];
 }
 
 const sigInput = (p: ClusterPage): SignalInput => ({ title: p.title, h1: p.h1, url: p.url });
@@ -122,8 +134,20 @@ export function clusterByTopic(
   const keyOf = new Map<string, TopicKey>();
   for (const p of pages) keyOf.set(p.url, topicKey(sigInput(p), dfIndex));
 
+  // Programmatic blog series are pulled OUT of topic clustering and grouped by
+  // their slug template (lib/series.ts) - they fragment under topic overlap.
+  const seriesList = opts.series ?? [];
+  const seriesOf = new Map<string, Series>();
+  if (seriesList.length) {
+    for (const p of pages) {
+      const s = matchSeries(p.url, seriesList);
+      if (s) seriesOf.set(p.url, s);
+    }
+  }
+  const topicPages = seriesOf.size ? pages.filter((p) => !seriesOf.has(p.url)) : pages;
+
   // Deterministic pillar-priority order (hubs first, then URL tiebreak).
-  const ordered = [...pages].sort(
+  const ordered = [...topicPages].sort(
     (a, b) => seedRank(a.type) - seedRank(b.type) || a.url.localeCompare(b.url),
   );
 
@@ -196,6 +220,43 @@ export function clusterByTopic(
       for (const m of s.members) singletons.push(m.url);
     }
   }
+
+  // Series clusters: one per matched series, grouped by slug template. Members
+  // belong by construction (matchSim 1, no body floor); the seed is the
+  // cleanest-URL member (a series has no topic pillar).
+  if (seriesOf.size) {
+    const bySeries = new Map<string, ClusterPage[]>();
+    for (const p of pages) {
+      const s = seriesOf.get(p.url);
+      if (s) (bySeries.get(s.name) ?? bySeries.set(s.name, []).get(s.name)!).push(p);
+    }
+    for (const [name, group] of bySeries) {
+      if (group.length < minSize) {
+        for (const p of group) singletons.push(p.url);
+        continue;
+      }
+      const tokens = seriesList.find((s) => s.name === name)?.tokens ?? [name];
+      const ordered = [...group].sort(
+        (a, b) => a.url.length - b.url.length || a.url.localeCompare(b.url),
+      );
+      const seedUrl = ordered[0].url;
+      clusters.push({
+        seedUrl,
+        label: name,
+        isSeries: true,
+        members: ordered.map((p) => ({
+          url: p.url,
+          title: p.title,
+          type: p.type,
+          sharedTerms: tokens,
+          matchSim: 1,
+          bodySim: null,
+          isSeed: p.url === seedUrl,
+        })),
+      });
+    }
+  }
+
   clusters.sort(
     (a, b) => b.members.length - a.members.length || a.seedUrl.localeCompare(b.seedUrl),
   );

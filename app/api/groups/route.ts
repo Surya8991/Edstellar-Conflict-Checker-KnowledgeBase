@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { neon } from "@neondatabase/serverless";
 import { neonRows } from "@/lib/db";
 import { clusterByTopic, type ClusterPage } from "@/lib/cluster";
+import { SERIES } from "@/lib/series";
 import { classifyIntent, type Intent } from "@/lib/intent";
 import { pageAuthority, pickWinner, groupAction, type AuthorityInput } from "@/lib/resolution";
 import { THRESHOLDS } from "@/lib/thresholds";
@@ -111,15 +112,18 @@ export async function GET(request: NextRequest) {
       tokenCount: r.token_count,
     }));
 
-    // 2. First pass: topic clusters (body floor not yet applied).
-    const pass1 = clusterByTopic(pages, { overlap, minSize: 2 }, t);
+    // 2. First pass: topic clusters + programmatic blog series (body floor not
+    //    yet applied). Series pages are grouped by slug template, not topic.
+    const pass1 = clusterByTopic(pages, { overlap, minSize: 2, series: SERIES }, t);
 
     // 3. Body cosine for every (seed, member) pair — one batched query. Uses the
     //    raw neon client with positional $1::text[] params (drizzle's sql`` would
-    //    mis-expand a JS array — AGENTS.md gotcha).
+    //    mis-expand a JS array — AGENTS.md gotcha). Series clusters are excluded:
+    //    they belong by slug template and never face the body floor.
     const seedUrls: string[] = [];
     const memberUrls: string[] = [];
     for (const c of pass1.clusters) {
+      if (c.isSeries) continue;
       for (const m of c.members) {
         if (m.url === c.seedUrl) continue;
         seedUrls.push(c.seedUrl);
@@ -181,7 +185,10 @@ export async function GET(request: NextRequest) {
           .map((m) => (m.url === c.seedUrl ? null : bodyMap.get(bkey(c.seedUrl, m.url)) ?? null))
           .filter((x): x is number => x != null);
         const maxBodySim = bodySims.length ? Math.max(...bodySims) : 0;
-        const action = groupAction(maxBodySim, intents, t, { seedType, memberTypes });
+        // A programmatic series is always "differentiate" (intentional variants).
+        const action = c.isSeries
+          ? "differentiate"
+          : groupAction(maxBodySim, intents, t, { seedType, memberTypes });
 
         // Winner: for a pillar cluster the pillar (seed) IS the canonical
         // target, so the ★ must be the seed - otherwise "link spokes to the
@@ -218,6 +225,7 @@ export async function GET(request: NextRequest) {
           label: c.label,
           seedUrl: c.seedUrl,
           action,
+          isSeries: !!c.isSeries,
           winnerUrl: winner.url,
           maxBodySim: Number(maxBodySim.toFixed(4)),
           members,

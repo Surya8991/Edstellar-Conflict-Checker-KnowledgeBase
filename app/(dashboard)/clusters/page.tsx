@@ -27,6 +27,8 @@ interface GroupSummary {
   label: string;
   seedUrl: string;
   action: ClusterAction;
+  /** True for a programmatic blog series grouped by slug template. */
+  isSeries?: boolean;
   winnerUrl: string;
   maxBodySim: number;
   members: GroupMember[];
@@ -265,9 +267,17 @@ function ClusterCard({ g, showIntent }: { g: GroupSummary; showIntent: boolean }
         <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${style.cls}`} title={style.hint}>
           {style.label}
         </span>
+        {g.isSeries && (
+          <span
+            className="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700"
+            title="Programmatic blog series grouped by URL template - intentional variants, keep them all"
+          >
+            series
+          </span>
+        )}
         <span
           className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800"
-          title={`Topic: ${g.label} · pillar: ${pathOf(g.seedUrl)}`}
+          title={g.isSeries ? `Series: ${g.label}` : `Topic: ${g.label} · pillar: ${pathOf(g.seedUrl)}`}
         >
           {g.label}
         </span>
@@ -295,7 +305,7 @@ function ClusterCard({ g, showIntent }: { g: GroupSummary; showIntent: boolean }
                 >
                   {m.title || pathOf(m.url)}
                 </a>
-                {m.isSeed && (
+                {m.isSeed && !g.isSeries && (
                   <span className="shrink-0 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-semibold text-purple-700" title="Pillar - the topic hub for this cluster">
                     pillar
                   </span>
@@ -312,7 +322,7 @@ function ClusterCard({ g, showIntent }: { g: GroupSummary; showIntent: boolean }
               </div>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1">
-              {m.isSeed ? (
+              {g.isSeries ? null : m.isSeed ? (
                 <span className="text-xs font-medium text-purple-600">pillar</span>
               ) : (
                 <span

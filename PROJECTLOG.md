@@ -2201,6 +2201,43 @@ Two follow-ups after the UI rework:
 New: `labelFromTerms` + `clusterLabel`; knobs retuned in `lib/thresholds.ts`.
 65/65 tests, verified live (read-only) + browser.
 
+### 17N. Programmatic blog-series grouping (lib/series.ts)
+
+Edstellar publishes template-generated blog families that topic-token clustering
+FRAGMENTS, because it weights each page's distinguishing token (country /
+role-type / industry - unique per page, very high IDF) over the shared series
+token. Measured from the sitemap/`blogs.json` + tested against the live output:
+
+| Series | Blogs | Was (topic clustering) |
+|--------|-------|------------------------|
+| Training Companies | 60 | 14 sub-clusters + 26 loose |
+| Roles & Responsibilities | 48 | 8 sub-clusters (officer/manager/engineer…) |
+| In-Demand Skills | 54 | ~1 (+3 loose) |
+| Games & Exercises | 13 | ~1 |
+| Digital Transformation | 6 | partial |
+| Work Culture | 6 | **0 - all singletons** |
+
+The `category` tag can't group them (each spans up to 6 categories); the
+reliable identifier is the slug TEMPLATE. `lib/series.ts` matches those
+templates (6 patterns covering the 7 named families - "providers" folds into
+Training Companies, "employee activities" into Games & Exercises) against the
+`/blog/<slug>` segment only.
+
+`clusterByTopic` gained an opt-in `series` option: matching pages are pulled OUT
+of topic clustering and grouped into one cluster per series (membership
+OVERRIDES topic - the "big-data-training-companies" blog is a Training Companies
+listicle, so it leaves the big-data pillar). Series clusters skip the body floor
+(membership is deterministic), are always `differentiate` (intentional
+variants - never merge/301 a series), and label = the series name. The route
+passes `SERIES`; the pure unit tests leave it off (topic-only acceptance
+unchanged). The UI shows a `series` badge and hides the per-member match% (it's
+pattern-based, not similarity).
+
+Live result: the 6 series each collapse to ONE cluster (60/54/48/13/6/6);
+overall 1,050 -> **1,093 clustered pages** across 268 clusters, and Work Culture
+went from 6 singletons to a real cluster. `lib/series.ts` + `series.test.ts`
+(70/70 tests), build clean.
+
 ### 17I. Deferred (tracked, not this pass)
 
 - **GSC query-overlap edges - the gold-standard upgrade** (17F #1–2): once
