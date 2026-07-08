@@ -34,26 +34,29 @@ function defaultCustomRange(): { startDate: string; endDate: string } {
   return { startDate: fmt(start), endDate: fmt(end) };
 }
 
+// Ordered most → least actionable. Labels are plain-language; the URL slugs
+// (TAB_SLUGS values) are unchanged so existing links/bookmarks still resolve.
 const TABS = [
   "Overview",
-  "Striking Distance",
-  "CTR Opportunity",
+  "Almost Page 1",
+  "Low CTR",
+  "Content Gaps",
   "Movers",
-  "Untapped",
-  "Catalog Gap",
+  "Lost Clicks",
   "Stale Pages",
   "Index Coverage",
 ] as const;
 type Tab = (typeof TABS)[number];
 
-/** URL slug per tab, so each section is its own addressable page + sidebar link. */
+/** URL slug per tab, so each section is its own addressable page + sidebar link.
+ *  Slugs are STABLE across renames - only the display labels (keys) change. */
 export const TAB_SLUGS: Record<Tab, string> = {
   Overview: "overview",
-  "Striking Distance": "striking-distance",
-  "CTR Opportunity": "ctr-opportunity",
+  "Almost Page 1": "striking-distance",
+  "Low CTR": "ctr-opportunity",
+  "Content Gaps": "catalog-gap",
   Movers: "movers",
-  Untapped: "untapped",
-  "Catalog Gap": "catalog-gap",
+  "Lost Clicks": "untapped",
   "Stale Pages": "stale-pages",
   "Index Coverage": "index-coverage",
 };
@@ -199,7 +202,7 @@ function SearchConsoleInner() {
     <div>
       <PageHeader
         title="Search Console"
-        subtitle="GSC performance, striking-distance, movers, untapped queries & a semantic catalog gap. (Cannibalization has its own tool - see Keyword Cannibalization.)"
+        subtitle="GSC performance - almost-page-1 wins, low-CTR fixes, content gaps, movers, lost clicks & stale pages. (Cannibalization has its own tool - see Keyword Cannibalization.)"
         right={
           <a
             href="/api/gsc/auth"
@@ -360,11 +363,11 @@ function SearchConsoleInner() {
         )}
 
         {data && tab === "Overview" && <OverviewTab data={data} range={range} />}
-        {data && tab === "Striking Distance" && <StrikingTab data={data} />}
-        {data && tab === "CTR Opportunity" && <CtrOppTab data={data} />}
+        {data && tab === "Almost Page 1" && <StrikingTab data={data} />}
+        {data && tab === "Low CTR" && <CtrOppTab data={data} />}
+        {tab === "Content Gaps" && <GapTab range={range} customDates={customDates} />}
         {data && tab === "Movers" && <MoversTab data={data} />}
-        {data && tab === "Untapped" && <UntappedTab data={data} />}
-        {tab === "Catalog Gap" && <GapTab range={range} customDates={customDates} />}
+        {data && tab === "Lost Clicks" && <UntappedTab data={data} />}
         {data && tab === "Stale Pages" && <StaleTab data={data} range={range} />}
         {tab === "Index Coverage" && <IndexCoverageTab />}
       </div>
@@ -569,8 +572,8 @@ function StrikingTab({ data }: { data: Insights }) {
     <Card>
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-slate-900">Striking distance</h3>
-          <p className="text-xs text-slate-500">Queries on page 1–2 (position 8–20). Small content/internal-link improvements can pull these into the top 3.</p>
+          <h3 className="text-sm font-semibold text-slate-900">Almost Page 1</h3>
+          <p className="text-xs text-slate-500">Queries on page 1–2 (position 8–20 - &ldquo;striking distance&rdquo;). Small content/internal-link improvements can pull these into the top 3.</p>
         </div>
         <ExportBtn
           onClick={() =>
@@ -619,7 +622,7 @@ function CtrOppTab({ data }: { data: Insights }) {
     <Card>
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-slate-900">CTR opportunity</h3>
+          <h3 className="text-sm font-semibold text-slate-900">Low CTR</h3>
           <p className="text-xs text-slate-500">Queries already on page 1 with sub-curve click-through. Title / meta rewrites here move the needle without touching rankings.</p>
         </div>
         <ExportBtn
@@ -689,7 +692,7 @@ function UntappedTab({ data }: { data: Insights }) {
     <Card>
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-slate-900">Untapped queries</h3>
+          <h3 className="text-sm font-semibold text-slate-900">Lost Clicks</h3>
           <p className="text-xs text-slate-500">High impressions, CTR below what's expected for that position - usually a meta-title / snippet issue.</p>
         </div>
         <ExportBtn
@@ -757,7 +760,7 @@ function GapTab({ range, customDates }: { range: string; customDates: { startDat
     <Card>
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-slate-900">Catalog gap (semantic)</h3>
+          <h3 className="text-sm font-semibold text-slate-900">Content Gaps (semantic)</h3>
           <p className="text-xs text-slate-500">
             Queries you rank for that have <strong>no semantically-close corpus page</strong> (cosine match, not just word overlap) - the best candidates for new dedicated content. &ldquo;Best match&rdquo; is the nearest page&apos;s similarity.
           </p>

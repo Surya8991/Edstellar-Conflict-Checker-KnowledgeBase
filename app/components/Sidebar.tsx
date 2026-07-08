@@ -41,15 +41,17 @@ const NAV: { href: string; label: string; icon: any }[] = [
 ];
 
 /** GSC report sections - each is its own addressable page under /search-console. */
+// Ordered most → least actionable (matches the section tab order). Labels are
+// plain-language; slugs are stable so links don't break.
 const SEARCH_CONSOLE_SECTIONS = [
-  { slug: "overview",         label: "Overview" },
-  { slug: "striking-distance", label: "Striking Distance" },
-  { slug: "ctr-opportunity",  label: "CTR Opportunity" },
-  { slug: "movers",           label: "Movers" },
-  { slug: "untapped",         label: "Untapped" },
-  { slug: "catalog-gap",      label: "Catalog Gap" },
-  { slug: "stale-pages",      label: "Stale Pages" },
-  { slug: "index-coverage",   label: "Index Coverage" },
+  { slug: "overview",          label: "Overview" },
+  { slug: "striking-distance", label: "Almost Page 1" },
+  { slug: "ctr-opportunity",   label: "Low CTR" },
+  { slug: "catalog-gap",       label: "Content Gaps" },
+  { slug: "movers",            label: "Movers" },
+  { slug: "untapped",          label: "Lost Clicks" },
+  { slug: "stale-pages",       label: "Stale Pages" },
+  { slug: "index-coverage",    label: "Index Coverage" },
 ];
 
 const ADDITIONAL_NAV: { href: string; label: string; icon: any }[] = [

@@ -3533,3 +3533,18 @@ with real gaps, and the Search Console tab bar no longer shows Cannibalization.
 Next GSC upgrades still open (not built): a per-query history table to give
 Movers / Striking Distance / CTR real trend, and making CTR Opportunity
 actionable via the rewrite route.
+
+## 26. Session 21 - GSC sub-tabs renamed (plain-language) + reordered by importance (2026-07-08)
+
+Renamed the Search Console section tabs to plain-language labels and reordered
+them most → least actionable: Overview · **Almost Page 1** (was Striking
+Distance) · **Low CTR** (was CTR Opportunity) · **Content Gaps** (was Catalog
+Gap) · Movers · **Lost Clicks** (was Untapped) · Stale Pages · Index Coverage.
+The **URL slugs are unchanged** (`striking-distance`, `ctr-opportunity`,
+`catalog-gap`, `untapped`, …) so existing links/bookmarks and the sidebar sub-nav
+still resolve - only the display labels + order changed. Updated in lock-step:
+`TABS`/`TAB_SLUGS` + the tab dispatch + each card's `<h3>` heading in
+`app/(dashboard)/search-console/page.tsx`, the `SEARCH_CONSOLE_SECTIONS` list in
+`Sidebar.tsx`, and the README section list. Typecheck clean; live-verified the
+tab bar + sidebar render the new labels in the new order and the (renamed)
+Content Gaps tab still resolves from the `catalog-gap` slug.
