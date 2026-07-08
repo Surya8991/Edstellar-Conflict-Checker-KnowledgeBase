@@ -3580,3 +3580,29 @@ deterministic fallback on 429/kill-switch. Typecheck clean; assistant matcher
 tests pass. (Live UI re-verification was hampered by an unstable local dev server
 - constant Fast Refresh + slow compiles - so the fix was verified via the API
 round-trip + typecheck; the assistant itself was screenshot-verified working in §18O.)
+
+## 28. Session 21 - Cannibalization: resolved conflicts sink; note-save bug fixed (2026-07-08)
+
+Two fixes on the Keyword Cannibalization page + a project sweep for the same bug.
+
+**Resolved conflicts sink to the bottom.** `completed` and `ignored` conflicts now
+sort to the end of the list regardless of the chosen sort (severity/gap/clicks/…),
+so the actionable ones stay on top. Implemented in the `filtered` memo: after the
+normal `sortGroups`, a stable `Array.sort` partitions done-statuses last (skipped
+when a Status filter is active, since the list is then uniform). Live-verified:
+marking a top conflict "completed" dropped it off page 1.
+
+**Note-save bug (fetch inside a setState updater).** `saveAnno` fired the persist
+`fetch` INSIDE the `setAnnos((prev) => …)` updater. A React state updater must be
+pure - under React 18 concurrent/strict rendering it can run twice or be
+discarded, so the save could be dropped or duplicated ("save comment, it doesn't
+come"). Reworked to match `bulkSetStatus` (which was already correct): merge
+against the current annos, `setAnnos` with the result, then `fetch` OUTSIDE the
+updater. Added a "Saved ✓" confirmation + reset-on-edit so the user gets clear
+feedback. Live-verified: note saves, shows "Saved ✓", and round-trips through the
+DB (`GET /api/cannibalization/annotation` returns it).
+
+**Project sweep.** Grepped every dashboard page for the same anti-pattern - a
+side effect (`fetch`/`localStorage`/`router`/`toast`) inside a `setState` updater,
+before its `return`. `saveAnno` was the only instance; nothing else to fix.
+Typecheck clean.

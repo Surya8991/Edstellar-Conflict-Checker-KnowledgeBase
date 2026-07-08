@@ -220,20 +220,28 @@ function Inner() {
   // Per-conflict status + notes, keyed by query. Loaded once, updated optimistically.
   const [annos, setAnnos] = useState<Record<string, Anno>>({});
   const statusOf = useCallback((g: CGroup): ConflictStatus => annos[g.query]?.status ?? "pending", [annos]);
-  const saveAnno = useCallback((query: string, patch: Partial<Anno>) => {
-    setAnnos((prev) => {
-      const cur = prev[query] ?? { status: "pending" as ConflictStatus, note: "" };
+  const saveAnno = useCallback(
+    (query: string, patch: Partial<Anno>) => {
+      // Merge against the CURRENT annos (fresh via the dep), then persist. The
+      // fetch runs OUTSIDE the state updater - firing a side effect inside an
+      // updater is impure and, under React 18 concurrent/strict rendering, can
+      // run twice or be discarded, which was dropping saved notes (matches the
+      // bulkSetStatus pattern, which was already correct). §28.
+      const cur = annos[query] ?? { status: "pending" as ConflictStatus, note: "" };
       const next: Anno = { ...cur, ...patch };
+      setAnnos((prev) => ({ ...prev, [query]: next }));
       fetch("/api/cannibalization/annotation", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ query, status: next.status, note: next.note }),
       })
-        .then((r) => { if (!r.ok) throw new Error(); })
+        .then((r) => {
+          if (!r.ok) throw new Error();
+        })
         .catch(() => toast.error("Couldn't save that status/note - try again."));
-      return { ...prev, [query]: next };
-    });
-  }, []);
+    },
+    [annos],
+  );
   // Bulk selection + status change.
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const toggleSelect = useCallback((query: string) => {
@@ -403,22 +411,29 @@ function Inner() {
     return c;
   }, [rows, matchesSearch, withinGap, sevFilter, actionFilter, typeFilter, statusOf]);
 
-  const filtered = useMemo(
-    () =>
-      sortGroups(
-        rows.filter(
-          (g) =>
-            matchesSearch(g) &&
-            withinGap(g) &&
-            (!sevFilter || g.severity === sevFilter) &&
-            (!actionFilter || g.action === actionFilter) &&
-            (!typeFilter || hasType(g, typeFilter)) &&
-            (!statusFilter || statusOf(g) === statusFilter),
-        ),
-        sortBy,
+  const filtered = useMemo(() => {
+    const base = sortGroups(
+      rows.filter(
+        (g) =>
+          matchesSearch(g) &&
+          withinGap(g) &&
+          (!sevFilter || g.severity === sevFilter) &&
+          (!actionFilter || g.action === actionFilter) &&
+          (!typeFilter || hasType(g, typeFilter)) &&
+          (!statusFilter || statusOf(g) === statusFilter),
       ),
-    [rows, matchesSearch, withinGap, sevFilter, actionFilter, typeFilter, statusFilter, statusOf, sortBy],
-  );
+      sortBy,
+    );
+    // Resolved conflicts (completed / ignored) sink to the bottom regardless of
+    // the chosen sort - Array.sort is stable, so order WITHIN each partition is
+    // preserved. Skipped when a Status filter is active (the list is uniform).
+    if (statusFilter) return base;
+    const done = (g: CGroup) => {
+      const s = statusOf(g);
+      return s === "completed" || s === "ignored" ? 1 : 0;
+    };
+    return base.slice().sort((a, b) => done(a) - done(b));
+  }, [rows, matchesSearch, withinGap, sevFilter, actionFilter, typeFilter, statusFilter, statusOf, sortBy]);
   const mergeFiltered = useMemo(() => {
     const s = search.trim().toLowerCase();
     if (!s) return merge;
@@ -747,6 +762,7 @@ function ConflictCard({
   const savedNote = anno?.note ?? "";
   const [noteOpen, setNoteOpen] = useState(false);
   const [draft, setDraft] = useState(savedNote);
+  const [justSaved, setJustSaved] = useState(false);
   // Re-sync the draft if the saved note changes underneath us (e.g. initial load).
   useEffect(() => setDraft(savedNote), [savedNote]);
   const dirty = draft !== savedNote;
@@ -871,7 +887,10 @@ function ConflictCard({
         <div className="mt-2">
           <textarea
             value={draft}
-            onChange={(e) => setDraft(e.target.value.slice(0, NOTE_MAX))}
+            onChange={(e) => {
+              setDraft(e.target.value.slice(0, NOTE_MAX));
+              setJustSaved(false);
+            }}
             maxLength={NOTE_MAX}
             rows={3}
             placeholder="Add a note for this conflict (max 300 characters)…"
@@ -881,13 +900,19 @@ function ConflictCard({
             <span className="tabular-nums">
               {draft.length}/{NOTE_MAX}
             </span>
-            <button
-              disabled={!dirty}
-              onClick={() => onSave(g.query, { note: draft })}
-              className="rounded-md bg-slate-900 px-2.5 py-1 text-[11px] font-medium text-white transition hover:bg-slate-800 disabled:opacity-40"
-            >
-              Save note
-            </button>
+            <div className="flex items-center gap-2">
+              {justSaved && !dirty && <span className="font-medium text-emerald-600">Saved ✓</span>}
+              <button
+                disabled={!dirty}
+                onClick={() => {
+                  onSave(g.query, { note: draft });
+                  setJustSaved(true);
+                }}
+                className="rounded-md bg-slate-900 px-2.5 py-1 text-[11px] font-medium text-white transition hover:bg-slate-800 disabled:opacity-40"
+              >
+                Save note
+              </button>
+            </div>
           </div>
         </div>
       )}
