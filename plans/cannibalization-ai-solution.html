@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keyword Cannibalization AI: Solution Plan</title>
+<style>
+  :root {
+    --bg: #F6F7FB;
+    --surface: #FFFFFF;
+    --ink: #1B2130;
+    --muted: #59627A;
+    --faint: #8992A6;
+    --line: #E6E9F1;
+    --accent: #4F46E5;
+    --accent-soft: #EDEEFE;
+    --consolidate: #4F46E5;  --consolidate-soft: #EDEEFE;
+    --differentiate: #B45309; --differentiate-soft: #FBF1E4;
+    --monitor: #475569;       --monitor-soft: #EDF0F5;
+    --good: #0F8A5F;
+    --radius: 14px;
+    --measure: 68ch;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --serif: Georgia, "Times New Roman", serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10131A;
+      --surface: #191D27;
+      --ink: #E9ECF3;
+      --muted: #99A1B3;
+      --faint: #6B7385;
+      --line: #272B37;
+      --accent: #8E8AF6;
+      --accent-soft: #23243B;
+      --consolidate: #A6A1FF;  --consolidate-soft: #23243B;
+      --differentiate: #E0A45E; --differentiate-soft: #2C2417;
+      --monitor: #9AA6BC;       --monitor-soft: #20242F;
+      --good: #38C08A;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10131A; --surface: #191D27; --ink: #E9ECF3; --muted: #99A1B3;
+    --faint: #6B7385; --line: #272B37; --accent: #8E8AF6; --accent-soft: #23243B;
+    --consolidate: #A6A1FF; --consolidate-soft: #23243B;
+    --differentiate: #E0A45E; --differentiate-soft: #2C2417;
+    --monitor: #9AA6BC; --monitor-soft: #20242F; --good: #38C08A;
+  }
+  :root[data-theme="light"] {
+    --bg: #F6F7FB; --surface: #FFFFFF; --ink: #1B2130; --muted: #59627A;
+    --faint: #8992A6; --line: #E6E9F1; --accent: #4F46E5; --accent-soft: #EDEEFE;
+    --consolidate: #4F46E5; --consolidate-soft: #EDEEFE;
+    --differentiate: #B45309; --differentiate-soft: #FBF1E4;
+    --monitor: #475569; --monitor-soft: #EDF0F5; --good: #0F8A5F;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  .wrap {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    padding: clamp(20px, 5vw, 60px) 20px 72px;
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
+  }
+  .page { width: 100%; max-width: 860px; display: flex; flex-direction: column; gap: 40px; }
+  p { margin: 0; max-width: var(--measure); }
+  h1, h2, h3 { margin: 0; text-wrap: balance; letter-spacing: -0.015em; }
+
+  .eyebrow {
+    font-size: 0.72rem; font-weight: 650; text-transform: uppercase;
+    letter-spacing: 0.14em; color: var(--accent);
+  }
+  .lede h1 { font-size: clamp(1.85rem, 4.4vw, 2.7rem); font-weight: 720; line-height: 1.1; margin-top: 12px; }
+  .lede .sub { font-size: clamp(1.02rem, 2.2vw, 1.18rem); color: var(--muted); margin-top: 14px; }
+  .tag {
+    display: inline-flex; align-items: center; gap: 8px; margin-top: 20px;
+    font-size: 0.8rem; color: var(--muted);
+    background: var(--surface); border: 1px solid var(--line);
+    padding: 6px 12px; border-radius: 999px;
+  }
+  .tag .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--good); }
+
+  .callout {
+    background: var(--surface); border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 10px; padding: 18px 20px;
+  }
+  .callout strong { color: var(--ink); }
+
+  .section-label {
+    font-size: 0.72rem; font-weight: 650; text-transform: uppercase;
+    letter-spacing: 0.12em; color: var(--faint); margin-bottom: 16px;
+  }
+  h2 { font-size: clamp(1.25rem, 3vw, 1.5rem); font-weight: 680; }
+  .section > p { color: var(--muted); margin-top: 8px; }
+
+  .flow { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: 12px; margin-top: 22px; }
+  .step {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px 15px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .step .n {
+    width: 26px; height: 26px; border-radius: 8px;
+    background: var(--accent-soft); color: var(--accent);
+    display: grid; place-items: center; font-weight: 700; font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .step h3 { font-size: 0.98rem; font-weight: 650; }
+  .step p { font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
+  .step.done .n { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
+  .step .now { font-size: 0.68rem; font-weight: 650; text-transform: uppercase; letter-spacing: 0.08em; color: var(--good); }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; margin-top: 22px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column;
+  }
+  .card .top { height: 4px; }
+  .card .body { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .card .kind { font-size: 0.72rem; font-weight: 650; text-transform: uppercase; letter-spacing: 0.1em; }
+  .card h3 { font-size: 1.08rem; font-weight: 680; }
+  .card .when { font-size: 0.86rem; color: var(--muted); }
+  .card ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+  .card li { font-size: 0.9rem; color: var(--ink); }
+  .card .eg { font-family: var(--serif); font-style: italic; font-size: 0.9rem; color: var(--muted);
+    border-top: 1px solid var(--line); padding-top: 12px; margin-top: 2px; }
+
+  .c-consolidate .top { background: var(--consolidate); } .c-consolidate .kind { color: var(--consolidate); }
+  .c-differentiate .top { background: var(--differentiate); } .c-differentiate .kind { color: var(--differentiate); }
+  .c-monitor .top { background: var(--monitor); } .c-monitor .kind { color: var(--monitor); }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 22px; }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 22px; }
+  .panel h3 { font-size: 1rem; font-weight: 660; margin-bottom: 12px; }
+  .list { display: flex; flex-direction: column; gap: 11px; }
+  .list .row { display: flex; gap: 11px; font-size: 0.92rem; line-height: 1.45; }
+  .list .mk { flex: none; margin-top: 1px; color: var(--accent); font-weight: 700; }
+  .list.guard .mk { color: var(--good); }
+
+  .phases { display: flex; flex-direction: column; gap: 10px; margin-top: 22px; }
+  .phase {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 16px 20px; display: grid; grid-template-columns: auto 1fr auto; gap: 16px; align-items: center;
+  }
+  .phase .pn { font-variant-numeric: tabular-nums; font-weight: 720; font-size: 1.05rem; color: var(--faint); }
+  .phase .pt { font-weight: 620; font-size: 0.98rem; }
+  .phase .pd { color: var(--muted); font-size: 0.88rem; margin-top: 3px; }
+  .phase .pill { font-size: 0.7rem; font-weight: 650; text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+  .phase.now { border-color: color-mix(in srgb, var(--good) 45%, var(--line)); }
+  .phase.now .pn { color: var(--good); }
+  .phase.now .pill { color: var(--good); background: color-mix(in srgb, var(--good) 14%, transparent); }
+  .phase .pill.later { color: var(--faint); background: var(--bg); border: 1px solid var(--line); }
+
+  footer { border-top: 1px solid var(--line); padding-top: 22px; color: var(--muted); font-size: 0.9rem; }
+  footer b { color: var(--ink); font-weight: 640; }
+
+  @media (max-width: 560px) {
+    .split { grid-template-columns: 1fr; }
+    .phase { grid-template-columns: auto 1fr; }
+    .phase .pill { grid-column: 2; justify-self: start; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="page">
+
+    <header class="lede">
+      <div class="eyebrow">Keyword Cannibalization &middot; Plan</div>
+      <h1>How the AI turns each cannibalization conflict into a ready-to-apply fix</h1>
+      <p class="sub">The tool already finds the URLs competing for the same search query. This plan covers the next step: the AI recommending the actual fix, with the on-page SEO changes written out for you to approve.</p>
+      <span class="tag"><span class="dot"></span> Plan only. Nothing is built or changed yet.</span>
+    </header>
+
+    <div class="callout">
+      <p><strong>The problem, in one line:</strong> when two or more Edstellar URLs target the same keyword, Google splits ranking signals between them. That is keyword cannibalization, and it makes your own pages compete with each other, so both rank lower than one strong page would.</p>
+    </div>
+
+    <section class="section">
+      <div class="section-label">The idea in five simple steps</div>
+      <h2>From "here is a problem" to "here is the fix"</h2>
+      <p>Every conflict runs through the same path. The AI does the thinking in the middle. A person always has the final say.</p>
+      <div class="flow">
+        <div class="step done">
+          <div class="n">1</div>
+          <h3>Detect</h3>
+          <p>The tool lists each conflict: the competing URLs, the severity, the average position, and the clicks and impressions at risk.</p>
+          <span class="now">Already built</span>
+        </div>
+        <div class="step">
+          <div class="n">2</div>
+          <h3>Diagnose</h3>
+          <p>The AI reviews the competing URLs and their search intent, then picks the page that should rank (the primary) and explains why.</p>
+        </div>
+        <div class="step">
+          <div class="n">3</div>
+          <h3>Prescribe</h3>
+          <p>The AI writes the fix: the recommended action plus ready-to-use on-page content.</p>
+        </div>
+        <div class="step">
+          <div class="n">4</div>
+          <h3>Review</h3>
+          <p>A person checks it, edits if needed, and approves. Nothing goes live on its own.</p>
+        </div>
+        <div class="step">
+          <div class="n">5</div>
+          <h3>Verify</h3>
+          <p>After you apply the change, the AI tracks rankings and clicks and tells you whether the cannibalization cleared.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-label">Step 3, up close</div>
+      <h2>The three fixes the AI will propose</h2>
+      <p>Every conflict fits one of three shapes. For each one, the AI hands you something you can act on straight away.</p>
+      <div class="cards">
+
+        <div class="card c-consolidate">
+          <div class="top"></div>
+          <div class="body">
+            <div class="kind">Consolidate</div>
+            <h3>Merge and 301 redirect</h3>
+            <p class="when">When the URLs are near-duplicates targeting the same query with the same intent.</p>
+            <ul>
+              <li>Picks the primary URL to keep</li>
+              <li>Lists the losing URLs to 301 redirect into it</li>
+              <li>Drafts a merged content outline that pulls the best sections from the pages being retired</li>
+            </ul>
+            <p class="eg">Example: keep the strongest "corporate training companies" page, then 301 redirect the two weaker URLs into it.</p>
+          </div>
+        </div>
+
+        <div class="card c-differentiate">
+          <div class="top"></div>
+          <div class="body">
+            <div class="kind">Differentiate</div>
+            <h3>Give each a distinct target keyword</h3>
+            <p class="when">When the pages overlap but both add value and should both stay live.</p>
+            <ul>
+              <li>Assigns a distinct target keyword to each page</li>
+              <li>Rewrites the meta title and H1 so they stop overlapping</li>
+              <li>Names the search intent each page should own</li>
+            </ul>
+            <p class="eg">Example: one page targets "for startups" and the other targets "for enterprises", so they no longer compete for the same query.</p>
+          </div>
+        </div>
+
+        <div class="card c-monitor">
+          <div class="top"></div>
+          <div class="body">
+            <div class="kind">Monitor and protect</div>
+            <h3>Nudge, do not merge</h3>
+            <p class="when">When different content types clash, for example a blog outranking a course page.</p>
+            <ul>
+              <li>Suggests internal links with keyword-rich anchor text pointing to the page that should rank</li>
+              <li>Recommends de-optimizing the off-target page for that keyword</li>
+              <li>Never 301 redirects across different search intents</li>
+            </ul>
+            <p class="eg">Example: link the popular blog to the course page so buyers land on the page that converts.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-label">What you get</div>
+      <h2>What the AI hands you, and what stays your call</h2>
+      <div class="split">
+        <div class="panel">
+          <h3>Delivered per conflict</h3>
+          <div class="list">
+            <div class="row"><span class="mk">&rsaquo;</span><span>A recommended action (consolidate, differentiate, or monitor), in plain English</span></div>
+            <div class="row"><span class="mk">&rsaquo;</span><span>Ready-to-paste meta titles and meta descriptions</span></div>
+            <div class="row"><span class="mk">&rsaquo;</span><span>A 301 redirect map from each losing URL to the primary URL</span></div>
+            <div class="row"><span class="mk">&rsaquo;</span><span>A merged content outline and brief</span></div>
+            <div class="row"><span class="mk">&rsaquo;</span><span>Internal linking suggestions with anchor text</span></div>
+            <div class="row"><span class="mk">&rsaquo;</span><span>A short reason plus the Search Console numbers behind it</span></div>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>Stays human: the guardrails</h3>
+          <div class="list guard">
+            <div class="row"><span class="mk">&check;</span><span>The AI proposes; people approve. No auto-publishing and no auto-redirects.</span></div>
+            <div class="row"><span class="mk">&check;</span><span>Every suggestion shows its reasoning and the data it used.</span></div>
+            <div class="row"><span class="mk">&check;</span><span>You can edit any suggestion before it is applied.</span></div>
+            <div class="row"><span class="mk">&check;</span><span>Your status tracking (pending, in progress, completed) works exactly as it does now.</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-label">Rollout</div>
+      <h2>How we will build it, in steps</h2>
+      <p>Each phase is useful on its own, so you see value early and nothing is a big-bang change.</p>
+      <div class="phases">
+        <div class="phase now">
+          <div class="pn">1</div>
+          <div>
+            <div class="pt">Explain and recommend</div>
+            <div class="pd">The assistant already explains conflicts. Extend it so every conflict gets a clear recommended action.</div>
+          </div>
+          <span class="pill">Closest to done</span>
+        </div>
+        <div class="phase">
+          <div class="pn">2</div>
+          <div>
+            <div class="pt">Draft the fix</div>
+            <div class="pd">One click per conflict produces the real assets: meta titles, the 301 redirect map, and the merge outline.</div>
+          </div>
+          <span class="pill later">Next</span>
+        </div>
+        <div class="phase">
+          <div class="pn">3</div>
+          <div>
+            <div class="pt">Review and export</div>
+            <div class="pd">One place to review, edit, approve, and export the fixes, for example a 301 redirect list your developer can apply.</div>
+          </div>
+          <span class="pill later">Then</span>
+        </div>
+        <div class="phase">
+          <div class="pn">4</div>
+          <div>
+            <div class="pt">Confirm it worked</div>
+            <div class="pd">After the changes go live, the AI tracks the trend and flags whether a conflict cleared or came back.</div>
+          </div>
+          <span class="pill later">Later</span>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <p><b>Where the AI gets its answers.</b> It uses only your own Google Search Console data (clicks, impressions, average position, and search queries) and your existing Edstellar pages. No outside scraping and no guessing. It never invents a page or a number, and commercial or "money page" wording is never shown to users. If it is not sure, it says so.</p>
+    </footer>
+
+  </div>
+</div>
+</body>
+</html>
