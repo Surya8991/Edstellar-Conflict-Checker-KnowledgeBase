@@ -18,7 +18,13 @@ interface Exclusion {
 /** Editable fields for a PATCH; patterns as a comma string or array. */
 type PatchBody = { name?: string; enabled?: boolean; patterns?: string | string[]; type?: ExType };
 
-interface MatchedUrl { url: string; title: string | null; content_type: string | null }
+interface MatchedUrl {
+  url: string;
+  title: string | null;
+  content_type: string | null;
+  reason: string;
+  excluded_at: string | null;
+}
 
 export default function SettingsPage() {
   const [items, setItems] = useState<Exclusion[] | null>(null);
@@ -485,16 +491,23 @@ export default function SettingsPage() {
         <Card>
           <h3 className="text-sm font-semibold text-slate-900">Currently excluded URLs</h3>
           <p className="mt-1 text-xs text-slate-500">
-            The {matchTotal.toLocaleString()} corpus page{matchTotal === 1 ? "" : "s"} the URL patterns above match right now.
+            The {matchTotal.toLocaleString()} corpus page{matchTotal === 1 ? "" : "s"} the URL patterns above match right now,
+            newest exclusion first. Each row shows which pattern excluded it and when.
           </p>
           <ul className="mt-3 divide-y divide-slate-50">
             {matches.length === 0 && <li className="py-3 text-sm text-slate-400">No pages match the current URL patterns.</li>}
             {matches.map((m) => (
-              <li key={m.url} className="flex items-center gap-2 py-1.5 text-sm">
+              <li key={m.url} className="flex items-center gap-2 py-2 text-sm">
                 {m.content_type && <TypeChip type={m.content_type} size="xs" />}
-                <a href={m.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate font-medium text-slate-700 hover:underline" title={m.title || m.url}>
-                  {m.url}
-                </a>
+                <div className="min-w-0 flex-1">
+                  <a href={m.url} target="_blank" rel="noreferrer" className="block truncate font-medium text-slate-700 hover:underline" title={m.title || m.url}>
+                    {m.url}
+                  </a>
+                  <div className="mt-0.5 truncate text-[11px] text-slate-400">
+                    Excluded by <span className="font-medium text-slate-500">{m.reason}</span>
+                    {m.excluded_at && <> · {new Date(m.excluded_at).toLocaleString()}</>}
+                  </div>
+                </div>
                 <button
                   onClick={() => addException(m.url)}
                   className="shrink-0 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-500 hover:border-rose-300 hover:text-rose-600"

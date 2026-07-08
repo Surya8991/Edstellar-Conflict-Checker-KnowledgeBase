@@ -357,7 +357,7 @@ export const HELP: Record<string, HelpEntry> = {
       "Search Console data / Keyword Cannibalization data / Link Audit: each card shows when it last ran and has a 'Run now' / 'Rescan now' button. All three also run automatically on a schedule, so manual runs are for 'I need this updated right now', not routine upkeep.",
       "Sitemap sync: check first to see how many live sitemap URLs are missing from the Database, then sync to add them.",
       "Exclusion lists: add a name + one or more patterns (a slug substring or a full URL for the URL list; a keyword substring for the query list), pick the type, Save. Toggle a row's checkbox to enable/disable it without deleting it, or edit its patterns inline.",
-      "'Currently excluded URLs' shows exactly which live pages the URL patterns match right now - use 'Remove' on any of them to re-include just that one page (it moves to 'Manually re-included pages' below, and stays re-included even if it still matches a pattern).",
+      "'Currently excluded URLs' shows exactly which live pages the URL patterns match right now, newest exclusion first - each row names which pattern excluded it and when. Use 'Remove' on any of them to re-include just that one page (it moves to 'Manually re-included pages' below, and stays re-included even if it still matches a pattern).",
     ],
     readingIt: [
       "URL-type patterns hide matching pages from Content Clusters + Conflict Checker matches ONLY - the page still appears in the Edstellar Database and in Search Console.",
