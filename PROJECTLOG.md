@@ -3607,6 +3607,29 @@ side effect (`fetch`/`localStorage`/`router`/`toast`) inside a `setState` update
 before its `return`. `saveAnno` was the only instance; nothing else to fix.
 Typecheck clean.
 
+## 35. Edstellar Database: single Primary Keyword + metrics, Compact rows toggle (2026-07-08)
+
+**Primary Keyword → 1, with last-month metrics.** The column now shows the ONE
+top GSC query (by clicks) instead of five, plus that keyword's **last full month**
+clicks / impressions / position. No new fetch: `gsc_metrics` 'q' rows are already
+scoped to the last full month (`TOPQ_MONTHS = 1` in `lib/gsc-metrics.ts`), and
+`fetchGscForUrls` returns them clicks-desc with branded/excluded terms stripped -
+so `topQueries[0]` is exactly the primary keyword. `/api/pages` now returns
+`primary_keyword: { query, clicks, impressions, position } | null` (was a
+`primary_keywords: string[]`). Header + column label are singular.
+
+**Compact rows toggle.** A "Compact rows" button (default ON, persisted to
+`corpus.compactRows.v1`) clamps long cells - Description and Title - to a single
+truncated line (full text on hover via `title`), so the table reads clean and
+uniform. Off = full wrap. H1 was already single-line. Purely presentational;
+`useState(true)` matches SSR so no hydration cost.
+
+Live-verified: API returns the singular shape with real last-month metrics; the
+column renders "keyword / N clicks · M impr · pos P"; toggling Compact clamps
+Description+Title and persists. (A hydration warning seen during testing was from
+`data-*` attributes injected by the test harness before React hydrated, not the
+feature.)
+
 ## 34. Rename the Edstellar Database route: /corpus → /edstellar-database (2026-07-08)
 
 The page was titled "Edstellar Database" but lived at `/corpus`; the slug now

@@ -90,13 +90,17 @@ export async function GET(request: NextRequest) {
 
     const data = rowsOf<Record<string, unknown>>(rows);
 
-    // Primary keywords per page: top-5 GSC queries (clicks desc), branded/excluded
-    // terms already stripped by fetchGscForUrls. One batched read for this page.
+    // Primary keyword per page: the #1 GSC query by clicks over the LAST FULL
+    // MONTH (gsc_metrics 'q' rows use TOPQ_MONTHS=1), branded/excluded terms
+    // already stripped by fetchGscForUrls. One batched read for this page. The
+    // query row carries its own last-month clicks / impressions / position.
     const urls = data.map((r) => String(r.url));
     const gsc = await fetchGscForUrls(urls);
     for (const r of data) {
-      const g = gsc.get(String(r.url));
-      r.primary_keywords = g ? g.topQueries.map((q) => q.query) : [];
+      const top = gsc.get(String(r.url))?.topQueries[0];
+      r.primary_keyword = top
+        ? { query: top.query, clicks: top.clicks, impressions: top.impressions, position: top.position }
+        : null;
     }
 
     const total = rowsOf<{ total: number }>(totalRows)[0]?.total ?? 0;

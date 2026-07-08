@@ -27,8 +27,9 @@ interface PageRow {
   images_no_alt: number | null;
   is_stale: boolean | null;
   stale_reason: string | null;
-  // Top-5 GSC queries for the page (branded/excluded terms already stripped).
-  primary_keywords: string[] | null;
+  // #1 GSC query for the page over the last full month (branded/excluded stripped),
+  // with that keyword's last-month clicks / impressions / position.
+  primary_keyword: { query: string; clicks: number; impressions: number; position: number } | null;
 }
 
 // Toggleable table columns (§33). Title is the row identity and always shown.
@@ -37,7 +38,7 @@ const COLUMNS = [
   { key: "h1", label: "H1" },
   { key: "description", label: "Description" },
   { key: "type", label: "Type" },
-  { key: "keywords", label: "Primary Keywords" },
+  { key: "keywords", label: "Primary Keyword" },
   { key: "category", label: "Category", defaultHidden: true },
   { key: "signals", label: "Signals", defaultHidden: true },
 ] as const;
@@ -46,6 +47,7 @@ const DEFAULT_VISIBLE: Record<ColKey, boolean> = {
   h1: true, description: true, type: true, keywords: true, category: false, signals: false,
 };
 const COLS_STORAGE_KEY = "corpus.visibleCols.v1";
+const COMPACT_STORAGE_KEY = "corpus.compactRows.v1";
 
 interface ByType { content_type: string; n: number }
 interface ByCourseType { course_type: string; n: number }
@@ -101,6 +103,28 @@ export default function CorpusPage() {
     });
   // 1 (Title, always) + the visible optional columns - used for empty/error colSpan.
   const colSpan = 1 + COLUMNS.filter((c) => visibleCols[c.key]).length;
+
+  // Compact rows (§35): clamp long cells (Description, Title) to one line so the
+  // table reads clean. Default ON; toggle persisted.
+  const [compact, setCompact] = useState(true);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(COMPACT_STORAGE_KEY);
+      if (raw != null) setCompact(raw === "1");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const toggleCompact = () =>
+    setCompact((c) => {
+      const next = !c;
+      try {
+        localStorage.setItem(COMPACT_STORAGE_KEY, next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
 
   // Guards against out-of-order responses: rapid filter changes can let an
   // older request resolve after a newer one, silently showing a stale page
@@ -353,8 +377,21 @@ export default function CorpusPage() {
           {importMsg && <span className="text-slate-500">· {importMsg}</span>}
         </div>
 
-        {/* Column visibility (§33) */}
-        <div className="flex items-center justify-end">
+        {/* Compact rows (§35) + Column visibility (§33) */}
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={toggleCompact}
+            aria-pressed={compact}
+            title="Clamp long text (Description, Title) to one line for a cleaner table"
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
+              compact
+                ? "border-slate-800 bg-slate-800 text-white hover:bg-slate-700"
+                : "border-slate-300 bg-white text-slate-700 hover:border-slate-400"
+            }`}
+          >
+            Compact rows
+          </button>
           <div className="relative">
             <button
               type="button"
@@ -406,7 +443,7 @@ export default function CorpusPage() {
                 {show("h1") && <th className="px-4 py-3 font-medium">H1</th>}
                 {show("description") && <th className="px-4 py-3 font-medium">Description</th>}
                 {show("type") && <th className="px-4 py-3 font-medium">Type</th>}
-                {show("keywords") && <th className="px-4 py-3 font-medium">Primary Keywords</th>}
+                {show("keywords") && <th className="px-4 py-3 font-medium">Primary Keyword</th>}
                 {show("category") && <th className="px-4 py-3 font-medium">Category</th>}
                 {show("signals") && <th className="px-4 py-3 font-medium">Signals</th>}
               </tr>
@@ -419,12 +456,13 @@ export default function CorpusPage() {
                       href={r.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-slate-900 hover:underline"
+                      title={compact ? r.title || r.url : undefined}
+                      className={`text-slate-900 hover:underline ${compact ? "block max-w-xs truncate" : ""}`}
                     >
                       {r.title || r.url}
                     </a>
                     {!r.embedded && (
-                      <span className="ml-2 text-xs text-amber-600">not embedded</span>
+                      <span className={`text-xs text-amber-600 ${compact ? "" : "ml-2"}`}>not embedded</span>
                     )}
                   </td>
                   {show("h1") && (
@@ -436,7 +474,10 @@ export default function CorpusPage() {
                   )}
                   {show("description") && (
                   <td className="px-4 py-2.5 text-slate-600">
-                    <div className="max-w-sm whitespace-normal break-words">
+                    <div
+                      className={compact ? "max-w-sm truncate" : "max-w-sm whitespace-normal break-words"}
+                      title={compact ? r.meta_description ?? undefined : undefined}
+                    >
                       {r.meta_description || <span className="text-slate-300">-</span>}
                     </div>
                   </td>
@@ -454,17 +495,22 @@ export default function CorpusPage() {
                   )}
                   {show("keywords") && (
                   <td className="px-4 py-2.5">
-                    {r.primary_keywords && r.primary_keywords.length > 0 ? (
-                      <div className="flex max-w-xs flex-wrap gap-1">
-                        {r.primary_keywords.map((kw) => (
-                          <span
-                            key={kw}
-                            className="inline-flex rounded-full bg-sky-50 px-2 py-0.5 text-[11px] text-sky-700"
-                            title={kw}
-                          >
-                            {kw}
-                          </span>
-                        ))}
+                    {r.primary_keyword ? (
+                      <div className="max-w-xs">
+                        <span
+                          className="inline-flex max-w-full truncate rounded-full bg-sky-50 px-2 py-0.5 text-[11px] text-sky-700"
+                          title={r.primary_keyword.query}
+                        >
+                          {r.primary_keyword.query}
+                        </span>
+                        <div
+                          className="mt-1 text-[11px] tabular-nums text-slate-400"
+                          title="Last full month (GSC)"
+                        >
+                          {r.primary_keyword.clicks.toLocaleString()} clicks ·{" "}
+                          {r.primary_keyword.impressions.toLocaleString()} impr · pos{" "}
+                          {r.primary_keyword.position.toFixed(1)}
+                        </div>
                       </div>
                     ) : (
                       <span className="text-slate-300">-</span>
