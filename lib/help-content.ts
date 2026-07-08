@@ -9,8 +9,12 @@
  *   - readingIt:   bullet hints for understanding what's on screen
  *   - troubleshoot: bullet "if X, then Y" pairs
  *
- * All copy is plain English. No code blocks, no jargon without an inline
- * gloss. Aimed at the marketing user, not the engineer.
+ * Write for someone non-technical who has never seen this app before.
+ * Short sentences. Everyday words. Explain any term the moment you use it -
+ * never assume the reader knows what "cosine similarity" or "embedding"
+ * means. Exact button/label names stay in quotes since they're literally on
+ * screen. Troubleshoot fixes can name a setting or file when that's the only
+ * way to actually fix it, but keep the surrounding sentence plain.
  */
 export interface HelpEntry {
   title: string;
@@ -29,172 +33,172 @@ export const HELP: Record<string, HelpEntry> = {
   "/dashboard": {
     title: "Dashboard",
     what:
-      "Single-screen view of everything the team should care about today: high-risk drafts, broken links, thin pages, and recent checks.",
+      "One screen that shows what needs your attention today: risky drafts, broken links, thin pages, and recent activity.",
     howToUse: [
-      "Sections from top to bottom: Needs attention → Today's signals → Editorial outcomes → Recent activity → Quick actions. Each section is gated, so empty ones disappear instead of filling the page with zeros.",
-      "Scan 'Needs attention' first - red and amber items are things to act on today.",
-      "Click any stat tile in 'Today's signals' to drop into the relevant tab (Pages ingested → Corpus, Checks run → History, etc.).",
-      "'Editorial outcomes' appears once your team marks outcomes on the History page - leadership reporting comes from here.",
-      "'Recent activity' shows the last 8 checks. Click any check to re-run it.",
+      "The page has five sections, top to bottom: Needs attention → Today's numbers → Editorial outcomes → Recent activity → Quick actions. A section only shows up if it has something to say, so you won't see a wall of zeros.",
+      "Check 'Needs attention' first - red and orange items are things to act on today.",
+      "Click any number under 'Today's numbers' to jump straight to that part of the app.",
+      "'Editorial outcomes' appears once your team starts marking what happened to each check (published, merged, and so on) - that's where leadership reporting comes from.",
+      "'Recent activity' lists the last 8 checks anyone ran. Click one to run it again.",
     ],
     readingIt: [
-      "Red 'High-risk last 7d' tile means somebody ran a check that scored ≥ 80 - that's a 'don't publish' verdict.",
-      "'Caught / Published / Stale' tiles only appear once the team starts marking outcomes on the History page.",
-      "'Last ingest' hint shows how fresh the corpus is. If it says 'never' or > 7d ago, the cron didn't run.",
+      "A red 'High-risk last 7d' number means someone ran a check that scored 80 or higher - that's a 'don't publish this yet' result.",
+      "'Caught / Published / Stale' numbers only appear once your team starts marking outcomes.",
+      "'Last ingest' shows how up to date the page list is. If it says 'never' or more than 7 days ago, the automatic update didn't run.",
     ],
     troubleshoot: [
-      { problem: "All tiles show 0 and an amber 'Database not connected' banner appears", fix: "DATABASE_URL is missing in env. Ask an admin to set it in Vercel → Settings → Environment Variables." },
-      { problem: "'GSC not connected' info banner won't go away", fix: "Visit /search-console → Connect Google. If you've already done that, your OAuth refresh token may have expired - reconnect." },
-      { problem: "Recent checks panel is empty after I ran some checks", fix: "Try a hard refresh (Ctrl+Shift+R). The DB write is best-effort and very rarely fails silently - check the network tab for /api/check responses." },
+      { problem: "Everything shows 0 and a yellow 'Database not connected' message appears", fix: "The database isn't hooked up. Ask an admin to check the site's settings." },
+      { problem: "'Search Console not connected' won't go away", fix: "Go to the Search Console page and click 'Connect Google'. If you already did that, the connection may have expired - reconnect." },
+      { problem: "Recent checks look empty even though I just ran some", fix: "Refresh the page fully (Ctrl+Shift+R). Saving a check rarely fails, but if it keeps happening, ask an admin to look into it." },
     ],
   },
 
   "/signin": {
     title: "Sign in",
     what:
-      "Locked-down sign-in page. The dashboard only accepts Google accounts on the team's allow-listed domain (defaults to @edstellar.com).",
+      "The sign-in page. It only accepts Google accounts from the team's own domain (normally @edstellar.com) - there's no separate password.",
     howToUse: [
       "Click 'Continue with Google'.",
-      "Pick your Edstellar Google account from the chooser (or sign in if you're not).",
-      "You'll land back where you were trying to go.",
+      "Pick your Edstellar Google account from the list (or sign in if you're not already).",
+      "You'll land back on the page you were trying to reach.",
     ],
     readingIt: [
-      "There's no email/password form on purpose - SSO only.",
-      "If you see 'AccessDenied' it means the email you signed in with isn't on the allow-list. Switch accounts.",
+      "There's no email/password box on purpose - you sign in with Google only.",
+      "If you see 'AccessDenied', the email you used isn't allowed in. Switch to your Edstellar account.",
     ],
     troubleshoot: [
-      { problem: "I see 'AccessDenied'", fix: "You're signed into the wrong Google account. In the Google chooser, pick 'Use another account' and sign in with your Edstellar email." },
-      { problem: "I see 'redirect_uri_mismatch'", fix: "An admin needs to add the prod redirect URI to Google Cloud Console → Credentials → OAuth client. The URI is `https://<host>/api/auth/callback/google`." },
-      { problem: "Loop back to sign-in after signing in", fix: "AUTH_SECRET may not be set in the deployed env. Ask an admin to set it and redeploy." },
+      { problem: "I see 'AccessDenied'", fix: "You signed in with the wrong Google account. In the Google account picker, choose 'Use another account' and sign in with your Edstellar email." },
+      { problem: "I see 'redirect_uri_mismatch'", fix: "This needs an admin - the app's web address isn't registered with Google yet. Ask them to add it in Google Cloud Console." },
+      { problem: "I keep getting sent back to sign-in after signing in", fix: "A setting on the server may be missing. Ask an admin to check it." },
     ],
   },
 
   "/conflict-checker": {
     title: "Conflict Checker",
     what:
-      "Pre-publish duplication detector. Paste a URL or a topic, and we score how much it overlaps with what's already on edstellar.com.",
+      "Checks a draft against everything already on edstellar.com before you publish it, and tells you how much it overlaps.",
     howToUse: [
-      "Paste a draft URL (https://…) or a topic phrase (e.g. 'leadership skills for first-time managers') into the input box.",
-      "Adjust 'Search depth' (Quick 25 / Standard 100 / Thorough 500) if you want more or fewer candidates surfaced - Standard is fine for most cases.",
-      "Hit Check. First check after a deploy takes 8–15 s while the embedder warms up; subsequent checks are 2–4 s.",
-      "Read the top score: ≥80 means don't publish, 60–79 means reconsider angle, 35–59 means publish but link to overlapping pages, <35 means safe.",
-      "Scroll the match list. Each card's Resolution panel names an action (Merge / Consolidate / Differentiate / Keep both) and a winner page - cards with 'Owner' badges are the editorial winners, so non-owner matches should redirect to them.",
-      "Below the matches, 'Net-new content suggestions' and 'AI Draft' are collapsible panels (closed by default; click the title to open, or just hit the button and they auto-open). Use 'Suggest' when stuck for an angle, then 'Copy brief' to drop a Markdown writer brief on your clipboard.",
-      "'Generate draft' in the AI Draft panel gives a starting draft - instant if a similar page was pre-generated, otherwise a few seconds via a live model call.",
+      "Paste a draft's web address (starting with https://) or just describe the topic (e.g. 'leadership skills for first-time managers') into the box.",
+      "You can adjust 'Search depth' (Quick / Standard / Thorough) if you want the check to look at more or fewer existing pages - Standard works for most cases.",
+      "Click Check. The very first check of the day can take up to 15 seconds while the tool warms up; after that it's a few seconds.",
+      "Look at the top score: 80 or higher means don't publish, 60-79 means rethink your angle, 35-59 means it's fine to publish but link to the overlapping pages, under 35 means you're safe.",
+      "Scroll down to see every page it overlaps with. Each one comes with a suggested action (Merge / Combine / Keep both / Make more different) and names which page should 'win' - an 'Owner' badge marks the page your team has chosen as the winner for that topic.",
+      "Below that, 'Net-new content suggestions' and 'AI Draft' are two extra panels you can open if you need help. Use 'Suggest' if you're stuck for an angle, then 'Copy brief' to copy a ready-made writing brief.",
+      "'Generate draft' gives you a starting draft to work from - instant if we already had something similar prepared, otherwise it takes a few seconds to write one.",
     ],
     readingIt: [
-      "Score colour: red ≥80 (block), orange ≥60 (review), amber ≥35 (partial overlap), green <35 (safe).",
-      "Use the 'Sort by' control to switch the match list between conflict score and raw topic similarity - pick whichever ordering you actually want; there's no hidden traffic-weighting behind either option.",
-      "Each match's Resolution panel breaks the score into four separate signals (Title / H1 / URL / Body) so you can see WHY it conflicts, plus a search-intent label and the suggested action.",
-      "Amber 'N clicks · 28 days' chip on a match means that page actually pulls traffic - cannibalizing it is expensive.",
-      "Indigo 'Owner' pill = that match IS the team's chosen winning page for this topic. Gray 'Non-owner' = the match should redirect to an owner URL set elsewhere.",
-      "Click 'Show why this conflicts' on any match to expand the LLM rationale; click 'Analyze with AI' to lazily classify rows that landed past the initial top-15 cutoff.",
+      "Score colours: red 80+ (stop), orange 60+ (think twice), amber 35+ (some overlap), green under 35 (safe).",
+      "'Sort by' lets you reorder the list by overall score or by pure topic closeness - pick whichever view is more useful, neither one is weighted by traffic behind the scenes.",
+      "Each match shows four separate reasons it might overlap - its title, its heading, its web address, and its actual content - so you can see exactly why it was flagged.",
+      "An amber 'N clicks · 28 days' badge on a match means that page already gets real traffic - overlapping with it would be costly.",
+      "An indigo 'Owner' badge means that page is the one your team picked as the winner for this topic. A grey 'Non-owner' badge means that page should eventually redirect to the real owner.",
+      "Click 'Show why this conflicts' on any match to read the full explanation. Click 'Analyze with AI' on a match that hasn't been explained yet to get one.",
     ],
     troubleshoot: [
-      { problem: "Got 'Failed to load external module @xenova/transformers'", fix: "Next.config.ts `serverExternalPackages` is misconfigured. Should be fixed in main; ping engineering if it returns." },
-      { problem: "Top match's body is mostly nav/footer junk", fix: "The page might have unusual class names the extractor's noise selectors miss. Add the selector to lib/extract.ts NOISE_SELECTORS and re-ingest." },
-      { problem: "Rate-limited (429) even though I'm a real user", fix: "The default limit is 60 checks/minute per IP. If your team shares an office IP this can trip; ask an admin to set WEBHOOK_API_KEY and use that path instead." },
-      { problem: "Net-new content suggestions returns 'No angles' or weird text", fix: "Hit Re-run - the LLM occasionally returns invalid JSON. If it persists, GROQ_API_KEY may have rate-limited; check status.groq.com." },
-      { problem: "A page I know exists never shows up as a match", fix: "Check the exclusion list at /settings - a URL pattern (manual, or auto-added by the daily Link Audit for a 301/404 page) hides it from matches here. The page still exists in the Database and Search Console." },
+      { problem: "I see an error about a module failing to load", fix: "This is a technical setup issue - it should already be fixed; if it comes back, tell engineering." },
+      { problem: "The top match's content looks like menus and footers, not real content", fix: "That page may have an unusual layout our reader doesn't understand yet. Tell engineering the page's web address so they can fix it." },
+      { problem: "I got rate-limited even though I'm a real user", fix: "There's a limit of 60 checks a minute from the same office network. If your whole team shares one internet connection, this can trip. Ask an admin about raising the limit." },
+      { problem: "'Net-new content suggestions' comes back empty or garbled", fix: "Click 'Re-run' - this happens occasionally. If it keeps failing, an admin may need to check the AI service's status." },
+      { problem: "A page I know exists never shows up as a match", fix: "It's probably on the exclusion list at Settings - either someone added it by hand, or it was auto-hidden because it's broken or redirected. The page still exists in the Database and Search Console, it's just hidden from these comparisons." },
     ],
   },
 
   "/clusters": {
     title: "Content Clusters",
     what:
-      "Groups the WHOLE live corpus by TOPIC across content types - a category page, its blog, and its courses land in ONE cluster. Each cluster gets a topic label, a suggested action, and a winner (pillar) page. This is the corpus-wide view, versus the Conflict Checker's one-page-at-a-time view.",
+      "Groups every page on the site by topic, no matter what kind of page it is - a category, its blog post, and its courses can all land in one group. Each group gets a topic name, a suggested action, and a 'best' page. Where the Conflict Checker looks at one page at a time, this looks at the whole site at once.",
     howToUse: [
-      "The page auto-scans on load and caches the result for about 5 minutes; click 'Rescan' to force a fresh scan.",
-      "Filter with the labeled Action and Type rows, or the search box (matches the topic label, a title, or a URL). Tick 'show intent' for each page's search-intent badge, or 'show GSC' for its Search Console metrics - last 1/3/6 full months of clicks, impressions, and average position, plus its top-5 queries. Both are off by default.",
-      "Click a cluster row to expand its members; each shows the page, the distinctive topic tokens it shares with the pillar, and its % content match. The ★ marks the suggested winner (the pillar page for a pillar cluster).",
-      "Programmatic blog series - Training Companies, Roles & Responsibilities, In-Demand Skills, Games & Exercises, Digital Transformation, Work Culture - are grouped into one cluster by their URL template (they'd otherwise fragment) and carry a 'series' badge.",
-      "Unique-topic pages (nothing else on the site shares their topic) are listed in a collapsible, searchable section at the bottom - browse it, it's an answer not a dead-end.",
+      "The page scans automatically when you open it and remembers the result for about 5 minutes. Click 'Rescan' to force a fresh look.",
+      "Narrow the list with the Action and Type filters, or search by topic name, title, or web address. You can also turn on 'show intent' (what each page is trying to do) or 'show GSC' (its Search Console numbers) - both are off by default.",
+      "Click a group to see its pages. Each one shows the words it shares with the group's main page, and a percentage showing how closely its content matches. A star marks the suggested 'best' page.",
+      "Some blog series - like 'Training Companies in [country]' - are grouped together automatically because they follow the same URL pattern, and get a 'series' badge.",
+      "Pages that don't share a topic with anything else are listed separately near the bottom - that's not a problem, it just means that page covers something unique.",
     ],
     readingIt: [
-      "Membership is by DISTINCTIVE topic tokens, not raw similarity: template words every page shares ('corporate', 'training', 'courses') are auto-learned from the corpus and dropped, so 'big data' groups with big-data pages, never with 'sales' pages that merely share the same template.",
-      "Every member matches the cluster's SEED (pillar) directly - pages are never chained together, so a cluster stays on one topic instead of ballooning into a mixed-topic mega-cluster.",
-      "The label comes from what the MEMBERS share, not one page's tokens, so a 51-country 'skills in demand' series reads 'demand', not the seed's country.",
-      "'Pillar + spokes' = a hub page (category/subcategory) with cross-type spokes on one topic - link the spokes to the pillar, don't merge them. 'Merge → 301' collapses a SMALL same-type near-duplicate set into the winner; a large same-type family (or a 'series') is intentional variants, so it's 'Differentiate' - you never 301 dozens of distinct pages into one.",
-      "The chips under each page are the distinctive tokens it shares with the pillar; the % is the body-embedding content match (the check that keeps an off-topic page out).",
-      "The meta line reads 'N clustered · M unique-topic pages' - a unique-topic page is a real answer (nothing else covers that topic), not a coverage gap.",
+      "Pages are grouped by the words that make their topic UNIQUE, not just any shared words. Common words every page uses ('corporate', 'training', 'courses') are ignored automatically, so a page about 'big data' only groups with other big-data pages, not with every page that happens to use the word 'training'.",
+      "Every page in a group is matched directly against that group's main page - pages are never chained together through a third page, so a group can't accidentally balloon into a mix of unrelated topics.",
+      "The group's name comes from what ALL its pages share, not just the main page - so a series covering 51 countries is named after what they have in common, not one country's name.",
+      "'Pillar + spokes' means one hub page (like a category) with several related pages pointing at it - link them together, don't merge them into one. 'Merge → redirect' means a few pages are near-duplicates and should become one page. A large family of similar pages (or a recognized series) is treated as intentionally separate content, so it says 'Make more different' instead - the tool never suggests merging dozens of distinct pages into one.",
+      "The small tags under each page are the words it shares with the group's main page. The percentage is how closely its actual content matches - that's what keeps unrelated pages out of a group.",
+      "The summary line reads 'N grouped · M unique pages' - a unique page isn't a problem, it just means nothing else on the site covers that exact topic yet.",
     ],
     troubleshoot: [
-      { problem: "Page says 'No clusters found'", fix: "No topic had two or more pages clear the overlap + body-floor bar. Results are cached ~5 min; hit 'Rescan' to force a fresh live scan." },
-      { problem: "Two pages I know are on the same topic aren't grouped", fix: "Their distinctive-token overlap is below the bar, or one fails the body-content floor vs the pillar. Two pages that only share template words ('corporate training') are deliberately NOT grouped - that was the old mega-cluster bug." },
-      { problem: "A blog series is split across several clusters", fix: "Series are matched by URL template in lib/series.ts. If a family isn't collapsing, its slug pattern isn't covered yet - add it there." },
-      { problem: "A page I expected to see is missing entirely", fix: "It may be marked as a redirect/canonicalized-away/dead by the redirect-detection scan (`is_stale`) - those never appear in clusters, by design. It could also be on the exclusion list at /settings - the daily Link Audit auto-adds 301/404 pages there (self-healing, it'll come back once fixed), or someone added it manually." },
+      { problem: "The page says 'No clusters found'", fix: "No topic had two or more pages that were similar enough to group. The result is cached for about 5 minutes - click 'Rescan' to check again right now." },
+      { problem: "Two pages I know cover the same topic aren't grouped together", fix: "They don't share enough distinctive words, or their actual content isn't close enough. Pages that only share generic words like 'corporate training' are deliberately kept apart - grouping them was a bug we fixed." },
+      { problem: "A blog series is split across several groups instead of one", fix: "Series are recognized by their web-address pattern. If a series isn't collapsing into one group, tell engineering - its pattern needs to be added to the list." },
+      { problem: "A page I expected to see is missing completely", fix: "It may have been marked as broken or redirected by our automatic link checks, which excludes it from groups on purpose. It could also be on the exclusion list in Settings - some broken/redirected pages get added there automatically and will reappear on their own once fixed, or someone may have added it by hand." },
     ],
   },
 
   "/bulk-check": {
     title: "Bulk Check",
     what:
-      "Run the Conflict Checker on up to 100 URLs/topics at once. Each row gets a verdict (block / review / pass) and you can export everything as CSV.",
+      "Runs the Conflict Checker on up to 100 web addresses or topics at once. Each one gets a verdict (block / review / pass), and you can download the results as a spreadsheet.",
     howToUse: [
-      "Paste one URL or topic per line into the textarea - or upload a CSV/TXT file (one column).",
-      "Pick a Concurrency between 1–6. Higher = faster but rate-limit risk; 3 is safe.",
-      "Click 'Run all checks'. Watch the progress bar - each row lands in the table as soon as it finishes.",
-      "Filter by verdict pill or score slider to focus on the rows that need attention.",
-      "Click 'Download CSV' when the run finishes for handoff to writers / leadership.",
+      "Paste one web address or topic per line into the box - or upload a file with one per line.",
+      "Choose how many to check at the same time (1 to 6). Higher is faster but more likely to hit a limit; 3 is a safe choice.",
+      "Click 'Run all checks'. Watch the progress bar - each result appears in the table as soon as it's ready.",
+      "Use the verdict filter or score slider to focus on the rows that need attention.",
+      "Click 'Download CSV' once the run finishes, to hand the results to writers or leadership.",
     ],
     readingIt: [
-      "Block (red) = score ≥80 / publishing this would cannibalize an existing page.",
-      "Review (amber) = score 60–79 / reconsider angle before publishing.",
-      "Pass (green) = score <60 / fine to publish, but eyeball the top match anyway.",
-      "Error rows mean that one URL hit an issue (timeout, 404, LLM rate-limit). The other rows still got processed.",
+      "Block (red) = score 80 or higher / publishing this would compete with an existing page.",
+      "Review (amber) = score 60-79 / think about your angle before publishing.",
+      "Pass (green) = score under 60 / fine to publish, but glance at the top match anyway.",
+      "Error rows mean that one item had a problem (timeout, page not found, service busy). Everything else still gets checked normally.",
     ],
     troubleshoot: [
-      { problem: "'Max 100 inputs per run' error", fix: "Split the list into batches of 100. The cap protects the LLM budget; raising it requires both env + Zod schema changes." },
-      { problem: "Many rows show 'error: rate-limited'", fix: "Drop Concurrency to 1–2 and re-run. Groq's free tier has burst limits." },
-      { problem: "CSV button is disabled", fix: "Wait for the run to finish (the button label tells you so). The button also disables if there are 0 results to export." },
+      { problem: "I get a 'Max 100 inputs per run' error", fix: "Split your list into groups of 100 or fewer and run them separately. This limit protects the AI budget." },
+      { problem: "Lots of rows show 'error: rate-limited'", fix: "Lower the concurrency setting to 1-2 and run again - you're sending requests faster than the service allows." },
+      { problem: "The 'Download CSV' button won't click", fix: "Wait for the run to finish - the button will say so. It also stays disabled if there's nothing to download yet." },
     ],
   },
 
   "/internal-links": {
     title: "Internal Links",
     what:
-      "For a draft URL, topic, or pasted text, suggests the top existing pages it should link to. Two modes: whole-page (one ranked list) and per-paragraph (separate suggestions per paragraph of text).",
+      "Suggests existing pages a new draft should link to. You can check the whole draft at once, or paragraph by paragraph.",
     howToUse: [
-      "Pick a mode. 'Whole page' = one ranked list for the entire input - fastest. 'Per paragraph' = the input is split on blank lines and each paragraph gets its own short list.",
-      "Paste a URL (https://…), a topic phrase, or - for per-paragraph mode - your draft text with blank lines between paragraphs.",
-      "Click the suggest button. Per-paragraph mode shows one block per paragraph with the top targets for that paragraph.",
-      "Copy the URL + suggested anchor (the matched page's title) into your CMS.",
+      "Pick a mode. 'Whole page' gives one ranked list for everything you paste in - it's the fastest option. 'Per paragraph' splits your text at blank lines and gives separate suggestions for each paragraph.",
+      "Paste a web address, a topic, or - for per-paragraph mode - your draft text with a blank line between paragraphs.",
+      "Click the suggest button. In per-paragraph mode you'll see one block of suggestions per paragraph.",
+      "Copy the web address and suggested link text into your CMS.",
     ],
     readingIt: [
-      "Higher similarity = more topically related, not necessarily a stronger link choice. A 60%-similarity course page might be a better hub link than an 80%-similarity blog.",
-      "Each card shows the page's content type (course / blog / category) - useful for picking variety in anchor types.",
-      "In per-paragraph mode the same target page can show up in multiple paragraphs - the editor decides where to actually use it.",
+      "A higher match percentage means the pages are more closely related on topic - it doesn't automatically mean it's the best page to link to. A 60%-match course page can be a better choice than an 80%-match blog post.",
+      "Each suggestion shows what kind of page it is (course / blog / category) - useful if you want a mix of link types.",
+      "In per-paragraph mode, the same page can be suggested for more than one paragraph - it's up to you to decide where to actually use it.",
     ],
     troubleshoot: [
-      { problem: "Per-paragraph mode says 'no paragraphs long enough'", fix: "Each paragraph needs at least 80 characters. Either lengthen them or paste fewer, longer ones with blank lines between." },
-      { problem: "Suggestions look generic", fix: "Pasted text wins over a URL - the URL fetcher captures nav/footer noise that drowns out the actual topic. If using URL mode and seeing generic results, paste the body text instead." },
-      { problem: "Always returns the same hub pages regardless of input", fix: "Your input is short - fewer keywords = vector search defaults to popular pages. Add 2–3 keywords inline." },
+      { problem: "Per-paragraph mode says my paragraphs aren't long enough", fix: "Each paragraph needs at least 80 characters. Either write longer paragraphs, or paste fewer, longer ones with blank lines between them." },
+      { problem: "The suggestions look too generic", fix: "Pasting the actual text works better than pasting a web address - fetching a page can pick up menu and footer text that drowns out the real topic. Try pasting the body text directly." },
+      { problem: "It keeps suggesting the same popular pages no matter what I type", fix: "Your input is too short. Add 2-3 more specific keywords." },
     ],
   },
 
   "/audit": {
     title: "Content Audit",
     what:
-      "Per-page health scanner. Catches meta-length issues, broken links, duplicate titles/H1s, canonical bugs, missing image alt text, and stale low-traffic pages.",
+      "Scans every page for common problems: bad titles/descriptions, broken links, duplicate titles, technical tagging mistakes, missing image descriptions, and pages that have gone quiet.",
     howToUse: [
       "Pick a tab: Meta / Link Audit / Duplicates / Health Score / Canonical / Images / Stale / Clusters.",
-      "On Meta: filter by flag pill (title-too-long etc.) to focus on one class of issue.",
-      "On Health Score: drag the 'Min health' slider or click a severity chip to scope the list.",
-      "On Canonical: red 'missing' rows have no canonical tag; amber 'cross-canonical' rows point to another URL (often a CMS template bug).",
-      "On Images: rows are sorted by absolute missing-alt count. Click each URL to fix in the CMS.",
-      "On Stale: the gsc-snapshot cron flags pages with <5 clicks/28d AND lastmod > 12 mo. Refresh or prune candidates.",
-      "On Clusters: two tables. Course clusters by (course type × category) with content-debt score. Blog clusters by blog category (separate taxonomy) with traffic + stale ratio. Blog count in the course table is mostly 0 because the two corpora use different category vocabularies - that's expected, not a bug.",
+      "On Meta: filter by the type of issue (like 'title too long') to focus on one thing at a time.",
+      "On Health Score: drag the slider or click a severity level to narrow the list.",
+      "On Canonical: red 'missing' rows have no canonical tag set (a technical marker of the 'real' version of a page); amber rows point to a different web address than expected, which is often a template mistake.",
+      "On Images: rows are sorted by how many images are missing alt text (a text description for accessibility and search). Click a web address to go fix it in the CMS.",
+      "On Stale: shows pages with very little traffic that also haven't been updated in a long time - candidates to refresh or remove.",
+      "On Clusters: two tables, one for courses and one for blogs, showing which topic groups may need more content. It's normal for the blog count in the course table to often read 0 - the two are organized differently on purpose.",
     ],
     readingIt: [
-      "Health Score breakdown: -20 missing title, -8 title-too-short, -15 missing meta, -6 meta-too-short, -10 not-embedded, -10 thin body, -30 4xx/5xx status, -8 low token count.",
-      "Severity bands: weak <60, medium 60–79, strong ≥80.",
-      "Stale tab is only populated after the gsc-snapshot cron has run with a connected GSC account.",
+      "The Health Score is built from deductions: missing title, title too short, missing description, description too short, page not yet processed, too little content, broken page, or too little text overall.",
+      "Severity levels: weak (under 60), medium (60-79), strong (80+).",
+      "The Stale tab only fills in once Search Console data has been collected with a connected Google account.",
     ],
     troubleshoot: [
-      { problem: "Link Audit tab is empty even though I expect data", fix: "The link audit cron runs weekly and only populates pages that have been HEAD-checked. Empty means the cron hasn't run yet - ask an admin or wait a week." },
-      { problem: "Link Audit only shows 4xx/5xx but I want to see 2xx too", fix: "Click the 'ok 2xx' or 'redirect 3xx' chip at the top of the tab - the default 'all' view also shows them. Status bands also filter via the chips." },
-      { problem: "Canonical tab shows pages I think are fine", fix: "Theme/CMS templates often emit a canonical pointing at the un-trailing-slash variant, or a category root. Audit the actual <link> tag in the page source." },
-      { problem: "Images tab shows 0 missing alt but the live page clearly has alt-less images", fix: "Re-ingest with --force. The image_count / images_no_alt columns are only filled on new ingestion." },
+      { problem: "The Link Audit tab is empty even though I expect data", fix: "This check runs on its own schedule and only shows pages it's already tested. If it's empty, the check probably hasn't run yet - ask an admin, or wait for the next scheduled run." },
+      { problem: "Link Audit only shows broken pages but I want to see working ones too", fix: "Click the 'ok' or 'redirect' filter chip at the top of the tab - the default view shows those too." },
+      { problem: "The Canonical tab flags pages I think are fine", fix: "Website templates sometimes point the canonical tag at a slightly different web address (like with or without a trailing slash) by mistake. Check the actual page source to confirm." },
+      { problem: "The Images tab shows 0 missing but I can see images without descriptions on the live page", fix: "That count only updates when a page is re-scanned. Ask an admin to re-scan it." },
     ],
   },
 
@@ -206,169 +210,169 @@ export const HELP: Record<string, HelpEntry> = {
   "/manager": {
     title: "Manager View",
     what:
-      "Leadership-facing summary of program activity: week-over-week volume, high-risk catches, and per-user adoption. Lives under Additional Tools in the sidebar, not the top-level nav.",
+      "A leadership-facing summary: how much checking activity happened this week, how many risky drafts were caught, and who on the team is actually using the tool. Found under 'Additional Tools' in the sidebar.",
     howToUse: [
-      "Check the four top tiles first - 'Checks · last 7d', 'High-risk caught · 7d', 'Shipped · 7d', and 'Open high-risk' - each shows a week-over-week delta so you can tell if the trend is improving or not.",
-      "'Open high-risk' is the one tile that's an action queue, not just a metric - those are checks that scored ≥80 and haven't been resolved yet.",
-      "Scroll to the per-user activity table to see whether the team is actually using the tool, not just whether the corpus looks healthy.",
+      "Look at the four top numbers first - checks this week, risky drafts caught, content published, and drafts still needing a decision. Each shows whether it's up or down from last week.",
+      "'Open high-risk' is the one number that's actually a to-do list, not just a stat - those are risky checks nobody has resolved yet.",
+      "Scroll down to the activity table to see whether the team is actually using the tool, not just whether the numbers look good.",
     ],
     readingIt: [
-      "'Shipped · 7d' counts published outcomes among checks CREATED in the last 7 days - a check created last week and published today won't count in this week's tile. That's a different clock than the Dashboard's 90-day tiles (which key off when the outcome was resolved, not when the check was created); don't directly compare the two numbers.",
-      "This page is a snapshot, not a trend line - there's no week-by-week series here, only a single this-week-vs-last-week delta per tile.",
+      "'Shipped this week' counts published items among checks STARTED this week - a check started last week and published today won't count here. That's different from the Dashboard's numbers, which count by when something was resolved, not when it started. Don't compare the two directly.",
+      "This page only shows this week versus last week - there's no longer trend chart here.",
     ],
     troubleshoot: [
-      { problem: "All tiles show 0", fix: "Either no checks have run in the last 7 days, or DATABASE_URL isn't set. Check the Dashboard for the same 'Database not connected' banner." },
-      { problem: "'Open high-risk' count doesn't match what I see on History", fix: "This tile only counts checks with NO outcome set yet. Once someone marks an outcome on History (published/merged/redirected/discarded), it drops off this count." },
+      { problem: "Every number shows 0", fix: "Either nobody ran a check in the last 7 days, or the database isn't connected - check the Dashboard for the same warning." },
+      { problem: "'Open high-risk' doesn't match what I see elsewhere", fix: "This number only counts risky checks that haven't been marked with an outcome yet. Once someone marks one as published/merged/redirected/discarded, it drops off this count." },
     ],
   },
 
   "/catalog-conflicts": {
     title: "Catalog Conflicts",
     what:
-      "Precomputed snapshot of near-duplicate pairs across the existing catalogue. Use it to plan merges/redirects, not to gate publishing. Currently unlinked from the sidebar (Session 11) but still reachable directly at this URL - ask an admin why before assuming it's the tool you want; Content Clusters (/clusters) is the actively-maintained equivalent for grouping.",
+      "A saved snapshot of near-duplicate page pairs across the existing site. Use it to plan merges or redirects - it's not meant to block publishing. It's currently hidden from the main menu; Content Clusters is the actively maintained version of this idea.",
     howToUse: [
-      "Pick a pair_type chip to focus: duplicate / cannibalization / category-bleed / subcategory-bleed / overlap.",
-      "Use the Min similarity slider to drop low-confidence pairs.",
-      "Click either side of a pair to inspect the page. Decide: merge, redirect, or leave alone.",
+      "Pick a type to focus on: duplicate / competing / too-narrow / too-generic / overlapping.",
+      "Use the similarity slider to drop low-confidence pairs.",
+      "Click either page in a pair to look at it, then decide: merge, redirect, or leave it alone.",
     ],
     readingIt: [
-      "'cannibalization' (≥85% similar, same search intent) is the dangerous one for SEO - both pages compete for the same SERP slot. Same content_type is no longer required, since a course and a blog can share intent too.",
-      "'duplicate' is ≥95% similar AND same content_type - usually a CMS templating accident or a redirect that should exist.",
-      "'category-bleed' / 'subcategory-bleed' = a category/subcategory page is too narrow (or a course/blog too generic).",
-      "Redirected/canonicalized-away pages never appear here - a page marked stale by the redirect scan is excluded on both sides of every pair.",
+      "'Competing' (85%+ similar, same intent) is the risky one for SEO - both pages fight for the same search result spot.",
+      "'Duplicate' (95%+ similar and same page type) is usually a template mistake or a missing redirect.",
+      "'Too narrow' / 'too generic' pairs mean one page is more specific than the other on the same topic.",
+      "Pages already marked broken or redirected never show up here.",
     ],
     troubleshoot: [
-      { problem: "Page is empty after ingesting the corpus", fix: "The precompute hasn't run yet - this is a MANUAL refresh, there is no cron for it. An admin needs to run `npm run catalog-conflicts`." },
-      { problem: "Pairs include obvious junk like /enquiry-form ↔ /book-a-demo", fix: "That class was filtered out in Session 4. If it's back, an admin reverted the static-page exclusion." },
+      { problem: "The page is empty even though the site has been fully set up", fix: "This snapshot has to be built manually - there's no automatic schedule for it. An admin needs to run the build command." },
+      { problem: "I see obviously unrelated pairs, like a contact form paired with a demo-booking page", fix: "That kind of junk should be filtered out automatically. If it's showing up, tell engineering - a filter may have been accidentally removed." },
     ],
   },
 
   "/search-console": {
     title: "Search Console",
     what:
-      "Pulls Google Search Console data into actionable views: cannibalization, striking distance, CTR opportunity, movers, untapped, catalog gaps, stale pages, index coverage.",
+      "Pulls in your Google Search Console data and turns it into views you can act on: competing pages, pages about to rank higher, titles worth rewriting, pages moving up or down, missed opportunities, content gaps, quiet pages, and indexing status.",
     howToUse: [
-      "Click 'Connect Google' (top right) once. Sign in with the account that has GSC access to edstellar.com.",
-      "Pick a range across the top: 24 hours → 12 months.",
-      "Switch tabs to ask different questions: 'where can I rewrite a title to grab more clicks?' (CTR Opportunity), 'who's about to break into the top 3?' (Striking Distance), etc.",
-      "Use the lookup box at the top to drill into a single URL or query without switching tab.",
-      "Click any row in 'Top pages' to open the per-page drilldown modal (queries / countries / devices / trend).",
+      "Click 'Connect Google' once (top right) and sign in with an account that has access to the site's Search Console.",
+      "Pick a time range along the top: anywhere from 24 hours to 12 months.",
+      "Switch tabs to answer different questions - for example, 'where can I rewrite a title to get more clicks?' or 'what's about to break into the top 3 results?'",
+      "Use the lookup box at the top to check a single web address or search phrase without switching tabs.",
+      "Click any row in 'Top pages' to see its full details - which searches bring it traffic, which countries and devices, and its trend over time.",
     ],
     readingIt: [
-      "By Country uses full names (India, United States, …) - the alpha-3 codes from the API are translated client-side.",
-      "CTR Opportunity flags page-1 queries where the click rate is well below the industry curve - title rewrite candidates.",
-      "Striking Distance flags positions 8–20 with enough impressions to matter - content/internal-link work moves them into top-3.",
+      "Countries are shown by their full name, not a code.",
+      "The 'title rewrite candidates' tab flags searches where your page shows up but gets fewer clicks than expected for its position.",
+      "The 'about to rank higher' tab flags pages sitting just outside the top results with enough search volume to be worth improving.",
     ],
     troubleshoot: [
-      { problem: "'User does not have sufficient permission for site …' banner", fix: "Either the connected account isn't a user on the property, OR GSC_SITE_URL is set to a property the account can't see. The resolver tries trailing-slash + sc-domain variants automatically - the error message lists what IS accessible." },
-      { problem: "Connect Google → redirect_uri_mismatch", fix: "Two-side fix. Add the Vercel URL to Google Cloud Console → Credentials → OAuth client → Authorized redirect URIs AND set GOOGLE_REDIRECT_URI in Vercel env vars to that same URL with /api/gsc/callback." },
-      { problem: "All tabs show 0 data even though Google says we have traffic", fix: "GSC has 2–3 day data latency. If 24h returns 0, try 7d or 28d." },
+      { problem: "I see a 'does not have sufficient permission' message", fix: "Either the connected Google account doesn't have access to this property, or the site address is set up slightly wrong. The error message lists which addresses the account CAN see." },
+      { problem: "Clicking 'Connect Google' gives a redirect error", fix: "This needs an admin - the app's web address needs to be registered with Google, in two places." },
+      { problem: "Every tab shows 0 data even though the site clearly gets traffic", fix: "Google Search data is usually 2-3 days behind. If the 24-hour view shows nothing, try 7 days or 28 days instead." },
     ],
   },
 
   "/competitors": {
     title: "Competitors",
     what:
-      "Per-topic competitor research using live SERP data. See who ranks for a query and how they're framing it differently.",
+      "Looks up who currently ranks for a topic in Google search results, so you can see how they're framing it and write something better.",
     howToUse: [
-      "Type a topic (e.g. 'leadership development') into the input. Hit Research.",
-      "We pull the top organic results, drop noise destinations (YouTube, Quora, PDFs, Edstellar itself), dedupe by domain, and summarize the survivors.",
-      "Read each card's 'angle' line - that's how they're framing the topic, useful for picking a different angle yourself.",
+      "Type a topic (like 'leadership development') into the box and click Research.",
+      "We pull the top search results, remove noise (video sites, forums, PDFs, and your own site), remove duplicate companies, and summarize what's left.",
+      "Read each result's 'angle' - how that competitor is framing the topic - for ideas on how to differentiate.",
     ],
     readingIt: [
-      "Known competitor pill (indigo) = on the curated list (skillsoft, kornferry, pluralsight, etc.). New-faces are anything else above the dedup cut.",
-      "Per-domain dedup means top results from one big site (e.g. coursera.org) get collapsed - so you see 6 different competitors, not 6 articles from one.",
+      "A known-competitor badge means that company is on our pre-set watchlist. Anything else is a 'new face' worth a second look.",
+      "Results from the same big website are combined into one entry, so you see a spread of different competitors instead of six articles from one site.",
     ],
     troubleshoot: [
-      { problem: "'SERPER_API_KEY is not set' error", fix: "An admin needs to add a Serper.dev key to env vars. Free tier covers 2,500 searches/month." },
-      { problem: "Same domains every time", fix: "Pick a more specific topic. Generic queries always pull the same authority sites." },
+      { problem: "I get a 'key is not set' error", fix: "An admin needs to add a search-data subscription key to the site's settings." },
+      { problem: "I keep seeing the same competitors no matter what I search", fix: "Try a more specific topic - broad searches tend to surface the same big, well-known sites every time." },
     ],
   },
 
   "/corpus": {
     title: "Corpus",
     what:
-      "Index of every URL the Conflict Checker compares against. Browse, filter, and inspect what's actually in our search-space.",
+      "A browsable list of every page the Conflict Checker compares against - this is the full 'search space' the tool knows about.",
     howToUse: [
-      "Use the chip filters to scope: content_type / course type / category / tag.",
-      "Search title or URL with the search box.",
-      "Click any row's URL to open the live page in a new tab.",
-      "The 'Signals' column flags Owner pages, Stale pages, image-alt debt, and canonical mismatches in one glance.",
+      "Use the filter buttons to narrow by page type, course type, category, or tag.",
+      "Search by title or web address in the search box.",
+      "Click any row's web address to open the live page in a new tab.",
+      "The 'Signals' column shows at a glance whether a page is an Owner page, a Stale page, missing image descriptions, or pointing somewhere unexpected.",
     ],
     readingIt: [
-      "'Clicks 28d' column is populated by the daily gsc-snapshot cron. Bold = ≥100 clicks (the page actually pulls traffic).",
-      "Owner pill = this is the editorial winner for its topic. Stale pill = low traffic + old lastmod. Alt: N = N images missing alt text. Canonical chip = canonical URL ≠ this URL.",
+      "The 'Clicks 28d' column updates automatically each weekday. Bold numbers mean 100+ clicks - real traffic.",
+      "'Owner' means this is the chosen best page for its topic. 'Stale' means low traffic plus no recent updates. 'Alt: N' means N images are missing descriptions. A canonical badge means this page points somewhere else as its 'real' version.",
     ],
     troubleshoot: [
-      { problem: "Row has 'not embedded' label", fix: "The embedder failed on that URL - usually a 404 / timeout / very short body. Re-ingest with --force." },
-      { problem: "Counts in the tiles don't sum to total", fix: "They will once the home page (single static row) is included. The 'All' tile is authoritative." },
+      { problem: "A row says 'not embedded'", fix: "That page failed to process - usually because it's missing, timed out, or has very little content. Ask an admin to reprocess it." },
+      { problem: "The counts at the top don't add up to the total", fix: "That's expected until the home page (a single row) is included too - the 'All' count is the accurate one." },
     ],
   },
 
   "/keyword-cannibalization": {
     title: "Keyword Cannibalization",
     what:
-      "Queries where 2+ Edstellar pages compete for the same search, sourced from the last 3 full months of Search Console data. Each conflict gets a severity, a primary (keep) page, and a rule-based action.",
+      "Finds search terms where two or more of your own pages are competing against each other, based on the last 3 full months of Search Console data. Each conflict gets a severity level, a page to keep, and a suggested action.",
     howToUse: [
-      "Pick a tab: 'Nearer avg position' (the two pages are close enough that Google keeps swapping them - act now), 'No position limit' (every query 2+ pages rank for, however far apart), 'Course / other-page conflicts' (a different content type outranking a course), or 'Blogs to merge' (near-duplicate blogs to consolidate - sourced from Content Clusters, not keywords).",
-      "Use the search box plus the severity / action / status chips and type / sort dropdowns to scope the list.",
-      "Click a conflict card to see every page competing for that query, with clicks/impressions/CTR/position per page.",
-      "Set a status (pending / in-progress / completed / ignored) and an optional note per conflict. Select several with the checkboxes to bulk-set a status at once.",
-      "Hit 'Rescan' to force a fresh snapshot - it otherwise refreshes automatically every weekday at 9:00 AM IST (skips weekends).",
+      "Pick a tab: 'Nearer avg position' (the two pages are close enough in ranking that Google keeps swapping them - fix this first), 'No position limit' (every competing pair, however far apart), 'Course / other-page conflicts' (a different type of page is outranking a course), or 'Blogs to merge' (near-duplicate blog posts worth combining - found a different way, not by search term).",
+      "Use the search box, the severity/action/status filters, and the sort options to narrow the list.",
+      "Click a conflict to see every page competing for that search term, with its clicks, impressions, click rate, and ranking.",
+      "Set a status (pending / in progress / done / ignored) and an optional note on each conflict. You can select several at once and set their status together.",
+      "Click 'Rescan' to refresh the data right now - it otherwise updates automatically every weekday morning (not on weekends).",
     ],
     readingIt: [
-      "Severity (high/medium/low) weighs how close the ranking gap is and how much value is at stake, not just raw similarity.",
-      "'Blogs to merge' reads from the SAME engine as Content Clusters (`/api/groups`), filtered to same-type blog clusters flagged merge/consolidate - it's content-based, not query-based, so it can surface pairs the other 3 tabs never would.",
-      "Dead pages (404/410, or removed from the corpus) are dropped from every conflict automatically, re-checked every time you view the page - a group under 2 live pages disappears entirely.",
+      "Severity (high/medium/low) considers how close the two pages rank AND how much is at stake, not just how similar they are.",
+      "'Blogs to merge' comes from the same engine as Content Clusters, not from search-term data - so it can catch pairs the other three tabs would miss.",
+      "Broken or removed pages are automatically dropped from every conflict, checked fresh each time you open the page. If a conflict drops to a single live page, it disappears entirely.",
     ],
     troubleshoot: [
-      { problem: "Page says 'Not computed yet'", fix: "Hit 'Rescan', or trigger it from /settings → Keyword Cannibalization data → 'Rescan now'." },
-      { problem: "A page I know 404s still shows up in a conflict", fix: "Dead-page filtering depends on `pages.http_status` being fresh - it's refreshed daily by a cron, but if a page just broke it may take up to a day to drop out. This is separate from the exclusion list on /settings (Link Audit) - that only affects Content Clusters + Conflict Checker, not this page." },
-      { problem: "My status/note change doesn't seem to save", fix: "Check for a toast error in the corner - a failed save now surfaces one instead of failing silently. Retry; if it keeps failing, DATABASE_URL may be unreachable." },
+      { problem: "The page says 'Not computed yet'", fix: "Click 'Rescan', or go to Settings → Keyword Cannibalization data → 'Rescan now'." },
+      { problem: "A page I know is broken still shows up in a conflict", fix: "This check depends on a broken-page list that updates once a day - a page that just broke may take up to a day to disappear. This is a different system than the exclusion list on the Settings page, which only affects Content Clusters and the Conflict Checker, not this page." },
+      { problem: "My status or note change doesn't seem to save", fix: "Watch for an error message in the corner - a failed save now tells you instead of failing silently. Try again; if it keeps failing, the database may be unreachable." },
     ],
   },
 
   "/strategy": {
     title: "Funnel Strategy",
     what:
-      "TOFU / MOFU / BOFU (awareness / consideration / conversion) content coverage across the catalogue, by course type and category. Surfaces clusters that have conversion pages but no awareness or consideration content feeding them.",
+      "Shows how well your content covers each stage of the buying journey - awareness, consideration, and ready-to-buy - broken down by course type and category. Flags groups that have sales-ready pages but nothing earlier in the journey feeding them.",
     howToUse: [
-      "Read the site-wide funnel mix at the top for the overall shape.",
-      "Scan 'By course type' for lopsided course types (e.g. heavy BOFU, thin TOFU).",
-      "Scroll the cluster table and look at the 'Gaps' column - any cluster missing a stage is flagged there.",
+      "Read the overall mix at the top for the big picture.",
+      "Check 'By course type' for course types that are lopsided - heavy on ready-to-buy content but thin on awareness content.",
+      "Scroll the table and look at the 'Gaps' column - any group missing a stage is flagged there.",
     ],
     readingIt: [
-      "Stage mapping: blog/topic = TOFU, category/subcategory = MOFU, course/mentor = BOFU. Pages with no content_type, or a newer type outside this list (managed-training, platform, consulting, templates, location, excellence-program, static), aren't counted in the funnel mix.",
-      "A heavy BOFU skew with little TOFU/MOFU usually means awareness traffic is starved for that cluster - that's the gap to write content against, not a data error.",
-      "'Clicks 28d' next to each cluster row is a rough sizing signal for which gaps are worth prioritizing first.",
+      "Blog posts count as awareness content, categories count as consideration content, and courses count as ready-to-buy content. Pages that don't fit one of these types aren't counted in the mix.",
+      "A group that's heavy on ready-to-buy content but thin everywhere else usually means it needs more awareness-stage content written for it - that's a content opportunity, not a data mistake.",
+      "The click count next to each group is a rough guide to which gaps are worth fixing first - bigger numbers mean bigger opportunity.",
     ],
     troubleshoot: [
-      { problem: "Page says 'Database not reachable'", fix: "DATABASE_URL is missing or the DB is unreachable. Same underlying check as every other data-backed page." },
-      { problem: "A course type I know exists isn't in the 'By course type' table", fix: "That table only includes pages with a non-null course_type. Static/category-only pages won't appear there (they still count in the site-wide rollup if their content_type maps to a stage)." },
+      { problem: "The page says the database isn't reachable", fix: "Same underlying issue as every other data page on this site - the database connection is down." },
+      { problem: "A course type I know exists isn't in the 'By course type' table", fix: "That table only includes pages that have a course type set. It still counts toward the overall mix at the top if its page type maps to a stage." },
     ],
   },
 
   "/settings": {
     title: "Settings",
     what:
-      "Project-wide configuration: Content Clusters tuning, manual triggers for the three daily data refreshes (Search Console, Keyword Cannibalization, Link Audit), sitemap sync, and the exclusion lists that hide pages/queries from Content Clusters + Conflict Checker.",
+      "Where the team configures the tool: how strictly Content Clusters groups pages, manual refresh buttons for the automatic data updates, syncing the page list, and the exclusion lists that hide certain pages or search terms from comparisons.",
     howToUse: [
-      "Content Clusters tuning: adjust Topic overlap / Body floor / Merge max size, hit Save, then Rescan on /clusters to apply - saving here doesn't retroactively update an already-cached scan.",
-      "Search Console data / Keyword Cannibalization data / Link Audit: each card shows when it last ran and has a 'Run now' / 'Rescan now' button. Search Console + Keyword Cannibalization refresh automatically every weekday at 9:00 AM IST (they're two jobs in the same cron, so they always update together; weekends are skipped on purpose, by design). Link Audit runs every day, including weekends, via a separate GitHub Actions schedule. Manual runs are for 'I need this updated right now', not routine upkeep.",
-      "Sitemap sync: check first to see how many live sitemap URLs are missing from the Database, then sync to add them.",
-      "Exclusion lists: add a name + one or more patterns (a slug substring or a full URL for the URL list; a keyword substring for the query list), pick the type, Save. Toggle a row's checkbox to enable/disable it without deleting it, or edit its patterns inline.",
-      "'Currently excluded URLs' shows exactly which live pages the URL patterns match right now, newest exclusion first - each row names which pattern excluded it and when. Use 'Remove' on any of them to re-include just that one page (it moves to 'Manually re-included pages' below, and stays re-included even if it still matches a pattern).",
+      "Content Clusters tuning: adjust the sliders, click Save, then go rescan Content Clusters to see the effect - saving here doesn't update an already-finished scan on its own.",
+      "Search Console data / Keyword Cannibalization data / Link Audit: each card shows when it last updated and has a 'Run now' button. Search Console and Keyword Cannibalization always update together, automatically, every weekday morning (not weekends). Link Audit updates every day, including weekends, on its own separate schedule. Use 'Run now' when you need fresh data immediately - you don't need to do this routinely.",
+      "Sitemap sync: check first to see how many live pages are missing from the Database, then sync to add them.",
+      "Exclusion lists: give it a name, add one or more patterns (part of a web address, a full web address, or a search-term keyword), choose the type, and Save. You can turn a rule on/off without deleting it, or edit it any time.",
+      "'Currently excluded URLs' shows exactly which pages are hidden right now, newest first - each one shows which rule hid it and when. Click 'Remove' on any of them to bring that one page back (it moves down to 'Manually re-included pages', and stays visible even if a rule would otherwise still catch it).",
     ],
     readingIt: [
-      "URL-type patterns hide matching pages from Content Clusters + Conflict Checker matches ONLY - the page still appears in the Edstellar Database and in Search Console.",
-      "Query-type patterns hide matching GSC keywords from the Content Clusters top-queries panel only.",
-      "The row named 'Auto: dead/redirected pages (link audit)' is managed automatically by the daily Link Audit - its patterns get fully replaced on every run (self-healing: a page that starts resolving 200 again drops back out on its own). Don't hand-edit its patterns; disable the whole row instead if you want to pause auto-exclusion.",
+      "Web-address rules only hide pages from Content Clusters and the Conflict Checker - the page still shows up everywhere else, including the Database and Search Console.",
+      "Search-term rules only hide matching keywords from the Content Clusters top-searches panel.",
+      "The rule named 'Auto: dead/redirected pages (link audit)' is managed automatically - its list gets fully rebuilt every day, so a page that gets fixed will quietly disappear from it on its own. Don't edit its list by hand; turn the whole rule off instead if you want to pause it.",
     ],
     troubleshoot: [
-      { problem: "Content Clusters tuning changes don't seem to take effect", fix: "Hit Rescan on /clusters after saving here - Content Clusters caches its scan for ~5 minutes and tuning only applies to the NEXT scan." },
-      { problem: "A page I excluded still shows up somewhere", fix: "Exclusions only affect Content Clusters + Conflict Checker matches. The page is expected to still appear in the Edstellar Database, Search Console, and Keyword Cannibalization (that page hides dead pages via a different mechanism - see its own Help entry)." },
-      { problem: "'Last run' for Search Console / Cannibalization / Link Audit never updates", fix: "Click 'Run now' / 'Rescan now' to trigger it immediately. If it errors, check DATABASE_URL is set and reachable; Search Console additionally needs a connected Google account." },
-      { problem: "The Link Audit GitHub Actions cron never seems to run", fix: "It's scheduled via .github/workflows/link-audit.yml, not this app - it needs APP_BASE_URL and CRON_SECRET set as GitHub repo secrets (Settings → Secrets and variables → Actions on GitHub, not this Settings page). Use the 'Run now' button here in the meantime." },
+      { problem: "My Content Clusters tuning changes don't seem to do anything", fix: "Go rescan Content Clusters after saving here - it remembers its last scan for about 5 minutes, and your new settings only apply to the next one." },
+      { problem: "A page I excluded still shows up somewhere", fix: "Exclusions only affect Content Clusters and the Conflict Checker. It's expected to still show up in the Database, Search Console, and Keyword Cannibalization - that page hides broken pages a different way (see its own Help panel)." },
+      { problem: "'Last run' for Search Console / Cannibalization / Link Audit never changes", fix: "Click 'Run now' to update it immediately. If that gives an error, the database may be unreachable; Search Console also needs a connected Google account." },
+      { problem: "Link Audit never seems to run on its own", fix: "It runs from GitHub, not from this app, and needs two settings configured there first. Use the 'Run now' button here in the meantime, and ask an admin to check the GitHub setup." },
     ],
   },
 };

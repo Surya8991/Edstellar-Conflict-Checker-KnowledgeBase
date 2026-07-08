@@ -38,6 +38,7 @@
 - [21. Session 17 - Link Audit: daily 301/404/permanent-move auto-exclude](#21-session-17---link-audit-daily-301404permanent-move-auto-exclude-2026-07-08)
 - [22. Session 18 - Help dialog coverage + doc sweep for Link Audit](#22-session-18---help-dialog-coverage--doc-sweep-for-link-audit-2026-07-08)
 - [23. Session 19 - Exclusion attribution + weekday-only GSC snapshot](#23-session-19---exclusion-attribution--weekday-only-gsc-snapshot-2026-07-08)
+- [24. Session 20 - Help dialog rewritten in plain language, all 15 sections](#24-session-20---help-dialog-rewritten-in-plain-language-all-15-sections-2026-07-08)
 
 *(Note: there is no "§5" - a section by that number existed early on and was
 later removed/merged during reorganization; a handful of older entries below
@@ -3394,3 +3395,36 @@ DST edge cases), not a documentation inconsistency to fix.
 
 **Verification:** doc/comment-only changes; `npm run typecheck` still clean,
 no test or build impact.
+
+## 24. Session 20 - Help dialog rewritten in plain language, all 15 sections (2026-07-08)
+
+**Ask:** every Help-panel entry should be easy to understand for someone
+non-technical.
+
+Rewrote every entry in `lib/help-content.ts` from scratch (`what` / `howToUse`
+/ `readingIt` / `troubleshoot` - all four blocks, all 15 pages: `/dashboard`,
+`/signin`, `/conflict-checker`, `/clusters`, `/bulk-check`,
+`/internal-links`, `/audit`, `/manager`, `/catalog-conflicts`,
+`/search-console`, `/competitors`, `/corpus`, `/keyword-cannibalization`,
+`/strategy`, `/settings`). Same information, same exact button/label names
+(still quoted, since those are literally on screen), but:
+- Short sentences, everyday words, no jargon left unexplained. Terms like
+  "cosine similarity," "embedding," "DISTINCT ON," "connected components,"
+  and raw column names (`content_type`, `is_stale`) are gone or replaced
+  with a plain-English description of what they mean for the reader.
+- Numeric thresholds (score bands, character minimums, rate limits) and
+  exact fix steps were kept - simplifying language isn't the same as
+  dropping the facts someone needs to actually troubleshoot something.
+- The file's own header comment was rewritten too, spelling out the "write
+  for someone who's never seen this app" bar explicitly, so future edits
+  don't drift back toward engineer-facing copy.
+
+Updated the file header comment's own guidance to make the plain-language
+bar explicit for whoever edits this file next.
+
+**Verification:** `npm run typecheck` clean; full `npm test` suite
+**100/100 passing** (help content isn't covered by `lib/*.test.ts`, same as
+every prior copy-only change); `npm run build` succeeds. Live-verified in the
+dev server: opened the Help panel on `/corpus` and confirmed the new plain-
+language copy renders correctly end to end (screenshot-equivalent text dump
+captured via `preview_eval`).
