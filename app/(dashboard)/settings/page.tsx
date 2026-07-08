@@ -327,7 +327,7 @@ export default function SettingsPage() {
                 <strong className="text-slate-700">
                   {gscLast === undefined ? "…" : gscLast ? new Date(gscLast).toLocaleString() : "never"}
                 </strong>
-                . Refreshes automatically once a day.
+                . Refreshes automatically every weekday at 9:00 AM IST (skips weekends).
               </p>
             </div>
             <button
@@ -353,7 +353,7 @@ export default function SettingsPage() {
                 <strong className="text-slate-700">
                   {canniLast === undefined ? "…" : canniLast ? new Date(canniLast).toLocaleString() : "never"}
                 </strong>
-                . Refreshes automatically once a day.
+                . Refreshes automatically every weekday at 9:00 AM IST (skips weekends).
               </p>
             </div>
             <button

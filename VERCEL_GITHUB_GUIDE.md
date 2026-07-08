@@ -124,9 +124,9 @@ Vercel → your project → **Settings → Domains** → add `conflict-checker.e
 
 | Path | Cadence | What it does |
 |---|---|---|
-| `/api/cron/reingest` | Weekly (Sun 03:00 UTC) | Recrawl any sitemap URL whose `lastmod` changed; re-embed. |
-| `/api/cron/audit-links` | Weekly (Sun 04:00 UTC) | HEAD-check every URL; write status to `pages.http_status`. |
-| `/api/cron/gsc-snapshot` | Daily (05:30 UTC) | Snapshot yesterday's GSC totals into `gsc_daily_totals`. |
+| `/api/cron/reingest` | Weekly, Sunday 8:30 AM IST (`0 3 * * 0` UTC) | Recrawl any sitemap URL whose `lastmod` changed; re-embed. |
+| `/api/cron/audit-links` | Weekly, Sunday 9:30 AM IST (`0 4 * * 0` UTC) | HEAD-check every URL; write status to `pages.http_status`. |
+| `/api/cron/gsc-snapshot` | Weekdays only, 9:00 AM IST, Mon-Fri (`30 3 * * 1-5` UTC) | 6 jobs: snapshot yesterday's GSC totals into `gsc_daily_totals`, sync per-page 28d totals, mark stale pages, `gsc_metrics` 1/3/6-month snapshot, keyword-cannibalization snapshot, HTTP-status refresh. Skips Sat/Sun on purpose - Friday's and Saturday's `gsc_daily_totals` rows are never captured as a result (Monday's run only pulls "yesterday" = Sunday); the trailing-window aggregates (28d/1m/3m/6m) self-heal on the next run regardless. |
 
 ### Plan limits
 

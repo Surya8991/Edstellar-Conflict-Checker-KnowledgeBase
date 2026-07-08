@@ -21,8 +21,16 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 /**
- * Daily cron - six jobs in one (each later job is isolated so it can't cost the
- * earlier, already-committed ones):
+ * Weekday cron (Mon-Fri, 9:00 AM IST = 3:30 UTC - see `vercel.json`; skips
+ * Sat/Sun on purpose) - six jobs in one (each later job is isolated so it
+ * can't cost the earlier, already-committed ones). Note: skipping weekends
+ * means Friday's and Saturday's `gsc_daily_totals` rows are never captured
+ * (Monday's run only pulls "yesterday" = Sunday) - a deliberate trade-off,
+ * not a bug, if you notice a 2-day gap in the daily trend chart around
+ * weekends. Job 2's 28-day per-page sync and Job 4's 1/3/6-month `gsc_metrics`
+ * snapshot are both trailing-window aggregates, so they self-heal on the
+ * next run regardless of the gap - only the single-day totals table has a
+ * permanent hole.
  *   1. Snapshot yesterday's totals + branded vs non-branded into gsc_daily_totals.
  *   2. Sync per-page last-28-day clicks/impressions/position onto the pages row
  *      (powers business-impact severity scoring - #26).

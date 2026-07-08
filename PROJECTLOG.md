@@ -37,6 +37,7 @@
 - [20. Session 16 - §19 critical/high/medium fixes shipped](#20-session-16---19-criticalhighmedium-fixes-shipped-2026-07-07)
 - [21. Session 17 - Link Audit: daily 301/404/permanent-move auto-exclude](#21-session-17---link-audit-daily-301404permanent-move-auto-exclude-2026-07-08)
 - [22. Session 18 - Help dialog coverage + doc sweep for Link Audit](#22-session-18---help-dialog-coverage--doc-sweep-for-link-audit-2026-07-08)
+- [23. Session 19 - Exclusion attribution + weekday-only GSC snapshot](#23-session-19---exclusion-attribution--weekday-only-gsc-snapshot-2026-07-08)
 
 *(Note: there is no "§5" - a section by that number existed early on and was
 later removed/merged during reorganization; a handful of older entries below
@@ -3226,8 +3227,8 @@ redirects and adds them to the exclude list, run via GitHub Actions (not
 - **Cron:** `GET /api/cron/link-audit` (same `CRON_SECRET` bearer-auth as
   every other cron route; already covered by proxy.ts's `/api/cron`
   `PUBLIC_PATHS` prefix - no proxy change needed). Scheduled via
-  **`.github/workflows/link-audit.yml`** (`30 3 * * *` UTC = 9:00 AM IST, plus
-  `workflow_dispatch` for a manual GitHub-side run) instead of `vercel.json`,
+  **`.github/workflows/link-audit.yml`** (9:00 AM IST daily, `30 3 * * *` UTC,
+  plus `workflow_dispatch` for a manual GitHub-side run) instead of `vercel.json`,
   per explicit instruction to keep it off Vercel's cron-schedule limit. Needs
   `APP_BASE_URL` + `CRON_SECRET` as **GitHub repo secrets**, matching the
   Vercel env var values - documented in the workflow file + README + AGENTS.md.
@@ -3314,3 +3315,82 @@ missing the same newer content types §19C already fixed in
 **Verification:** `npm run typecheck` clean after the `lib/help-content.ts`
 changes; no test suite impact (help content isn't covered by `lib/*.test.ts`,
 consistent with every other UI-copy file in this repo).
+
+## 23. Session 19 - Exclusion attribution + weekday-only GSC snapshot (2026-07-08)
+
+### 23A. "Currently excluded URLs" now shows reason + timestamp, sorted latest first
+
+`/api/settings/exclusions/matches` previously matched a URL against the
+flattened pattern list from `lib/exclusions.getExclusions()` and had no way
+to say WHICH exclusion row caused the match, or WHEN. Rewrote it to `JOIN`
+through `excluded_series` directly (`type='url' AND enabled=true`, matching
+via `unnest(es.patterns)`), so each row now carries the owning row's `name`
+(the displayed "reason") and `updated_at` (the displayed "when"). A URL
+matching 2+ enabled rows picks the most-recently-updated one via
+`DISTINCT ON (url) ... ORDER BY url, excluded_at DESC` - the same field also
+drives the new default sort (latest exclusion first, replacing alphabetical
+by URL).
+
+Caveat documented in the route's own comment and the `/settings` Help entry:
+for the Link Audit auto-row specifically (§21), `updated_at` is bumped on
+**every** daily run regardless of whether a given URL was already excluded
+yesterday (full-replace, self-healing by design) - so it reads as "last
+confirmed still excluded," not strictly "first excluded." Manual
+blog-series rows don't have this quirk since they're only touched on an
+actual edit.
+
+Settings page: each row in "Currently excluded URLs" now shows "Excluded by
+\<name\> · \<date\>" under the URL. Help content updated to match.
+
+### 23B. Search Console + Keyword Cannibalization snapshot: weekdays only, 9AM IST
+
+**Ask:** refresh all GSC-required data once daily at 9AM, skip weekends.
+
+The `gsc-snapshot` cron already does the "full" refresh (all 6 jobs -
+daily totals, per-page 28d sync, stale-marking, `gsc_metrics` 1/3/6-month,
+keyword-cannibalization snapshot, HTTP-status) in one run, so this was a
+schedule-only change: `vercel.json`'s `/api/cron/gsc-snapshot` entry moved
+from 11:00 AM IST daily (`30 5 * * *` UTC) to 9:00 AM IST, Mon-Fri only
+(`30 3 * * 1-5` UTC) - the IST offset doesn't cross a UTC day boundary at
+this hour, so specifying weekdays in the UTC cron field lines up with IST
+weekdays exactly).
+
+**Known trade-off, not a bug:** skipping Sat/Sun means Friday's and
+Saturday's `gsc_daily_totals` rows are never captured - Monday's run only
+pulls "yesterday" = Sunday, so there's a permanent 2-day gap in the daily
+trend chart around every weekend. The trailing-window aggregates (Job 2's
+28-day per-page sync, Job 4's 1/3/6-month `gsc_metrics`) aren't affected -
+they self-heal on the next run regardless of which specific days ran.
+Documented inline in `app/api/cron/gsc-snapshot/route.ts`, AGENTS.md
+(§18M's HTTP-status-freshness note now says "up to ~3 days" instead of
+"within a day" over a weekend), `VERCEL_GITHUB_GUIDE.md`'s cron table,
+`docs/data-sources.md`, the Settings page card copy for both Search Console
+and Keyword Cannibalization ("Refreshes automatically every weekday at
+9:00 AM IST (skips weekends)"), and their Help entries.
+
+**Verification:** `npm run typecheck` clean; full `npm test` suite
+**100/100 passing** (no lib logic changed - this session was routing/SQL +
+copy only); `npm run build` succeeds with the rewritten matches route.
+
+### 23C. All cron-schedule prose now leads with IST
+
+Swept every remaining UTC-first cron-time reference and flipped it to lead
+with IST (the actual cron fields in `vercel.json` and
+`.github/workflows/*.yml` stay UTC - that's a hard platform constraint,
+neither Vercel Cron nor GitHub Actions `schedule:` supports a timezone - but
+every human-readable mention of when something runs now says the IST time
+first, with the literal UTC cron value alongside for whoever needs to edit
+it). Converted: `VERCEL_GITHUB_GUIDE.md`'s cron table (`reingest` Sun 03:00
+UTC → Sunday 8:30 AM IST; `audit-links` Sun 04:00 UTC → Sunday 9:30 AM IST;
+`gsc-snapshot` reordered to IST-first) and two UTC-first mentions in this
+file's own §21/23B prose. `docs/data-sources.md`'s `reingest`/`audit-links`
+rows gained explicit IST times for the first time (previously just "Daily" /
+"Weekly" with no time at all - the "Daily" on `reingest` was also stale,
+since it's actually weekly per `vercel.json`; fixed while already touching
+that cell). Left `lib/gsc.ts`/`lib/gsc.test.ts`'s `Date.UTC(...)` calls
+untouched - those are calendar-month-boundary arithmetic, not a displayed
+schedule, and using UTC there is deliberately correct (avoids local-timezone
+DST edge cases), not a documentation inconsistency to fix.
+
+**Verification:** doc/comment-only changes; `npm run typecheck` still clean,
+no test or build impact.

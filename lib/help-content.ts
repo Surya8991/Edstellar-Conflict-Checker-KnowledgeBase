@@ -314,7 +314,7 @@ export const HELP: Record<string, HelpEntry> = {
       "Use the search box plus the severity / action / status chips and type / sort dropdowns to scope the list.",
       "Click a conflict card to see every page competing for that query, with clicks/impressions/CTR/position per page.",
       "Set a status (pending / in-progress / completed / ignored) and an optional note per conflict. Select several with the checkboxes to bulk-set a status at once.",
-      "Hit 'Rescan' to force a fresh snapshot - it otherwise refreshes automatically once a day.",
+      "Hit 'Rescan' to force a fresh snapshot - it otherwise refreshes automatically every weekday at 9:00 AM IST (skips weekends).",
     ],
     readingIt: [
       "Severity (high/medium/low) weighs how close the ranking gap is and how much value is at stake, not just raw similarity.",
@@ -354,7 +354,7 @@ export const HELP: Record<string, HelpEntry> = {
       "Project-wide configuration: Content Clusters tuning, manual triggers for the three daily data refreshes (Search Console, Keyword Cannibalization, Link Audit), sitemap sync, and the exclusion lists that hide pages/queries from Content Clusters + Conflict Checker.",
     howToUse: [
       "Content Clusters tuning: adjust Topic overlap / Body floor / Merge max size, hit Save, then Rescan on /clusters to apply - saving here doesn't retroactively update an already-cached scan.",
-      "Search Console data / Keyword Cannibalization data / Link Audit: each card shows when it last ran and has a 'Run now' / 'Rescan now' button. All three also run automatically on a schedule, so manual runs are for 'I need this updated right now', not routine upkeep.",
+      "Search Console data / Keyword Cannibalization data / Link Audit: each card shows when it last ran and has a 'Run now' / 'Rescan now' button. Search Console + Keyword Cannibalization refresh automatically every weekday at 9:00 AM IST (they're two jobs in the same cron, so they always update together; weekends are skipped on purpose, by design). Link Audit runs every day, including weekends, via a separate GitHub Actions schedule. Manual runs are for 'I need this updated right now', not routine upkeep.",
       "Sitemap sync: check first to see how many live sitemap URLs are missing from the Database, then sync to add them.",
       "Exclusion lists: add a name + one or more patterns (a slug substring or a full URL for the URL list; a keyword substring for the query list), pick the type, Save. Toggle a row's checkbox to enable/disable it without deleting it, or edit its patterns inline.",
       "'Currently excluded URLs' shows exactly which live pages the URL patterns match right now, newest exclusion first - each row names which pattern excluded it and when. Use 'Remove' on any of them to re-include just that one page (it moves to 'Manually re-included pages' below, and stays re-included even if it still matches a pattern).",
