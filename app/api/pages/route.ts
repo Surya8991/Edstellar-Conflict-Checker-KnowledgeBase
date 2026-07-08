@@ -43,12 +43,31 @@ export async function GET(request: NextRequest) {
           AND (${category}   = '' OR category    = ${category})
           AND (${tag}        = '' OR ${tag} = ANY(tags))`;
 
+    // Blog Master signals (§33, drizzle/0020) are optional columns - a DB that
+    // hasn't had 0020 applied yet must not 500 the whole page. Probe once and
+    // only SELECT them when present; body_chars comes from the base
+    // content_text column so it is always available.
+    const hasBlogCols =
+      rowsOf<{ x: number }>(
+        await db.execute(sql`
+          SELECT 1 AS x FROM information_schema.columns
+          WHERE table_name = 'pages' AND column_name = 'meta_title' LIMIT 1`),
+      ).length > 0;
+    const blogCols = hasBlogCols
+      ? sql`, meta_title, word_count, table_count, content_hash,
+             jsonb_array_length(headings->'h2') AS h2_count,
+             jsonb_array_length(headings->'h3') AS h3_count,
+             array_length(internal_links, 1)   AS internal_count,
+             array_length(outbound_links, 1)   AS outbound_count`
+      : sql``;
+
     const rows = await db.execute(sql`
       SELECT id, url, title, h1, meta_description, content_type, course_type,
              category, subcategory, tags, lastmod, token_count,
              (embedding IS NOT NULL) AS embedded,
              owner_url, canonical_url, http_status, image_count, images_no_alt,
-             is_stale, stale_reason
+             is_stale, stale_reason,
+             length(content_text) AS body_chars${blogCols}
       FROM pages
       WHERE ${filters}
       ORDER BY id

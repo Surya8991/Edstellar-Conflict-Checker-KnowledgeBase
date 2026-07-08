@@ -30,6 +30,17 @@ interface PageRow {
   // #1 GSC query for the page over the last full month (branded/excluded stripped),
   // with that keyword's last-month clicks / impressions / position.
   primary_keyword: { query: string; clicks: number; impressions: number; position: number } | null;
+  // Full stored body length (chars). Drives the "Body" download column.
+  body_chars: number | null;
+  // Blog Master signals (§33) - null unless imported via import-blog-master.
+  meta_title?: string | null;
+  word_count?: number | null;
+  table_count?: number | null;
+  content_hash?: string | null;
+  h2_count?: number | null;
+  h3_count?: number | null;
+  internal_count?: number | null;
+  outbound_count?: number | null;
 }
 
 // Toggleable table columns (§33). Title is the row identity and always shown.
@@ -41,10 +52,14 @@ const COLUMNS = [
   { key: "keywords", label: "Primary Keyword" },
   { key: "category", label: "Category", defaultHidden: true },
   { key: "signals", label: "Signals", defaultHidden: true },
+  // Blog Master signals (§33) - hidden by default; only populated for imported blogs.
+  { key: "blog", label: "Blog Data", defaultHidden: true },
+  { key: "body", label: "Body", defaultHidden: true },
 ] as const;
 type ColKey = (typeof COLUMNS)[number]["key"];
 const DEFAULT_VISIBLE: Record<ColKey, boolean> = {
   h1: true, description: true, type: true, keywords: true, category: false, signals: false,
+  blog: false, body: false,
 };
 const COLS_STORAGE_KEY = "corpus.visibleCols.v1";
 const COMPACT_STORAGE_KEY = "corpus.compactRows.v1";
@@ -446,6 +461,8 @@ export default function CorpusPage() {
                 {show("keywords") && <th className="px-4 py-3 font-medium">Primary Keyword</th>}
                 {show("category") && <th className="px-4 py-3 font-medium">Category</th>}
                 {show("signals") && <th className="px-4 py-3 font-medium">Signals</th>}
+                {show("blog") && <th className="px-4 py-3 font-medium">Blog Data</th>}
+                {show("body") && <th className="px-4 py-3 font-medium">Body</th>}
               </tr>
             </thead>
             <tbody>
@@ -561,6 +578,64 @@ export default function CorpusPage() {
                         </button>
                       ))}
                     </div>
+                  </td>
+                  )}
+                  {show("blog") && (
+                  <td className="px-4 py-2.5 text-slate-600">
+                    {r.meta_title != null || r.word_count != null ? (
+                      <div className="max-w-xs">
+                        {r.meta_title && (
+                          <div
+                            className={compact ? "line-clamp-2" : "whitespace-normal break-words"}
+                            title={r.meta_title}
+                          >
+                            {r.meta_title}
+                          </div>
+                        )}
+                        <div className="mt-1 flex flex-wrap gap-1 text-[11px] tabular-nums text-slate-400">
+                          {r.word_count != null && <span title="Words">{r.word_count.toLocaleString()}w</span>}
+                          {(r.h2_count != null || r.h3_count != null) && (
+                            <span title="H2 / H3 headings">H2 {r.h2_count ?? 0}/H3 {r.h3_count ?? 0}</span>
+                          )}
+                          {(r.internal_count != null || r.outbound_count != null) && (
+                            <span title="Internal / outbound links">
+                              {r.internal_count ?? 0}&#8599;in/{r.outbound_count ?? 0}&#8599;out
+                            </span>
+                          )}
+                          {r.table_count != null && r.table_count > 0 && (
+                            <span title="Tables">{r.table_count} tbl</span>
+                          )}
+                        </div>
+                        {r.content_hash && (
+                          <div className="mt-0.5 font-mono text-[10px] text-slate-300" title="Content hash">
+                            {r.content_hash.slice(0, 12)}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-slate-300">-</span>
+                    )}
+                  </td>
+                  )}
+                  {show("body") && (
+                  <td className="px-4 py-2.5">
+                    {r.body_chars != null && r.body_chars > 0 ? (
+                      <div className="text-[11px]">
+                        <a
+                          href={`/api/pages/body?url=${encodeURIComponent(r.url)}`}
+                          download
+                          className="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-0.5 font-medium text-slate-700 hover:bg-slate-200"
+                          title="Download the full stored body as a .txt file"
+                        >
+                          &#8595; .txt
+                        </a>
+                        <div className="mt-1 tabular-nums text-slate-400">
+                          {r.body_chars.toLocaleString()} chars
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-slate-300">-</span>
+                    )}
                   </td>
                   )}
                 </tr>
