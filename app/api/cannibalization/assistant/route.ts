@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
         prompt:
           `The user pasted these inputs and ${question ? `asked: "${question}"` : "wants an overview of their cannibalization conflicts"}.\n\n` +
           `CONFLICT DATA (nearGap=${nearGap}; tabs: near-position = top-2 within ±${nearGap}, cross-type = different content types):\n${context || "(no conflicts matched)"}\n\n` +
-          `Respond as JSON: {"answer": "<markdown analysis, 1-4 short paragraphs or a tight bullet list>", "keyFindings": ["<one-line action per notable conflict>"]}`,
+          `Respond as JSON: {"answer": "<PLAIN-TEXT analysis, 1-3 short paragraphs - NO markdown symbols like ** or #, they render literally>", "keyFindings": ["<one-line plain-text action per notable conflict>"]}`,
       });
       const parsed = parseJson<{ answer?: string; keyFindings?: string[] }>(raw, {});
       if (parsed.answer) answer = { answer: parsed.answer, keyFindings: Array.isArray(parsed.keyFindings) ? parsed.keyFindings.slice(0, 12) : [] };

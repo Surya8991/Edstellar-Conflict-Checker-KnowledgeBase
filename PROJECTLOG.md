@@ -3548,3 +3548,35 @@ still resolve - only the display labels + order changed. Updated in lock-step:
 `Sidebar.tsx`, and the README section list. Typecheck clean; live-verified the
 tab bar + sidebar render the new labels in the new order and the (renamed)
 Content Gaps tab still resolves from the `catalog-gap` slug.
+
+## 27. Session 21 - Keyword Cannibalization AI Assistant: persist + harden (2026-07-08)
+
+Fixed the AI Assistant losing its thread and reviewed the tab's logic.
+
+**Bug: the conversation was volatile.** Turns lived only in React state and were
+never re-loaded, so a page reload - or a dev Fast-Refresh remount mid-request -
+dropped the whole thread even though every turn is already stored in
+`cannibalization_chats`. The symptom: submit, get a 200, but the turn never
+appears (the component that ran `ask()` had been remounted, discarding its
+`setTurns`). Fix: `AssistantTab` now keeps the `conversationId` in `localStorage`
+and, on mount, re-loads the thread from `GET /api/cannibalization/assistant?conversationId=`
+(verified at the API layer: POST a turn → GET returns it with answer + matches
+intact). Added a **"New conversation"** button + a "restoring…" hint.
+
+**Hardening.** The turn render now guards every field (`turn.answer?.answer`,
+`(g.tabs ?? [])`, `g.positionGap?.toFixed`, …) so a malformed/older stored row
+can never crash the tab (it was throwing into the dashboard error boundary).
+
+**Answer copy.** The prompt asked Groq for *markdown* but the UI renders the
+answer as plain text (`whitespace-pre-wrap`), so `**`/`#` showed literally - now
+it requests plain-text prose.
+
+**Logic review (no change needed):** `matchInputs` is sound - a keyword matches a
+stored query only by exact-or-contains (tightened in §18O so a generic word
+doesn't pull hundreds of groups); URLs match by `normalizeUrl`. `loadLiveGroups`
+correctly reuses the same branded/exclusion/dead-page filtering + read-time
+re-classification as `/api/cannibalization`. Groq runs in JSON mode with a
+deterministic fallback on 429/kill-switch. Typecheck clean; assistant matcher
+tests pass. (Live UI re-verification was hampered by an unstable local dev server
+- constant Fast Refresh + slow compiles - so the fix was verified via the API
+round-trip + typecheck; the assistant itself was screenshot-verified working in §18O.)
