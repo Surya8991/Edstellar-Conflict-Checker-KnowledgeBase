@@ -1125,6 +1125,7 @@ function MultiConflictCard({
   onToggleSelect: (query: string) => void;
 }) {
   const [solOpen, setSolOpen] = useState(false);
+  const [open, setOpen] = useState(false); // collapsed by default (§31B)
   // Keywords ordered by reach (impressions) - the biggest conflict leads.
   const members = useMemo(
     () => groups.slice().sort((a, b) => b.totalImpressions - a.totalImpressions),
@@ -1195,20 +1196,33 @@ function MultiConflictCard({
             </div>
           </div>
         </div>
-        {cardAction ? (
-          <span title={cardAction.hint} className={`shrink-0 cursor-help rounded-md px-2 py-1 text-xs font-medium ${cardAction.cls}`}>
-            {cardAction.label}
-          </span>
-        ) : (
-          <span
-            title="Different actions apply across these keywords - see each row"
-            className="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-500"
+        <div className="flex shrink-0 items-center gap-2">
+          {cardAction ? (
+            <span title={cardAction.hint} className={`cursor-help rounded-md px-2 py-1 text-xs font-medium ${cardAction.cls}`}>
+              {cardAction.label}
+            </span>
+          ) : (
+            <span
+              title="Different actions apply across these keywords - see each row"
+              className="rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-500"
+            >
+              Mixed actions
+            </span>
+          )}
+          <button
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            aria-label={open ? "Collapse keywords" : "Expand keywords"}
+            className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
           >
-            Mixed actions
-          </span>
-        )}
+            {open ? "Hide" : "Show"}
+            <ChevronDown size={13} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+          </button>
+        </div>
       </div>
 
+      {open && (
+        <div>
       {/* shared pages, listed once */}
       <table className="mt-3 w-full text-sm">
         <tbody>
@@ -1312,6 +1326,8 @@ function MultiConflictCard({
           <div className="mt-2 rounded-md bg-white/70 p-2 text-[11px] text-slate-600">
             <span className="font-semibold text-emerald-700">Prevent:</span> {s.prevent}
           </div>
+        </div>
+      )}
         </div>
       )}
     </div>

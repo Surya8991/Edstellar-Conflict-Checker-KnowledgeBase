@@ -3634,6 +3634,16 @@ rebuild): 14 grouped cards on page 1, no console errors, shared pages shown once
 per-keyword rows correct, and the card Solution/Fix opens with the page-set
 framing. Typecheck clean.
 
+**§31B - collapsed by default.** The grouped card now starts collapsed: only the
+header (severity, "N keywords · same M pages", impr/clicks/at-risk, action or
+"Mixed actions" badge) and a Show/Hide toggle render; the shared-pages table,
+per-keyword rows and Solution/Fix are gated behind `open` (default `false`).
+Cuts the page-1 DOM from ~32k to ~9.7k chars. Note: wrap the collapsible body in
+a real `<div>`, NOT an inline `{open && (<>…</>)}` fragment - Turbopack's SWC
+parser rejects a fragment opened on the same line as a following JSX comment
+(`Expected '</'…`) even though `tsc` accepts it. Live-verified: cards collapsed
+on load, Show expands to the keyword list and flips to Hide.
+
 ## 30. Cannibalization: Note filter + "Solution / Fix" playbook (2026-07-08)
 
 Two additions to the Keyword Cannibalization filter bar.
