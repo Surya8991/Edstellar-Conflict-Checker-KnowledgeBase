@@ -360,7 +360,10 @@ function Inner() {
       !s || g.query.toLowerCase().includes(s) || g.pages.some((p) => p.page.toLowerCase().includes(s));
   }, [search]);
 
-  const hasType = (g: CGroup, t: string) => g.pages.some((p) => (p.contentType ?? "other") === t);
+  // A type filter (e.g. "Blog") matches a group only when EVERY page is that
+  // type - so "Blog" shows blog↔blog groups only, never blog↔course. Mixed-type
+  // (cross-type) groups are visible under "All" only.
+  const hasType = (g: CGroup, t: string) => g.pages.every((p) => (p.contentType ?? "other") === t);
   const withinGap = useMemo(
     () => (g: CGroup) => maxGap == null || pageSpread(g) <= maxGap,
     [maxGap],
@@ -385,13 +388,12 @@ function Inner() {
     const c: Record<string, number> = {};
     for (const g of rows) {
       if (!(matchesSearch(g) && withinGap(g) && (!sevFilter || g.severity === sevFilter) && (!actionFilter || g.action === actionFilter))) continue;
-      const seen = new Set<string>();
-      for (const p of g.pages) {
-        const t = p.contentType ?? "other";
-        if (!seen.has(t)) {
-          seen.add(t);
-          c[t] = (c[t] ?? 0) + 1;
-        }
+      // Count a group under a type only if EVERY page is that type (homogeneous);
+      // mixed-type groups aren't counted under any single type (they're "All" only).
+      const types = new Set(g.pages.map((p) => p.contentType ?? "other"));
+      if (types.size === 1) {
+        const t = [...types][0];
+        c[t] = (c[t] ?? 0) + 1;
       }
     }
     return c;
