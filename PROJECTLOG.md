@@ -3619,10 +3619,13 @@ so `topQueries[0]` is exactly the primary keyword. `/api/pages` now returns
 `primary_keywords: string[]`). Header + column label are singular.
 
 **Compact rows toggle.** A "Compact rows" button (default ON, persisted to
-`corpus.compactRows.v1`) clamps long cells - Description and Title - to a single
-truncated line (full text on hover via `title`), so the table reads clean and
-uniform. Off = full wrap. H1 was already single-line. Purely presentational;
-`useState(true)` matches SSR so no hydration cost.
+`corpus.compactRows.v1`) clamps long cells - Title, H1, Description - to a maximum
+of **2 lines** (`line-clamp-2`, full text on hover via `title`), so the table
+reads clean and uniform. Off = full wrap. Purely presentational; `useState(true)`
+matches SSR so no hydration cost. Gotcha: `line-clamp-2` needs
+`display:-webkit-box`, so do NOT combine it with the `block` utility on the same
+element - `block` wins and the clamp silently no-ops (hit this on the Title
+anchor; removed `block`).
 
 Live-verified: API returns the singular shape with real last-month metrics; the
 column renders "keyword / N clicks · M impr · pos P"; toggling Compact clamps

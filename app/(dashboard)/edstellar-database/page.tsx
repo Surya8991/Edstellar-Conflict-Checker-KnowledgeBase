@@ -457,7 +457,7 @@ export default function CorpusPage() {
                       target="_blank"
                       rel="noreferrer"
                       title={compact ? r.title || r.url : undefined}
-                      className={`text-slate-900 hover:underline ${compact ? "block max-w-xs truncate" : ""}`}
+                      className={`text-slate-900 hover:underline ${compact ? "max-w-xs line-clamp-2" : ""}`}
                     >
                       {r.title || r.url}
                     </a>
@@ -467,7 +467,10 @@ export default function CorpusPage() {
                   </td>
                   {show("h1") && (
                   <td className="px-4 py-2.5 text-slate-600">
-                    <div className="max-w-xs truncate" title={r.h1 ?? undefined}>
+                    <div
+                      className={compact ? "max-w-xs line-clamp-2" : "max-w-xs whitespace-normal break-words"}
+                      title={compact ? r.h1 ?? undefined : undefined}
+                    >
                       {r.h1 || <span className="text-slate-300">-</span>}
                     </div>
                   </td>
@@ -475,7 +478,7 @@ export default function CorpusPage() {
                   {show("description") && (
                   <td className="px-4 py-2.5 text-slate-600">
                     <div
-                      className={compact ? "max-w-sm truncate" : "max-w-sm whitespace-normal break-words"}
+                      className={compact ? "max-w-sm line-clamp-2" : "max-w-sm whitespace-normal break-words"}
                       title={compact ? r.meta_description ?? undefined : undefined}
                     >
                       {r.meta_description || <span className="text-slate-300">-</span>}
