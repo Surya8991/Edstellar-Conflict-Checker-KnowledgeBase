@@ -21,7 +21,8 @@
     "draft-worker": "tsx scripts/draft-worker.ts",
     "pregen-drafts": "tsx scripts/pregen-drafts.ts",
     "gsc-metrics": "tsx scripts/gsc-metrics-snapshot.ts",
-    "cannibalization": "tsx scripts/cannibalization.ts"
+    "cannibalization": "tsx scripts/cannibalization.ts",
+    "seed-brand-exclusion": "tsx scripts/seed-brand-exclusion.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",

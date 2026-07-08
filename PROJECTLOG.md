@@ -3607,6 +3607,24 @@ side effect (`fetch`/`localStorage`/`router`/`toast`) inside a `setState` update
 before its `return`. `saveAnno` was the only instance; nothing else to fix.
 Typecheck clean.
 
+## 32. Exclude "edstellar" branded queries via the exclude keyword list (2026-07-08)
+
+Added `edstellar` as a `query`-type row in `excluded_series` (the managed exclude
+KEYWORD list), so branded queries - "edstellar" as a prefix, suffix, or anywhere -
+are hidden from both **Keyword Cannibalization** (`/api/cannibalization` already
+calls `isExcludedQuery`) and the **Content Clusters** top-queries GSC panel
+(`gsc-cluster-metrics.ts` `isExcludedQuery`). `isExcludedQuery` is a case-
+insensitive substring test, so the single term covers every branded variant.
+Cannibalization already dropped these via the independent `branded` flag
+(`isBrandedQuery`, brand term default `edstellar`) - 0 edstellar queries were in
+its output beforehand - so this mainly changes the clusters panel and makes the
+rule explicit + editable at `/settings`.
+
+Seeded by an idempotent, checked-in script (`scripts/seed-brand-exclusion.ts`,
+`npm run seed-brand-exclusion`): inserts the row only if no query-type exclusion
+already covers `edstellar`. Verified: row #7 present + enabled, re-run is a no-op.
+Removable from `/settings` like any other exclusion.
+
 ## 31. Cannibalization: group same-page conflicts into one card (2026-07-08)
 
 Multiple keywords fought over the SAME set of pages were rendering as separate
