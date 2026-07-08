@@ -3492,3 +3492,44 @@ every prior copy-only change); `npm run build` succeeds. Live-verified in the
 dev server: opened the Help panel on `/corpus` and confirmed the new plain-
 language copy renders correctly end to end (screenshot-equivalent text dump
 captured via `preview_eval`).
+
+## 25. Session 21 - Semantic catalog gap + GSC cannibalization-section cleanup (2026-07-08)
+
+Two GSC-sub-page upgrades (from a review of which sections were worth improving).
+
+**Catalog Gap → semantic (pgvector) matching.** The gap detector was a fuzzy
+*string-token* match against a JSON catalog, capped at the top 300 queries - it
+missed every gap where the wording differed from a page's tokens. Replaced with
+embedding cosine against the live corpus (`pages.embedding`): each candidate
+query (impr ≥ 30, top 80 by impressions) is embedded once (`getEmbedder`) and
+its nearest corpus page found via `vectorSearchPages`; a query with **no page
+above the similarity floor is a real content gap**. New pure-ish
+`semanticCatalogGap()` in `lib/gsc-insights.ts` (bounded-concurrency `mapPool`
+over the per-candidate vector searches) + a **lazy route**
+`/api/gsc/catalog-gap` (embedding + 80 vector searches is heavier than the other
+sections, so it's on-demand, not part of `buildInsights`). The Catalog Gap tab
+fetches it itself and shows a **"Best match" similarity** column + CSV.
+**Threshold calibrated live:** genuine matches score ~0.76-0.82 while tangential
+"nearest" pages land ~0.55-0.64, so `GSC_GAP_MIN_SIM` defaults to **0.68** (don't
+drop below ~0.65 or tangential matches hide real gaps). Verified against the real
+corpus: covered topics (corporate training, agile PM) score 0.80+, while
+country/time/weather queries the site ranks for ("malta", "time in italy",
+"canicule", "hitzewelle frankreich") surface as gaps at 46-62%.
+
+**GSC "Cannibalization" section removed (dead code + doc drift).** The dedicated
+`/keyword-cannibalization` tool has long superseded the weaker live version, and
+the tab + sidebar link were already gone - but `buildInsights` still computed it
+(and paid for the `["query","page"]` GSC call) and the type/docs still referenced
+it. Dropped the compute, the `byQueryPage` fetch (7 → 6 GSC calls per load), the
+`cannibalization` + `gap` fields from `Insights`, and the now-dead catalog-token
+helpers (`loadCatalog`/`bestCatalogMatch`/…). `pageCannibalization` (the per-page
+lookup drilldown) and `CannibalGroup` stay. Subtitle + README fixed to stop
+listing Cannibalization as a GSC sub-page.
+
+**Verification:** `npm run typecheck` clean; full test suite passing; both
+changes live-verified in the dev server - the Catalog Gap tab renders the
+semantic table with the Best-match column, `/api/gsc/catalog-gap` returns 200
+with real gaps, and the Search Console tab bar no longer shows Cannibalization.
+Next GSC upgrades still open (not built): a per-query history table to give
+Movers / Striking Distance / CTR real trend, and making CTR Opportunity
+actionable via the rewrite route.

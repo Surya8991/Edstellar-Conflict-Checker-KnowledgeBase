@@ -50,7 +50,7 @@ npm run dev        # http://localhost:3000
 
 ## Features by page
 
-Top-level nav: Edstellar Database (the `/corpus` page), Search Console (an expandable parent - each GSC report is its own sub-page at `/search-console?section=<slug>`: Overview, Cannibalization, Striking Distance, CTR Opportunity, Movers, Untapped, Catalog Gap, Stale Pages, Index Coverage), Conflict Checker, Content Clusters, Settings. Dashboard, Manager View, Competitors, Bulk Check, Content Audit, Internal Links, Funnel Strategy, and Catalog Conflicts live under the collapsible **Additional Tools** section of the sidebar. (Score History - the old `/history` page - was removed in Session 14; the dashboard shows recent checks inline and editorial-outcome data still powers the Manager View.)
+Top-level nav: Edstellar Database (the `/corpus` page), Search Console (an expandable parent - each GSC report is its own sub-page at `/search-console?section=<slug>`: Overview, Striking Distance, CTR Opportunity, Movers, Untapped, Catalog Gap (semantic - pgvector match against the corpus), Stale Pages, Index Coverage; cannibalization has its own top-level tool, not a GSC sub-page), Conflict Checker, Content Clusters, Settings. Dashboard, Manager View, Competitors, Bulk Check, Content Audit, Internal Links, Funnel Strategy, and Catalog Conflicts live under the collapsible **Additional Tools** section of the sidebar. (Score History - the old `/history` page - was removed in Session 14; the dashboard shows recent checks inline and editorial-outcome data still powers the Manager View.)
 
 | Route | What it does |
 |---|---|

@@ -69,11 +69,9 @@ interface Insights {
   topQueries: any[];
   topPages: any[];
   trend: any[];
-  cannibalization: any[];
   striking: any[];
   movers: { winners: any[]; losers: any[] };
   untapped: any[];
-  gap: any[];
   byCountry: any[];
   byDevice: any[];
   branded: {
@@ -201,7 +199,7 @@ function SearchConsoleInner() {
     <div>
       <PageHeader
         title="Search Console"
-        subtitle="GSC performance, cannibalization, striking-distance, movers, untapped queries & catalog gap."
+        subtitle="GSC performance, striking-distance, movers, untapped queries & a semantic catalog gap. (Cannibalization has its own tool - see Keyword Cannibalization.)"
         right={
           <a
             href="/api/gsc/auth"
@@ -366,7 +364,7 @@ function SearchConsoleInner() {
         {data && tab === "CTR Opportunity" && <CtrOppTab data={data} />}
         {data && tab === "Movers" && <MoversTab data={data} />}
         {data && tab === "Untapped" && <UntappedTab data={data} />}
-        {data && tab === "Catalog Gap" && <GapTab data={data} />}
+        {tab === "Catalog Gap" && <GapTab range={range} customDates={customDates} />}
         {data && tab === "Stale Pages" && <StaleTab data={data} range={range} />}
         {tab === "Index Coverage" && <IndexCoverageTab />}
       </div>
@@ -717,31 +715,71 @@ function UntappedTab({ data }: { data: Insights }) {
   );
 }
 
-function GapTab({ data }: { data: Insights }) {
-  if (!data.gap.length)
-    return <EmptyState text="Every high-impression query matches an existing course/blog/category." />;
+function GapTab({ range, customDates }: { range: string; customDates: { startDate: string; endDate: string } }) {
+  const [rows, setRows] = useState<any[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Semantic gap is computed on demand (embed + pgvector), so this tab fetches
+  // its own route rather than reading the shared insights payload.
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setError(null);
+    const body: Record<string, unknown> = { range };
+    if (range === "custom") {
+      body.startDate = customDates.startDate;
+      body.endDate = customDates.endDate;
+    }
+    fetch("/api/gsc/catalog-gap", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    })
+      .then((r) => r.json())
+      .then((j) => {
+        if (!alive) return;
+        if (j.error) throw new Error(j.error);
+        setRows(j.gap ?? []);
+      })
+      .catch((e) => alive && setError((e as Error).message))
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [range, customDates.startDate, customDates.endDate]);
+
+  if (loading) return <div className="text-sm text-slate-400">Finding gaps (semantic match against the corpus)…</div>;
+  if (error) return <Card className="border-red-200 bg-red-50 text-sm text-red-700">{error}</Card>;
+  if (!rows || !rows.length)
+    return <EmptyState text="Every high-impression query maps to an existing corpus page (semantic match)." />;
   return (
     <Card>
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-slate-900">Catalog gap</h3>
-          <p className="text-xs text-slate-500">Queries you rank for but have no matching course / blog / category - opportunities to create dedicated content.</p>
+          <h3 className="text-sm font-semibold text-slate-900">Catalog gap (semantic)</h3>
+          <p className="text-xs text-slate-500">
+            Queries you rank for that have <strong>no semantically-close corpus page</strong> (cosine match, not just word overlap) - the best candidates for new dedicated content. &ldquo;Best match&rdquo; is the nearest page&apos;s similarity.
+          </p>
         </div>
         <ExportBtn
           onClick={() =>
-            downloadCsv("catalog-gap.csv",
-              ["query","impressions","clicks","position"],
-              data.gap.map((r: any) => [r.query, r.impressions, r.clicks, r.position.toFixed(1)]))
+            downloadCsv(
+              "catalog-gap.csv",
+              ["query", "impressions", "clicks", "position", "best_match_similarity"],
+              rows.map((r: any) => [r.query, r.impressions, r.clicks, r.position.toFixed(1), r.bestSim ?? ""]),
+            )
           }
         />
       </div>
       <SimpleTable
-        cols={["Query","Impr","Clicks","Pos"]}
-        rows={data.gap.map((r: any) => [
+        cols={["Query", "Impr", "Clicks", "Pos", "Best match"]}
+        rows={rows.map((r: any) => [
           r.query,
           fmt(r.impressions),
           fmt(r.clicks),
           r.position.toFixed(1),
+          r.bestSim != null ? `${Math.round(r.bestSim * 100)}%` : "-",
         ])}
       />
     </Card>

@@ -4,9 +4,9 @@
  * Single entry point: buildInsights() - one set of API calls, many derived views.
  */
 import { google } from "googleapis";
-import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
 import { getAuthorizedClient, resolveRange, resolveSiteUrl, type RangeKey } from "@/lib/gsc";
+import { getEmbedder } from "@/lib/ai";
+import { vectorSearchPages } from "@/lib/search";
 
 export interface GscRow {
   keys?: string[];
@@ -59,8 +59,11 @@ export interface GapRow {
   clicks: number;
   position: number;
   matched: boolean;
-  matchKind?: "course" | "blog" | "category" | "subcategory";
+  /** content_type of the nearest corpus page (when matched). */
+  matchKind?: string;
   matchUrl?: string;
+  /** Cosine similarity (0..1) of the nearest corpus page - low = real gap. */
+  bestSim?: number;
 }
 
 export interface BrandedSplit {
@@ -85,11 +88,9 @@ export interface Insights {
   topQueries: GscRow[];
   topPages: GscRow[];
   trend: GscRow[];
-  cannibalization: CannibalGroup[];
   striking: StrikingRow[];
   movers: { winners: MoverRow[]; losers: MoverRow[] };
   untapped: UntappedRow[];
-  gap: GapRow[];
   byCountry: GscRow[];
   byDevice: GscRow[];
   branded: BrandedSplit;
@@ -141,56 +142,73 @@ async function runQuery(
   return (res.data.rows ?? []) as GscRow[];
 }
 
-// --- Catalog index for the "gap" detector ---------------------------------
-interface CourseRow { name: string; link: string; category?: string; subcategory?: string }
-interface BlogRow { url: string; title: string; category?: string | null }
-type CatalogEntry = { kind: "course" | "blog" | "category" | "subcategory"; tokens: Set<string>; url: string };
-let catalogTokens: CatalogEntry[] | null = null;
+// --- Semantic catalog-gap detector (§25) ----------------------------------
+// A query is a GAP when NO corpus page is semantically close to it (pgvector
+// cosine, not string-token overlap). Env-overridable floor; a page must clear
+// it to count the query as "covered". Calibrated live on the corpus: genuine
+// matches score ~0.76-0.82 while tangential "nearest" pages land ~0.55-0.64, so
+// 0.68 cleanly separates covered from gap (bge-small compresses cosine into a
+// high band - don't drop this below ~0.65 or tangential matches hide real gaps).
+const GAP_MIN_SIM = Number(process.env.GSC_GAP_MIN_SIM) || 0.68;
+const GAP_MAX_CANDIDATES = 80;
 
-function readJson<T>(file: string, fallback: T): T {
-  const p = join(process.cwd(), "data", "taxonomy", file);
-  if (!existsSync(p)) return fallback;
-  try { return JSON.parse(readFileSync(p, "utf8")) as T } catch { return fallback }
-}
-function tokenize(s: string): Set<string> {
-  return new Set(
-    s.toLowerCase()
-      .replace(/[^a-z0-9 ]+/g, " ")
-      .split(/\s+/)
-      .filter((w) => w.length > 2 && !STOP.has(w)),
-  );
-}
-const STOP = new Set(["the","and","for","with","from","that","this","you","your","are","training","course","program","programs","best","top","how","what","why"]);
-
-function loadCatalog() {
-  if (catalogTokens) return catalogTokens;
-  const courses = readJson<CourseRow[]>("courses.json", []);
-  const blogs = readJson<BlogRow[]>("blogs.json", []);
-  const out: CatalogEntry[] = [];
-  for (const c of courses) {
-    out.push({ kind: "course", tokens: tokenize(c.name), url: c.link });
-    if (c.category) out.push({ kind: "category", tokens: tokenize(c.category), url: c.link });
-    if (c.subcategory) out.push({ kind: "subcategory", tokens: tokenize(c.subcategory), url: c.link });
-  }
-  for (const b of blogs) {
-    out.push({ kind: "blog", tokens: tokenize(b.title), url: b.url });
-  }
-  catalogTokens = out;
-  return out;
-}
-function bestCatalogMatch(query: string): { kind: GapRow["matchKind"]; url: string; score: number } | null {
-  const q = tokenize(query);
-  if (q.size < 2) return null;
-  let best: { kind: GapRow["matchKind"]; url: string; score: number } | null = null;
-  for (const entry of loadCatalog()) {
-    let hits = 0;
-    for (const t of q) if (entry.tokens.has(t)) hits++;
-    const score = hits / q.size;
-    if (score >= 0.6 && (!best || score > best.score)) {
-      best = { kind: entry.kind, url: entry.url, score };
+/** Run an async fn over items with bounded concurrency (keeps the per-candidate
+ *  pgvector round-trips from opening 80 connections at once). */
+async function mapPool<T, R>(items: T[], concurrency: number, fn: (item: T, i: number) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < items.length) {
+      const i = cursor++;
+      out[i] = await fn(items[i], i);
     }
   }
-  return best;
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+  return out;
+}
+
+/**
+ * Semantic catalog gap: the queries you already rank for that have NO closely-
+ * matching corpus page (by embedding cosine, so wording differences don't hide a
+ * real gap the way string-token overlap did). Each surviving query is a concrete
+ * "create dedicated content" opportunity. Lazy/on-demand (its own route) because
+ * embedding + per-candidate vector search is heavier than the other sections.
+ */
+export async function semanticCatalogGap(
+  range: RangeKey,
+  custom?: { startDate?: string; endDate?: string },
+): Promise<GapRow[]> {
+  const client = await getAuthorizedClient();
+  if (!client) throw new Error("Not connected to Google Search Console.");
+  const siteUrl = await resolveSiteUrl(client);
+  const { startDate, endDate } = resolveRange(range, new Date(), custom);
+
+  const byQuery = await runQuery(client, siteUrl, startDate, endDate, ["query"], 1000);
+  const candidates = byQuery
+    .filter((r) => r.impressions >= 30 && (r.keys?.[0] ?? "").trim().length > 0)
+    .sort((a, b) => b.impressions - a.impressions)
+    .slice(0, GAP_MAX_CANDIDATES);
+  if (!candidates.length) return [];
+
+  const embeddings = await getEmbedder().embed(candidates.map((c) => c.keys?.[0] ?? ""));
+
+  const rows = await mapPool(candidates, 10, async (c, i) => {
+    const [top] = await vectorSearchPages(embeddings[i], { limit: 1 });
+    const bestSim = top?.similarity ?? 0;
+    const matched = bestSim >= GAP_MIN_SIM;
+    return {
+      query: c.keys?.[0] ?? "",
+      impressions: c.impressions,
+      clicks: c.clicks,
+      position: c.position,
+      matched,
+      matchKind: matched ? top?.contentType ?? undefined : undefined,
+      matchUrl: matched ? top?.url : undefined,
+      bestSim: Number(bestSim.toFixed(3)),
+    } satisfies GapRow;
+  });
+
+  return rows.filter((r) => !r.matched).sort((a, b) => b.impressions - a.impressions).slice(0, 50);
 }
 
 // --- Public entry point ---------------------------------------------------
@@ -205,13 +223,13 @@ export async function buildInsights(
   const { startDate, endDate } = resolveRange(range, new Date(), custom);
   const prev = previousRange(startDate, endDate);
 
-  // Parallel fetch: 7 narrow queries.
-  const [byQuery, byPage, byDate, byQueryPage, byCountry, byDevice, byQueryPrev] =
+  // Parallel fetch: 6 narrow queries. (Cannibalization was removed - the
+  // dedicated /keyword-cannibalization tool supersedes it, §25.)
+  const [byQuery, byPage, byDate, byCountry, byDevice, byQueryPrev] =
     await Promise.all([
       runQuery(client, siteUrl, startDate, endDate, ["query"], 1000),
       runQuery(client, siteUrl, startDate, endDate, ["page"], 500),
       runQuery(client, siteUrl, startDate, endDate, ["date"], 400),
-      runQuery(client, siteUrl, startDate, endDate, ["query", "page"], 2000),
       runQuery(client, siteUrl, startDate, endDate, ["country"], 50),
       runQuery(client, siteUrl, startDate, endDate, ["device"], 5),
       runQuery(client, siteUrl, prev.startDate, prev.endDate, ["query"], 1000),
@@ -232,24 +250,7 @@ export async function buildInsights(
     ? byDate.reduce((s, r) => s + r.position, 0) / byDate.length
     : 0;
 
-  // 1. Cannibalization - same query, multiple ranking pages.
-  const groups = new Map<string, CannibalGroup>();
-  for (const r of byQueryPage) {
-    const q = r.keys?.[0] ?? ""; const p = r.keys?.[1] ?? "";
-    if (!q || !p) continue;
-    let g = groups.get(q);
-    if (!g) { g = { query: q, totalImpressions: 0, totalClicks: 0, pages: [] }; groups.set(q, g) }
-    g.totalImpressions += r.impressions;
-    g.totalClicks += r.clicks;
-    g.pages.push({ page: p, clicks: r.clicks, impressions: r.impressions, position: r.position, ctr: r.ctr });
-  }
-  const cannibalization = [...groups.values()]
-    .filter((g) => g.pages.length >= 2 && g.totalImpressions >= 50)
-    .map((g) => ({ ...g, pages: g.pages.sort((a, b) => b.impressions - a.impressions) }))
-    .sort((a, b) => b.totalImpressions - a.totalImpressions)
-    .slice(0, 50);
-
-  // 2. Striking distance - positions 8..20, decent impressions.
+  // Striking distance - positions 8..20, decent impressions.
   const striking: StrikingRow[] = byQuery
     .filter((r) => r.position >= 8 && r.position <= 20 && r.impressions >= 20)
     .map((r) => {
@@ -308,27 +309,8 @@ export async function buildInsights(
     .sort((a, b) => b.lostClicks - a.lostClicks)
     .slice(0, 40);
 
-  // 5. Gap - queries with no matching course/blog/category in the catalog.
-  const gap: GapRow[] = byQuery
-    .slice(0, 300) // cap LLM-free fuzzy match work
-    .map((r) => {
-      const q = r.keys?.[0] ?? "";
-      const m = bestCatalogMatch(q);
-      return {
-        query: q,
-        impressions: r.impressions,
-        clicks: r.clicks,
-        position: r.position,
-        matched: !!m,
-        matchKind: m?.kind,
-        matchUrl: m?.url,
-      };
-    })
-    .filter((g) => !g.matched && g.impressions >= 30)
-    .sort((a, b) => b.impressions - a.impressions)
-    .slice(0, 40);
-
-  // 6. Branded vs non-branded split.
+  // Branded vs non-branded split. (Catalog gap moved to the lazy, semantic
+  // `semanticCatalogGap` / `/api/gsc/catalog-gap` route - §25.)
   const branded = computeBrandedSplit(byQuery);
 
   // 7. Stale-content detector - current period vs previous period per page.
@@ -354,11 +336,9 @@ export async function buildInsights(
     topQueries: byQuery.slice(0, 50),
     topPages: byPage.slice(0, 50),
     trend: byDate,
-    cannibalization,
     striking,
     movers: { winners, losers },
     untapped,
-    gap,
     byCountry: byCountry.slice(0, 20),
     byDevice,
     branded,
