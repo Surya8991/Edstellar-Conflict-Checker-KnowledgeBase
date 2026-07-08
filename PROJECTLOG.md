@@ -3607,6 +3607,33 @@ side effect (`fetch`/`localStorage`/`router`/`toast`) inside a `setState` update
 before its `return`. `saveAnno` was the only instance; nothing else to fix.
 Typecheck clean.
 
+## 31. Cannibalization: group same-page conflicts into one card (2026-07-08)
+
+Multiple keywords fought over the SAME set of pages were rendering as separate
+cards (the top AI pair alone had 10 keywords, 10 identical two-URL tables). Now
+the filtered conflicts are grouped by page-set (`cards` memo, keyed by the sorted
+page URLs) and paginated by card. Data: 1,105 conflicts collapse to 509 cards;
+156 page-sets carry 2+ keywords.
+
+**Single-keyword page-sets** (353) render the unchanged `ConflictCard`.
+**Multi-keyword page-sets** render a new `MultiConflictCard`: the shared pages are
+listed ONCE at the top (starred = primary in the most member queries; "Mixed
+actions" badge when the members' recommended actions differ), followed by a
+`Conflicting keywords (N)` list where each `KeywordRow` keeps its own metrics,
+per-page positions, action chip, per-query status dropdown, note, and checkbox -
+so annotations/selection stay keyed by query (unchanged backend contract). The
+card checkbox selects/deselects every member; the card-level Solution / Fix uses
+the highest-impression member and frames the fix for the whole page-set. Metrics,
+role, action and severity are all per-query (verified against the payload), which
+is why the per-keyword rows can't be collapsed into the shared table. Summary line
+now reads "1105 conflicts · 509 cards"; pagination unit is "cards".
+
+Live-verified after a clean `.next` rebuild (a newly-added top-level component
+tripped a Turbopack stale-chunk `ReferenceError` under HMR - gone after the
+rebuild): 14 grouped cards on page 1, no console errors, shared pages shown once,
+per-keyword rows correct, and the card Solution/Fix opens with the page-set
+framing. Typecheck clean.
+
 ## 30. Cannibalization: Note filter + "Solution / Fix" playbook (2026-07-08)
 
 Two additions to the Keyword Cannibalization filter bar.

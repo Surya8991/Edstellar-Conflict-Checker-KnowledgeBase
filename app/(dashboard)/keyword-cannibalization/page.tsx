@@ -81,6 +81,12 @@ const SEV_STYLE: Record<Severity, string> = {
   medium: "bg-amber-100 text-amber-700",
   low: "bg-slate-100 text-slate-600",
 };
+const SEV_DOT: Record<Severity, string> = {
+  high: "bg-red-500",
+  medium: "bg-amber-500",
+  low: "bg-slate-400",
+};
+const SEV_RANK: Record<Severity, number> = { high: 3, medium: 2, low: 1 };
 const ACTION_STYLE: Record<string, { label: string; cls: string; hint: string }> = {
   consolidate: {
     label: "Consolidate → 301",
@@ -500,8 +506,22 @@ function Inner() {
     setLoading(false);
   }
 
+  // Group the filtered conflicts by their page-set: every keyword fought over the
+  // SAME set of pages collapses into ONE card (§31). Order follows the already-
+  // sorted `filtered` list - a card sits where its first member sits.
+  const cards = useMemo(() => {
+    const map = new Map<string, CGroup[]>();
+    for (const g of filtered) {
+      const key = g.pages.map((p) => p.page).slice().sort().join("\n");
+      const arr = map.get(key);
+      if (arr) arr.push(g);
+      else map.set(key, [g]);
+    }
+    return [...map.values()];
+  }, [filtered]);
+
   const activeTab = TABS.find((t) => t.slug === tab)!;
-  const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const pagedCards = cards.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <div>
@@ -700,6 +720,7 @@ function Inner() {
               <span className="tabular-nums">
                 {filtered.length} {filtered.length === 1 ? "conflict" : "conflicts"}
                 {filtered.length !== rows.length ? ` of ${rows.length}` : ""}
+                {cards.length < filtered.length ? ` · ${cards.length} cards` : ""}
               </span>
             </label>
             <button
@@ -755,28 +776,39 @@ function Inner() {
           )}
 
           <div className="space-y-3">
-            {paged.map((g) => (
-              <ConflictCard
-                key={g.query}
-                g={g}
-                anno={annos[g.query]}
-                onSave={saveAnno}
-                selected={selected.has(g.query)}
-                onToggleSelect={() => toggleSelect(g.query)}
-              />
-            ))}
+            {pagedCards.map((group) =>
+              group.length === 1 ? (
+                <ConflictCard
+                  key={group[0].query}
+                  g={group[0]}
+                  anno={annos[group[0].query]}
+                  onSave={saveAnno}
+                  selected={selected.has(group[0].query)}
+                  onToggleSelect={() => toggleSelect(group[0].query)}
+                />
+              ) : (
+                <MultiConflictCard
+                  key={group.map((g) => g.query).join("|")}
+                  groups={group}
+                  annos={annos}
+                  onSave={saveAnno}
+                  selectedSet={selected}
+                  onToggleSelect={toggleSelect}
+                />
+              ),
+            )}
           </div>
 
-          {filtered.length > pageSize && (
+          {cards.length > pageSize && (
             <div className="mt-4">
               <Pagination
                 page={page}
                 pageSize={pageSize}
-                total={filtered.length}
+                total={cards.length}
                 onJump={setPage}
                 onPageSize={setPageSize}
                 pageSizes={[25, 50, 100]}
-                unit="conflicts"
+                unit="cards"
               />
             </div>
           )}
@@ -1064,6 +1096,344 @@ function conflictSolution(g: CGroup) {
     primaryUrl,
     loserUrls,
   };
+}
+
+/** Short human label for a URL - last path segment, else host. */
+function urlLabel(url: string): string {
+  try {
+    const u = new URL(url);
+    const seg = u.pathname.split("/").filter(Boolean);
+    return seg.length ? seg[seg.length - 1] : u.hostname;
+  } catch {
+    return url;
+  }
+}
+
+/** One card for a page-set shared by 2+ conflicting keywords (§31). The pages
+ *  are listed once; each keyword keeps its own metrics, action, status + note. */
+function MultiConflictCard({
+  groups,
+  annos,
+  onSave,
+  selectedSet,
+  onToggleSelect,
+}: {
+  groups: CGroup[];
+  annos: Record<string, Anno>;
+  onSave: (query: string, patch: Partial<Anno>) => void;
+  selectedSet: Set<string>;
+  onToggleSelect: (query: string) => void;
+}) {
+  const [solOpen, setSolOpen] = useState(false);
+  // Keywords ordered by reach (impressions) - the biggest conflict leads.
+  const members = useMemo(
+    () => groups.slice().sort((a, b) => b.totalImpressions - a.totalImpressions),
+    [groups],
+  );
+  const rep = members[0];
+
+  // Shared pages: union across members, deduped. A page is starred if it's the
+  // recommended primary in the most member queries.
+  const pages = useMemo(() => {
+    const m = new Map<string, { url: string; type: string | null; primaryVotes: number }>();
+    for (const g of groups)
+      for (const p of g.pages) {
+        const e = m.get(p.page) ?? { url: p.page, type: p.contentType, primaryVotes: 0 };
+        if (e.type == null) e.type = p.contentType;
+        if (p.role === "primary") e.primaryVotes++;
+        m.set(p.page, e);
+      }
+    const arr = [...m.values()];
+    const maxVotes = Math.max(0, ...arr.map((p) => p.primaryVotes));
+    return arr.map((p) => ({ ...p, isPrimary: p.primaryVotes > 0 && p.primaryVotes === maxVotes }));
+  }, [groups]);
+
+  const maxSev = members.reduce<Severity>((s, g) => (SEV_RANK[g.severity] > SEV_RANK[s] ? g.severity : s), "low");
+  const totalImpr = members.reduce((n, g) => n + g.totalImpressions, 0);
+  const totalClicks = members.reduce((n, g) => n + g.totalClicks, 0);
+  const atRisk = members.reduce((n, g) => n + atRiskClicks(g), 0);
+  const actions = [...new Set(members.map((g) => g.action))];
+  const cardAction = actions.length === 1 ? ACTION_STYLE[actions[0]] ?? ACTION_STYLE.differentiate : null;
+
+  const allSelected = members.every((g) => selectedSet.has(g.query));
+  const toggleAll = () => {
+    // allSelected → clear each; otherwise select the ones not yet selected.
+    for (const g of members) {
+      const sel = selectedSet.has(g.query);
+      if (allSelected ? sel : !sel) onToggleSelect(g.query);
+    }
+  };
+
+  const s = solOpen ? conflictSolution(rep) : null;
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="flex min-w-0 items-start gap-2.5">
+          <input
+            type="checkbox"
+            checked={allSelected}
+            onChange={toggleAll}
+            aria-label="Select every keyword in this card"
+            className="mt-1 h-3.5 w-3.5 shrink-0 rounded border-slate-300"
+          />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase ${SEV_STYLE[maxSev]}`}>
+                {maxSev}
+              </span>
+              <span className="font-medium text-slate-900">{members.length} keywords</span>
+              <span className="text-xs text-slate-400">· same {pages.length} pages</span>
+            </div>
+            <div className="mt-1 text-xs text-slate-500 tabular-nums">
+              {totalImpr.toLocaleString()} impr · {totalClicks.toLocaleString()} clicks
+              {atRisk > 0 && (
+                <span title="Clicks going to the non-primary (cannibal) pages across these keywords">
+                  {" "}· <span className="font-medium text-slate-600">{atRisk.toLocaleString()} clicks at risk</span>
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+        {cardAction ? (
+          <span title={cardAction.hint} className={`shrink-0 cursor-help rounded-md px-2 py-1 text-xs font-medium ${cardAction.cls}`}>
+            {cardAction.label}
+          </span>
+        ) : (
+          <span
+            title="Different actions apply across these keywords - see each row"
+            className="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-500"
+          >
+            Mixed actions
+          </span>
+        )}
+      </div>
+
+      {/* shared pages, listed once */}
+      <table className="mt-3 w-full text-sm">
+        <tbody>
+          {pages.map((p) => (
+            <tr key={p.url} className={`border-t border-slate-100 ${p.isPrimary ? "bg-emerald-50/40" : ""}`}>
+              <td className="w-6 py-1.5 pr-1 align-top">
+                {p.isPrimary ? (
+                  <span title="Recommended winner for most of these keywords">
+                    <Star size={13} className="text-emerald-600" fill="currentColor" />
+                  </span>
+                ) : null}
+              </td>
+              <td className="py-1.5 pr-2 align-top">
+                <TypeChip type={p.type ?? "static"} />
+              </td>
+              <td className="py-1.5 align-top">
+                <a href={p.url} target="_blank" rel="noreferrer" className="break-all text-slate-700 hover:underline">
+                  {p.url}
+                </a>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* per-keyword rows */}
+      <div className="mt-3 border-t border-slate-100 pt-2">
+        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+          Conflicting keywords ({members.length})
+        </div>
+        <div className="divide-y divide-slate-100">
+          {members.map((g) => (
+            <KeywordRow
+              key={g.query}
+              g={g}
+              pages={pages}
+              anno={annos[g.query]}
+              onSave={onSave}
+              selected={selectedSet.has(g.query)}
+              onToggleSelect={() => onToggleSelect(g.query)}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <button
+          onClick={() => setSolOpen((o) => !o)}
+          aria-pressed={solOpen}
+          className={`inline-flex items-center gap-1 text-xs font-medium transition ${
+            solOpen ? "text-indigo-800" : "text-indigo-600 hover:text-indigo-800"
+          }`}
+        >
+          <Wrench size={12} /> Solution / Fix
+        </button>
+        <a
+          href={`/conflict-checker?url=${encodeURIComponent(rep.primaryPage)}`}
+          className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800"
+        >
+          Analyze primary in Conflict Checker <ExternalLink size={11} />
+        </a>
+      </div>
+
+      {s && (
+        <div className="mt-2 rounded-lg border border-indigo-200 bg-indigo-50/40 p-3 text-xs">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-600">
+            <Wrench size={12} /> Solution / Fix &middot; {s.label}
+          </div>
+          <p className="mt-1 text-slate-600">
+            These {members.length} keywords all pit the same pages against each other - fix the pages once and every keyword benefits.
+          </p>
+          <div className="mt-2 space-y-2">
+            <div>
+              <div className="font-medium text-slate-700">{s.keepVerb}:</div>
+              <a href={s.primaryUrl} target="_blank" rel="noreferrer" className="break-all text-emerald-700 hover:underline">
+                {s.primaryUrl}
+              </a>
+            </div>
+            {s.loserUrls.length > 0 && (
+              <div>
+                <div className="font-medium text-slate-700">{s.loserVerb}:</div>
+                <ul className="mt-0.5 list-disc space-y-0.5 pl-4">
+                  {s.loserUrls.map((u) => (
+                    <li key={u}>
+                      <a href={u} target="_blank" rel="noreferrer" className="break-all text-slate-600 hover:underline">
+                        {u}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {s.extra.length > 0 && (
+              <ul className="list-disc space-y-0.5 pl-4 text-slate-600">
+                {s.extra.map((e, i) => (
+                  <li key={i}>{e}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="mt-2 rounded-md bg-white/70 p-2 text-[11px] text-slate-600">
+            <span className="font-semibold text-emerald-700">Prevent:</span> {s.prevent}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A single keyword inside a MultiConflictCard - its own metrics, status + note. */
+function KeywordRow({
+  g,
+  pages,
+  anno,
+  onSave,
+  selected,
+  onToggleSelect,
+}: {
+  g: CGroup;
+  pages: { url: string }[];
+  anno?: Anno;
+  onSave: (query: string, patch: Partial<Anno>) => void;
+  selected: boolean;
+  onToggleSelect: () => void;
+}) {
+  const action = ACTION_STYLE[g.action] ?? ACTION_STYLE.differentiate;
+  const status = anno?.status ?? "pending";
+  const savedNote = anno?.note ?? "";
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [draft, setDraft] = useState(savedNote);
+  const [justSaved, setJustSaved] = useState(false);
+  useEffect(() => setDraft(savedNote), [savedNote]);
+  const dirty = draft !== savedNote;
+  const sm = statusMeta(status);
+  const posByUrl = new Map(g.pages.map((p) => [p.page, p.position]));
+
+  return (
+    <div className="py-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggleSelect}
+          aria-label={`Select "${g.query}"`}
+          className="h-3.5 w-3.5 shrink-0 rounded border-slate-300"
+        />
+        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${SEV_DOT[g.severity]}`} title={g.severity} />
+        <span className="min-w-0 truncate font-medium text-slate-800">{g.query}</span>
+        <span className="text-xs text-slate-400 tabular-nums">
+          {g.totalImpressions.toLocaleString()} impr · {g.totalClicks.toLocaleString()} clicks · gap {g.positionGap.toFixed(1)}
+        </span>
+        <div className="grow" />
+        <span title={action.hint} className={`cursor-help rounded px-1.5 py-0.5 text-[11px] font-medium ${action.cls}`}>
+          {action.label}
+        </span>
+        <span className="relative inline-flex" title="Set this keyword's status">
+          <span className={`pointer-events-none absolute left-2 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full ${sm.dot}`} />
+          <select
+            value={status}
+            onChange={(e) => onSave(g.query, { status: e.target.value as ConflictStatus })}
+            className="appearance-none rounded-md border border-slate-200 bg-white py-1 pl-5 pr-6 text-xs font-medium text-slate-600 transition hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+          >
+            {STATUS_OPTS.map((so) => (
+              <option key={so.value} value={so.value}>
+                {so.label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown size={12} className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400" />
+        </span>
+        <button onClick={() => setNoteOpen((o) => !o)} className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800">
+          <StickyNote size={12} />
+          {savedNote ? "Note" : "Add note"}
+        </button>
+      </div>
+
+      {/* this keyword's position on each shared page */}
+      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 pl-6 text-[11px] text-slate-400 tabular-nums">
+        {pages.map((p) => {
+          const pos = posByUrl.get(p.url);
+          return (
+            <span key={p.url}>
+              {urlLabel(p.url)}: {pos == null ? "—" : `pos ${pos.toFixed(1)}`}
+            </span>
+          );
+        })}
+      </div>
+
+      {savedNote && !noteOpen && <div className="mt-1 pl-6 text-[11px] text-slate-400">— {savedNote}</div>}
+
+      {noteOpen && (
+        <div className="mt-2 pl-6">
+          <textarea
+            value={draft}
+            onChange={(e) => {
+              setDraft(e.target.value.slice(0, NOTE_MAX));
+              setJustSaved(false);
+            }}
+            maxLength={NOTE_MAX}
+            rows={2}
+            placeholder="Add a note for this keyword (max 300 characters)…"
+            className="w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700 placeholder:text-slate-400 focus:border-slate-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-900/5"
+          />
+          <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400">
+            <span className="tabular-nums">
+              {draft.length}/{NOTE_MAX}
+            </span>
+            <div className="flex items-center gap-2">
+              {justSaved && !dirty && <span className="font-medium text-emerald-600">Saved ✓</span>}
+              <button
+                disabled={!dirty}
+                onClick={() => {
+                  onSave(g.query, { note: draft });
+                  setJustSaved(true);
+                }}
+                className="rounded-md bg-slate-900 px-2.5 py-1 text-[11px] font-medium text-white transition hover:bg-slate-800 disabled:opacity-40"
+              >
+                Save note
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function MergeTab({ clusters, loading, error }: { clusters: MergeCluster[]; loading: boolean; error?: string | null }) {
