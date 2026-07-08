@@ -3607,6 +3607,31 @@ side effect (`fetch`/`localStorage`/`router`/`toast`) inside a `setState` update
 before its `return`. `saveAnno` was the only instance; nothing else to fix.
 Typecheck clean.
 
+## 30. Cannibalization: Note filter + "Solution / Fix" playbook (2026-07-08)
+
+Two additions to the Keyword Cannibalization filter bar.
+
+**Note filter.** New `FilterGroup` (chips, per §18I): All / Has note / No note,
+with contextual counts that respect the other active filters. Filters cards by
+whether a note has been saved (`annos[query].note`). Wired into `filtered`,
+`hasFilter`, `clearFilters`, and the tab-reset effect.
+
+**"Solution / Fix" button** (before the Status filter). Toggles a deterministic
+best-practice `SolutionPanel`: one card per recommended action the tool assigns
+(consolidate / differentiate / monitor), each with "When", the numbered fix
+steps, and a "Prevent" line, plus a "Stop cannibalization recurring" checklist
+(keyword map, pre-publish checks, internal linking, re-scan + mark completed).
+Each action card shows how many conflicts of that type are in the current view
+(`actionCounts`). No LLM call - stable, accurate SEO guidance; this is Phase 1 of
+the AI-solution plan (`plans/cannibalization-ai-solution.html`).
+
+Typecheck clean; no console errors. (Live click-through of the panel could not be
+captured - the local dev server would not hydrate this heavy page this session, a
+persistent env flake also seen on search-console/corpus: the route serves 200 and
+`/api/cannibalization` returns 1,105 groups via curl, but the preview browser
+rendered only the shell. The Solution/Fix button and the Note chips were confirmed
+present in the DOM.)
+
 ## 29. Edstellar Database: "Redirect / 404" bucket (2026-07-08)
 
 New virtual type on `/corpus` for pages that **301/302 redirect elsewhere** (their

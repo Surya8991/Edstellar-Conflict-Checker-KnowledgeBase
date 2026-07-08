@@ -15,7 +15,7 @@ import {
   ClearFiltersButton,
   dotColor,
 } from "@/app/components/Filters";
-import { Star, Download, RefreshCw, ExternalLink, ArrowRight, ChevronDown, StickyNote } from "lucide-react";
+import { Star, Download, RefreshCw, ExternalLink, ArrowRight, ChevronDown, StickyNote, Wrench, X } from "lucide-react";
 import AssistantTab from "./AssistantTab";
 
 // ── types (mirror /api/cannibalization + /api/groups) ──────────────────────
@@ -217,6 +217,8 @@ function Inner() {
   const [maxGap, setMaxGap] = useState<number | null>(null); // hide groups whose page spread exceeds this
   const [sortBy, setSortBy] = useState<SortKey>("severity");
   const [statusFilter, setStatusFilter] = useState<ConflictStatus | "">("");
+  const [noteFilter, setNoteFilter] = useState<"" | "has" | "none">("");
+  const [showSolution, setShowSolution] = useState(false);
   // Per-conflict status + notes, keyed by query. Loaded once, updated optimistically.
   const [annos, setAnnos] = useState<Record<string, Anno>>({});
   const statusOf = useCallback((g: CGroup): ConflictStatus => annos[g.query]?.status ?? "pending", [annos]);
@@ -411,6 +413,23 @@ function Inner() {
     return c;
   }, [rows, matchesSearch, withinGap, sevFilter, actionFilter, typeFilter, statusOf]);
 
+  const hasNote = useCallback((g: CGroup) => (annos[g.query]?.note ?? "").trim().length > 0, [annos]);
+  // Note counts respect the other active filters + search + gap window.
+  const noteCounts = useMemo(() => {
+    const c = { has: 0, none: 0 };
+    for (const g of rows)
+      if (
+        matchesSearch(g) &&
+        withinGap(g) &&
+        (!sevFilter || g.severity === sevFilter) &&
+        (!actionFilter || g.action === actionFilter) &&
+        (!typeFilter || hasType(g, typeFilter)) &&
+        (!statusFilter || statusOf(g) === statusFilter)
+      )
+        c[hasNote(g) ? "has" : "none"]++;
+    return c;
+  }, [rows, matchesSearch, withinGap, sevFilter, actionFilter, typeFilter, statusFilter, statusOf, hasNote]);
+
   const filtered = useMemo(() => {
     const base = sortGroups(
       rows.filter(
@@ -420,7 +439,8 @@ function Inner() {
           (!sevFilter || g.severity === sevFilter) &&
           (!actionFilter || g.action === actionFilter) &&
           (!typeFilter || hasType(g, typeFilter)) &&
-          (!statusFilter || statusOf(g) === statusFilter),
+          (!statusFilter || statusOf(g) === statusFilter) &&
+          (!noteFilter || (noteFilter === "has" ? hasNote(g) : !hasNote(g))),
       ),
       sortBy,
     );
@@ -433,14 +453,14 @@ function Inner() {
       return s === "completed" || s === "ignored" ? 1 : 0;
     };
     return base.slice().sort((a, b) => done(a) - done(b));
-  }, [rows, matchesSearch, withinGap, sevFilter, actionFilter, typeFilter, statusFilter, statusOf, sortBy]);
+  }, [rows, matchesSearch, withinGap, sevFilter, actionFilter, typeFilter, statusFilter, noteFilter, hasNote, statusOf, sortBy]);
   const mergeFiltered = useMemo(() => {
     const s = search.trim().toLowerCase();
     if (!s) return merge;
     return merge.filter((c) => c.label.toLowerCase().includes(s) || c.members.some((m) => m.url.toLowerCase().includes(s)));
   }, [merge, search]);
 
-  const hasFilter = !!(search.trim() || sevFilter || actionFilter || typeFilter || maxGap != null || statusFilter);
+  const hasFilter = !!(search.trim() || sevFilter || actionFilter || typeFilter || maxGap != null || statusFilter || noteFilter);
   function clearFilters() {
     setSearch("");
     setSevFilter(null);
@@ -448,16 +468,18 @@ function Inner() {
     setTypeFilter(null);
     setMaxGap(null);
     setStatusFilter("");
+    setNoteFilter("");
   }
 
   // Reset page on tab/filter/sort change; drop pill filters when switching tabs.
-  useEffect(() => setPage(1), [tab, search, sevFilter, actionFilter, typeFilter, maxGap, statusFilter, sortBy]);
+  useEffect(() => setPage(1), [tab, search, sevFilter, actionFilter, typeFilter, maxGap, statusFilter, noteFilter, sortBy]);
   useEffect(() => {
     setSevFilter(null);
     setActionFilter(null);
     setTypeFilter(null);
     setMaxGap(null);
     setStatusFilter("");
+    setNoteFilter("");
     setSortBy("severity");
     setSelected(new Set());
   }, [tab]);
@@ -570,19 +592,51 @@ function Inner() {
                 ))}
             </FilterGroup>
 
-            <FilterGroup label="Status">
-              <FilterChip label="All" active={!statusFilter} onClick={() => setStatusFilter("")} />
-              {STATUS_OPTS.map((s) => (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setShowSolution((v) => !v)}
+                aria-pressed={showSolution}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                  showSolution
+                    ? "border-indigo-600 bg-indigo-600 text-white shadow-sm"
+                    : "border-indigo-200 bg-indigo-50 text-indigo-700 hover:border-indigo-300 hover:bg-indigo-100"
+                }`}
+              >
+                <Wrench size={13} /> Solution / Fix
+              </button>
+
+              <FilterGroup label="Status">
+                <FilterChip label="All" active={!statusFilter} onClick={() => setStatusFilter("")} />
+                {STATUS_OPTS.map((s) => (
+                  <FilterChip
+                    key={s.value}
+                    label={s.label}
+                    count={statusCounts[s.value]}
+                    active={statusFilter === s.value}
+                    dotClass={s.dot}
+                    onClick={() => setStatusFilter(statusFilter === s.value ? "" : s.value)}
+                  />
+                ))}
+              </FilterGroup>
+
+              <FilterGroup label="Note">
+                <FilterChip label="All" active={!noteFilter} onClick={() => setNoteFilter("")} />
                 <FilterChip
-                  key={s.value}
-                  label={s.label}
-                  count={statusCounts[s.value]}
-                  active={statusFilter === s.value}
-                  dotClass={s.dot}
-                  onClick={() => setStatusFilter(statusFilter === s.value ? "" : s.value)}
+                  label="Has note"
+                  count={noteCounts.has}
+                  active={noteFilter === "has"}
+                  dotClass="bg-emerald-400"
+                  onClick={() => setNoteFilter(noteFilter === "has" ? "" : "has")}
                 />
-              ))}
-            </FilterGroup>
+                <FilterChip
+                  label="No note"
+                  count={noteCounts.none}
+                  active={noteFilter === "none"}
+                  dotClass="bg-slate-300"
+                  onClick={() => setNoteFilter(noteFilter === "none" ? "" : "none")}
+                />
+              </FilterGroup>
+            </div>
 
             <FilterRow>
               <FilterSelect
@@ -618,6 +672,10 @@ function Inner() {
           </>
         )}
       </FilterBar>
+      )}
+
+      {showSolution && tab !== "assistant" && tab !== "merge-blogs" && (
+        <SolutionPanel actionCounts={actionCounts} onClose={() => setShowSolution(false)} />
       )}
 
       {error && tab !== "assistant" && (
@@ -916,6 +974,97 @@ function ConflictCard({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// The deterministic best-practice playbook shown by the "Solution / Fix" button,
+// one entry per recommended action the tool assigns (§30).
+const FIX_PLAYBOOK: { key: string; when: string; fix: string[]; prevent: string }[] = [
+  {
+    key: "consolidate",
+    when: "Two or more same-intent pages target the same query and rank close together, so Google keeps swapping them.",
+    fix: [
+      "Keep the primary page (the starred winner).",
+      "301-redirect the other competing URLs into it.",
+      "Merge the useful sections from the retired pages into the primary.",
+      "Repoint internal links to the primary URL.",
+    ],
+    prevent: "One page per target query. Before publishing, run the topic through the Conflict Checker to confirm it isn't already covered.",
+  },
+  {
+    key: "differentiate",
+    when: "Same-type pages overlap on a query but both add value and should both stay live.",
+    fix: [
+      "Give each page a distinct target keyword.",
+      "Rewrite the meta title and H1 so they stop overlapping.",
+      "Re-focus each page's body on its own angle.",
+    ],
+    prevent: "Keep a keyword map: assign one primary keyword per URL in the content brief.",
+  },
+  {
+    key: "monitor",
+    when: "Different content types compete for the query, for example a blog outranking a course page.",
+    fix: [
+      "Add internal links with keyword-rich anchor text from the blog to the page that should rank.",
+      "De-optimize the off-target page for that keyword.",
+      "Do not 301 across different search intents.",
+    ],
+    prevent: "Keep blogs informational and course / category pages commercial, and always link a topic's blog to its course.",
+  },
+];
+
+/** Best-course-of-action playbook, toggled by the "Solution / Fix" button. */
+function SolutionPanel({ actionCounts, onClose }: { actionCounts: Record<string, number>; onClose: () => void }) {
+  return (
+    <div className="mb-4 rounded-xl border border-indigo-200 bg-indigo-50/40 p-4">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+          <Wrench size={15} className="text-indigo-600" /> Solution / Fix: the best course of action
+        </div>
+        <button onClick={onClose} aria-label="Close" className="rounded p-0.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600">
+          <X size={15} />
+        </button>
+      </div>
+      <p className="mt-1 text-xs text-slate-500">
+        Each conflict below carries one recommended action. Here is how to resolve each type, the changes needed, and how to stop it happening again.
+      </p>
+
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        {FIX_PLAYBOOK.map((p) => {
+          const a = ACTION_STYLE[p.key] ?? ACTION_STYLE.differentiate;
+          return (
+            <div key={p.key} className="flex flex-col rounded-lg border border-slate-200 bg-white p-3">
+              <div className="flex items-center gap-2">
+                <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${a.cls}`}>{a.label}</span>
+                <span className="ml-auto text-xs tabular-nums text-slate-400">{actionCounts[p.key] ?? 0} here</span>
+              </div>
+              <p className="mt-2 text-[11px] text-slate-500">
+                <span className="font-medium text-slate-600">When:</span> {p.when}
+              </p>
+              <div className="mt-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">The fix</div>
+              <ol className="mt-1 list-decimal space-y-1 pl-4 text-xs text-slate-700">
+                {p.fix.map((f, i) => (
+                  <li key={i}>{f}</li>
+                ))}
+              </ol>
+              <div className="mt-2 rounded-md bg-slate-50 p-2 text-[11px] text-slate-600">
+                <span className="font-semibold text-emerald-700">Prevent:</span> {p.prevent}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
+        <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Stop cannibalization recurring</div>
+        <ul className="mt-1 grid list-disc gap-1 pl-4 text-xs text-slate-700 sm:grid-cols-2">
+          <li>Keep a keyword map: one canonical URL per target query.</li>
+          <li>Before publishing, check the Edstellar Database and Conflict Checker for an existing page.</li>
+          <li>Point internal links (and the canonical tag) at the page that should own each query.</li>
+          <li>Re-run the scan after big content changes, and mark each conflict completed as you fix it.</li>
+        </ul>
+      </div>
     </div>
   );
 }
