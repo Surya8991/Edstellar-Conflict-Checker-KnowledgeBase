@@ -3616,14 +3616,15 @@ with contextual counts that respect the other active filters. Filters cards by
 whether a note has been saved (`annos[query].note`). Wired into `filtered`,
 `hasFilter`, `clearFilters`, and the tab-reset effect.
 
-**"Solution / Fix" button** (before the Status filter). Toggles a deterministic
-best-practice `SolutionPanel`: one card per recommended action the tool assigns
-(consolidate / differentiate / monitor), each with "When", the numbered fix
-steps, and a "Prevent" line, plus a "Stop cannibalization recurring" checklist
-(keyword map, pre-publish checks, internal linking, re-scan + mark completed).
-Each action card shows how many conflicts of that type are in the current view
-(`actionCounts`). No LLM call - stable, accurate SEO guidance; this is Phase 1 of
-the AI-solution plan (`plans/cannibalization-ai-solution.html`).
+**Per-conflict "Solution / Fix"** (on each card, next to the note toggle).
+Expands a deterministic, PAGE-SPECIFIC fix for THAT conflict only - keyed off its
+recommended action (`conflictSolution(g)`): the page to keep (the primary), the
+exact URLs to 301-redirect / internally link / differentiate, the follow-up steps
+(merge content, repoint links, de-optimize), and a "Prevent" line. No LLM call -
+stable SEO guidance; Phase 1 of the AI-solution plan
+(`plans/cannibalization-ai-solution.html`). (First shipped as one global panel in
+the filter bar; changed to per-card so each conflict shows its own fix with its
+own URLs.)
 
 Typecheck clean; no console errors. (Live click-through of the panel could not be
 captured - the local dev server would not hydrate this heavy page this session, a
