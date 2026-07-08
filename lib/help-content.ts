@@ -26,7 +26,7 @@ export interface HelpEntry {
 
 export const HELP: Record<string, HelpEntry> = {
   // "/" itself has no entry - it's a server-side redirect straight to
-  // /corpus (the Edstellar Database), so the Help panel never actually
+  // /edstellar-database (the Edstellar Database), so the Help panel never actually
   // renders for that pathname. This content used to live under "/" back
   // when it WAS the dashboard; it moved to /dashboard and this key moved
   // with it - don't re-add a "/" key, it'll be dead the same way.
@@ -289,8 +289,8 @@ export const HELP: Record<string, HelpEntry> = {
     ],
   },
 
-  "/corpus": {
-    title: "Corpus",
+  "/edstellar-database": {
+    title: "Edstellar Database",
     what:
       "A browsable list of every page the Conflict Checker compares against - this is the full 'search space' the tool knows about.",
     howToUse: [

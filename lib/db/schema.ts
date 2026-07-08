@@ -58,12 +58,49 @@ export const pages = pgTable(
     httpStatus: integer("http_status"),
     lastAuditedAt: timestamp("last_audited_at"),
     clusterId: integer("cluster_id"),
+    // Added in 0020_blog_master_signals.sql - editorial/source-of-truth fields
+    // imported from the Blog Master Data export (§33). The crawler cannot
+    // reliably reconstruct these; meta_title is distinct from title/h1.
+    metaTitle: text("meta_title"),
+    headings: jsonb("headings"), // { h2: string[], h3: string[] }
+    internalLinks: text("internal_links").array(),
+    outboundLinks: text("outbound_links").array(),
+    wordCount: integer("word_count"),
+    tableCount: integer("table_count"),
+    contentHash: text("content_hash"),
   },
   (t) => [
     uniqueIndex("pages_url_idx").on(t.url),
     index("pages_content_type_idx").on(t.contentType),
     // Cosine-distance ANN index. Created in the migration via raw SQL too.
     index("pages_embedding_idx").using(
+      "hnsw",
+      t.embedding.op("vector_cosine_ops"),
+    ),
+  ],
+);
+
+/** Section-level (H2) chunk embeddings for a page (0020_blog_master_signals.sql,
+ *  §33). One row per H2 section. Fixes the single-per-page 12k-truncation blind
+ *  spot: enables sub-page cannibalization (section A of X vs section B of Y).
+ *  NOTE: 5th place vector(EMBED_DIM) is encoded - see AGENTS.md. */
+export const pageChunks = pgTable(
+  "page_chunks",
+  {
+    id: serial("id").primaryKey(),
+    pageId: integer("page_id").references(() => pages.id, { onDelete: "cascade" }),
+    url: text("url").notNull(),
+    heading: text("heading"),
+    chunkIndex: integer("chunk_index").notNull(),
+    chunkText: text("chunk_text").notNull(),
+    embedding: vector("embedding", { dimensions: EMBED_DIM }),
+    tokenCount: integer("token_count"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (t) => [
+    index("page_chunks_page_idx").on(t.pageId),
+    uniqueIndex("page_chunks_url_index_uq").on(t.url, t.chunkIndex),
+    index("page_chunks_embedding_idx").using(
       "hnsw",
       t.embedding.op("vector_cosine_ops"),
     ),
@@ -376,6 +413,8 @@ export const drafts = pgTable("drafts", {
 
 export type Page = typeof pages.$inferSelect;
 export type NewPage = typeof pages.$inferInsert;
+export type PageChunk = typeof pageChunks.$inferSelect;
+export type NewPageChunk = typeof pageChunks.$inferInsert;
 export type Check = typeof checks.$inferSelect;
 export type CheckMatch = typeof checkMatches.$inferSelect;
 export type Competitor = typeof competitors.$inferSelect;

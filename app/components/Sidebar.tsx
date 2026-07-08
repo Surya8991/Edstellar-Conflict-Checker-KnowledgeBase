@@ -29,7 +29,7 @@ interface SidebarUser {
 }
 
 const NAV: { href: string; label: string; icon: any }[] = [
-  { href: "/corpus",             label: "Edstellar Database", icon: Database },
+  { href: "/edstellar-database", label: "Edstellar Database", icon: Database },
   { href: "/conflict-checker",   label: "Conflict Checker",  icon: ScanSearch },
   { href: "/clusters",           label: "Content Clusters",  icon: Boxes },
   // Settings is rendered below the Search Console block (see the render).
@@ -175,7 +175,7 @@ export default function Sidebar({ user, signOutSlot }: { user?: SidebarUser | nu
                   {label}
                 </Link>
                 {/* Search Console renders directly below Edstellar Database. */}
-                {href === "/corpus" && (
+                {href === "/edstellar-database" && (
                   <div>
                     <div className="flex items-center">
                       <Link

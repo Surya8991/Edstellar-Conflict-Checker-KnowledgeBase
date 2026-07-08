@@ -227,7 +227,7 @@ export default async function DashboardHome() {
             label="Pages ingested"
             value={stats.ingested.toLocaleString()}
             hint={stats.lastIngest ? `last: ${relativeTime(stats.lastIngest)}` : undefined}
-            href="/corpus"
+            href="/edstellar-database"
           />
           <Stat
             label="Checks run"

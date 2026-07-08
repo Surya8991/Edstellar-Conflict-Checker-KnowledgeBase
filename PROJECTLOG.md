@@ -3607,6 +3607,20 @@ side effect (`fetch`/`localStorage`/`router`/`toast`) inside a `setState` update
 before its `return`. `saveAnno` was the only instance; nothing else to fix.
 Typecheck clean.
 
+## 34. Rename the Edstellar Database route: /corpus → /edstellar-database (2026-07-08)
+
+The page was titled "Edstellar Database" but lived at `/corpus`; the slug now
+matches. Renamed the route folder `app/(dashboard)/corpus/` →
+`app/(dashboard)/edstellar-database/` (git mv, history preserved) and updated
+every functional reference: the root redirect (`app/(dashboard)/page.tsx`), the
+Sidebar nav link + its "Search Console renders below" `href ===` guard
+(`app/components/Sidebar.tsx`), the Dashboard "Pages ingested" stat link
+(`app/(dashboard)/dashboard/page.tsx`), and the Help-panel key + comment
+(`lib/help-content.ts`). The API stays `/api/pages` (unchanged). README route
+table updated. `/corpus` now 404s; `/edstellar-database` serves 200. Older
+PROJECTLOG entries keep the historical `/corpus` path on purpose. (Entry §33
+below was written pre-rename and references `/corpus`.)
+
 ## 33. Edstellar Database: Primary Keywords column + column visibility (2026-07-08)
 
 **Primary Keywords column.** `/api/pages` now attaches `primary_keywords` (top-5
