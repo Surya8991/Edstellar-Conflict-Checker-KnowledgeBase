@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { rowsOf } from "@/lib/db/exec";
+import { fetchGscForUrls } from "@/lib/gsc-cluster-metrics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -88,6 +89,16 @@ export async function GET(request: NextRequest) {
     `);
 
     const data = rowsOf<Record<string, unknown>>(rows);
+
+    // Primary keywords per page: top-5 GSC queries (clicks desc), branded/excluded
+    // terms already stripped by fetchGscForUrls. One batched read for this page.
+    const urls = data.map((r) => String(r.url));
+    const gsc = await fetchGscForUrls(urls);
+    for (const r of data) {
+      const g = gsc.get(String(r.url));
+      r.primary_keywords = g ? g.topQueries.map((q) => q.query) : [];
+    }
+
     const total = rowsOf<{ total: number }>(totalRows)[0]?.total ?? 0;
     const byTypeArr = rowsOf<{ content_type: string; n: number }>(byType);
     const byCourseTypeArr = rowsOf<{ course_type: string; n: number }>(byCourseType);

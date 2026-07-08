@@ -3607,6 +3607,35 @@ side effect (`fetch`/`localStorage`/`router`/`toast`) inside a `setState` update
 before its `return`. `saveAnno` was the only instance; nothing else to fix.
 Typecheck clean.
 
+## 33. Edstellar Database: Primary Keywords column + column visibility (2026-07-08)
+
+**Primary Keywords column.** `/api/pages` now attaches `primary_keywords` (top-5
+GSC queries, clicks desc) to each returned page via one batched
+`fetchGscForUrls(urls)` read over the current page's URLs. Rendered as sky chips
+in a new "Primary Keywords" column on `/corpus`.
+
+**Branded terms stripped from the keyword lists.** `fetchGscForUrls` already
+dropped exclude-list queries (substring); it now ALSO drops branded queries via
+`isBrandedQuery` (fuzzy - catches "edsteller", "ed stellar", "edstella" that the
+substring exclude row #7 can't), BEFORE the top-5 slice. Applies everywhere
+`fetchGscForUrls` feeds - the new column AND the Content Clusters top-queries
+panel - so the brand's own navigational terms never read as "primary keywords".
+`BRAND_TERMS` env (default `edstellar`), same source the cannibalization route
+uses. No circular import (`lib/cannibalization` is dependency-free).
+
+**Column visibility (show/hide).** A "Columns" dropdown on `/corpus` toggles every
+column except Title (the row identity, always on). **Category and Signals are
+hidden by default**; the rest visible. Choice persists to `localStorage`
+(`corpus.visibleCols.v1`). th/td render conditionally via `show(key)`; empty/error
+`colSpan` tracks the visible count.
+
+Live-verified after a clean rebuild: column present with real per-page keywords
+(branded variants gone), dropdown defaults to Category+Signals hidden (5/7),
+toggling Signals adds the column and persists, no console errors. Note: as before,
+keep JSX out of SWC's ambiguity zone - a bare `/` between two `{}` expressions in
+JSX text (`({a}/{b})`) tripped a Turbopack "Unterminated regexp literal"; moved it
+into one `{`(${a}/${b})`}` expression.
+
 ## 32. Exclude "edstellar" branded queries via the exclude keyword list (2026-07-08)
 
 Added `edstellar` as a `query`-type row in `excluded_series` (the managed exclude

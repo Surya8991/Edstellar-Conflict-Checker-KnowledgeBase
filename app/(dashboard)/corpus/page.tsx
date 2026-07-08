@@ -27,7 +27,25 @@ interface PageRow {
   images_no_alt: number | null;
   is_stale: boolean | null;
   stale_reason: string | null;
+  // Top-5 GSC queries for the page (branded/excluded terms already stripped).
+  primary_keywords: string[] | null;
 }
+
+// Toggleable table columns (§33). Title is the row identity and always shown.
+// `category` + `signals` start hidden per the user's default.
+const COLUMNS = [
+  { key: "h1", label: "H1" },
+  { key: "description", label: "Description" },
+  { key: "type", label: "Type" },
+  { key: "keywords", label: "Primary Keywords" },
+  { key: "category", label: "Category", defaultHidden: true },
+  { key: "signals", label: "Signals", defaultHidden: true },
+] as const;
+type ColKey = (typeof COLUMNS)[number]["key"];
+const DEFAULT_VISIBLE: Record<ColKey, boolean> = {
+  h1: true, description: true, type: true, keywords: true, category: false, signals: false,
+};
+const COLS_STORAGE_KEY = "corpus.visibleCols.v1";
 
 interface ByType { content_type: string; n: number }
 interface ByCourseType { course_type: string; n: number }
@@ -58,6 +76,31 @@ export default function CorpusPage() {
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Column visibility (§33). Persisted so a choice sticks across reloads.
+  const [visibleCols, setVisibleCols] = useState<Record<ColKey, boolean>>(DEFAULT_VISIBLE);
+  const [colsOpen, setColsOpen] = useState(false);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(COLS_STORAGE_KEY);
+      if (raw) setVisibleCols((prev) => ({ ...prev, ...JSON.parse(raw) }));
+    } catch {
+      /* ignore malformed storage */
+    }
+  }, []);
+  const show = (k: ColKey) => visibleCols[k];
+  const toggleCol = (k: ColKey) =>
+    setVisibleCols((prev) => {
+      const next = { ...prev, [k]: !prev[k] };
+      try {
+        localStorage.setItem(COLS_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  // 1 (Title, always) + the visible optional columns - used for empty/error colSpan.
+  const colSpan = 1 + COLUMNS.filter((c) => visibleCols[c.key]).length;
 
   // Guards against out-of-order responses: rapid filter changes can let an
   // older request resolve after a newer one, silently showing a stale page
@@ -310,16 +353,62 @@ export default function CorpusPage() {
           {importMsg && <span className="text-slate-500">· {importMsg}</span>}
         </div>
 
+        {/* Column visibility (§33) */}
+        <div className="flex items-center justify-end">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setColsOpen((o) => !o)}
+              aria-expanded={colsOpen}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:border-slate-400"
+            >
+              Columns
+              <span className="text-xs text-slate-400">
+                {`(${COLUMNS.filter((c) => visibleCols[c.key]).length + 1}/${COLUMNS.length + 1})`}
+              </span>
+            </button>
+            {colsOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setColsOpen(false)} />
+                <div className="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
+                  <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    Show columns
+                  </div>
+                  <label className="flex cursor-not-allowed items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-400">
+                    <input type="checkbox" checked disabled className="h-3.5 w-3.5 rounded border-slate-300" />
+                    Title <span className="text-[10px] uppercase">(always)</span>
+                  </label>
+                  {COLUMNS.map((c) => (
+                    <label
+                      key={c.key}
+                      className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={visibleCols[c.key]}
+                        onChange={() => toggleCol(c.key)}
+                        className="h-3.5 w-3.5 rounded border-slate-300"
+                      />
+                      {c.label}
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
         <Card className="p-0">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
                 <th className="px-4 py-3 font-medium">Title</th>
-                <th className="px-4 py-3 font-medium">H1</th>
-                <th className="px-4 py-3 font-medium">Description</th>
-                <th className="px-4 py-3 font-medium">Type</th>
-                <th className="px-4 py-3 font-medium">Category</th>
-                <th className="px-4 py-3 font-medium">Signals</th>
+                {show("h1") && <th className="px-4 py-3 font-medium">H1</th>}
+                {show("description") && <th className="px-4 py-3 font-medium">Description</th>}
+                {show("type") && <th className="px-4 py-3 font-medium">Type</th>}
+                {show("keywords") && <th className="px-4 py-3 font-medium">Primary Keywords</th>}
+                {show("category") && <th className="px-4 py-3 font-medium">Category</th>}
+                {show("signals") && <th className="px-4 py-3 font-medium">Signals</th>}
               </tr>
             </thead>
             <tbody>
@@ -338,16 +427,21 @@ export default function CorpusPage() {
                       <span className="ml-2 text-xs text-amber-600">not embedded</span>
                     )}
                   </td>
+                  {show("h1") && (
                   <td className="px-4 py-2.5 text-slate-600">
                     <div className="max-w-xs truncate" title={r.h1 ?? undefined}>
                       {r.h1 || <span className="text-slate-300">-</span>}
                     </div>
                   </td>
+                  )}
+                  {show("description") && (
                   <td className="px-4 py-2.5 text-slate-600">
                     <div className="max-w-sm whitespace-normal break-words">
                       {r.meta_description || <span className="text-slate-300">-</span>}
                     </div>
                   </td>
+                  )}
+                  {show("type") && (
                   <td className="px-4 py-2.5">
                     {r.content_type && (
                       <span
@@ -357,10 +451,33 @@ export default function CorpusPage() {
                       </span>
                     )}
                   </td>
+                  )}
+                  {show("keywords") && (
+                  <td className="px-4 py-2.5">
+                    {r.primary_keywords && r.primary_keywords.length > 0 ? (
+                      <div className="flex max-w-xs flex-wrap gap-1">
+                        {r.primary_keywords.map((kw) => (
+                          <span
+                            key={kw}
+                            className="inline-flex rounded-full bg-sky-50 px-2 py-0.5 text-[11px] text-sky-700"
+                            title={kw}
+                          >
+                            {kw}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-slate-300">-</span>
+                    )}
+                  </td>
+                  )}
+                  {show("category") && (
                   <td className="px-4 py-2.5 text-slate-600">
                     <div>{r.category || <span className="text-slate-300">-</span>}</div>
                     {r.subcategory && <div className="text-xs text-slate-400">{r.subcategory}</div>}
                   </td>
+                  )}
+                  {show("signals") && (
                   <td className="px-4 py-2.5">
                     <div className="flex flex-wrap items-center gap-1.5">
                       {r.owner_url && r.owner_url === r.url && (
@@ -396,18 +513,19 @@ export default function CorpusPage() {
                       ))}
                     </div>
                   </td>
+                  )}
                 </tr>
               ))}
               {!loading && loadError && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-red-600">
+                  <td colSpan={colSpan} className="px-4 py-8 text-center text-red-600">
                     Couldn&apos;t load pages: {loadError}
                   </td>
                 </tr>
               )}
               {!loading && !loadError && rows.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
+                  <td colSpan={colSpan} className="px-4 py-8 text-center text-slate-400">
                     No pages match. Try clearing the active filters above.
                   </td>
                 </tr>

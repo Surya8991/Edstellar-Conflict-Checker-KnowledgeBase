@@ -5,6 +5,7 @@
  */
 import { neon } from "@neondatabase/serverless";
 import { getExclusions, isExcludedQuery } from "@/lib/exclusions";
+import { isBrandedQuery } from "@/lib/cannibalization";
 
 export interface GscWindow {
   clicks: number;
@@ -80,13 +81,19 @@ export async function fetchGscForUrls(urls: string[]): Promise<Map<string, PageG
     else if (r.range_label === "12m") g.m12 = win(r);
   }
 
-  // Drop excluded keyword queries (Settings, §17Q), then keep the 5 best per
-  // page (clicks desc, then impressions).
+  // Drop excluded keyword queries (Settings, §17Q) AND branded queries (brand
+  // navigational terms + misspellings that the substring exclude-list can't catch,
+  // e.g. "edsteller", "ed stellar"), then keep the 5 best per page (clicks desc,
+  // then impressions).
   const { query: queryExclusions } = await getExclusions();
+  const brandTerms = (process.env.BRAND_TERMS || "edstellar")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
   for (const g of out.values()) {
-    if (queryExclusions.length) {
-      g.topQueries = g.topQueries.filter((q) => !isExcludedQuery(q.query, queryExclusions));
-    }
+    g.topQueries = g.topQueries.filter(
+      (q) => !isExcludedQuery(q.query, queryExclusions) && !isBrandedQuery(q.query, brandTerms),
+    );
     g.topQueries.sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions);
     g.topQueries = g.topQueries.slice(0, 5);
   }
