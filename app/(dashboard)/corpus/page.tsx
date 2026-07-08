@@ -22,6 +22,7 @@ interface PageRow {
   // Batch D SEO columns
   owner_url: string | null;
   canonical_url: string | null;
+  http_status: number | null;
   image_count: number | null;
   images_no_alt: number | null;
   is_stale: boolean | null;
@@ -48,6 +49,7 @@ export default function CorpusPage() {
   const [byType, setByType] = useState<ByType[]>([]);
   const [byCourseType, setByCourseType] = useState<ByCourseType[]>([]);
   const [topCategories, setTopCategories] = useState<CatCount[]>([]);
+  const [redirect404, setRedirect404] = useState(0);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
@@ -79,6 +81,7 @@ export default function CorpusPage() {
       setByType(data.byType ?? []);
       setByCourseType(data.byCourseType ?? []);
       setTopCategories(data.topCategories ?? []);
+      setRedirect404(data.redirect404 ?? 0);
       setPage(data.page ?? targetPage);
       setTotalPages(data.totalPages ?? 1);
     } catch (e) {
@@ -201,6 +204,15 @@ export default function CorpusPage() {
               colorClass={TYPE_COLORS[b.content_type]}
             />
           ))}
+          {/* Virtual bucket: pages that 301/302 redirect elsewhere or return 4xx/5xx.
+              Pulled OUT of the content-type counts above (§29). */}
+          <BreakdownCard
+            label="Redirect / 404"
+            n={redirect404}
+            active={type === "redirect-404"}
+            onClick={() => { setType(type === "redirect-404" ? "" : "redirect-404"); setCourseType(""); setCategory(""); setTag(""); }}
+            colorClass="text-rose-600"
+          />
         </div>
 
         {/* The 6 course types - visible always, highlights when filtering courses.
@@ -362,9 +374,14 @@ export default function CorpusPage() {
                           alt: {r.images_no_alt}
                         </span>
                       )}
+                      {r.http_status != null && r.http_status >= 400 && (
+                        <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700" title={`Returns HTTP ${r.http_status}`}>
+                          {r.http_status}
+                        </span>
+                      )}
                       {r.canonical_url && !sameUrl(r.canonical_url, r.url) && (
-                        <span className="inline-flex items-center rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-medium text-rose-700" title={`canonical → ${r.canonical_url}`}>
-                          canonical
+                        <span className="inline-flex items-center rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-medium text-rose-700" title={`redirects → ${r.canonical_url}`}>
+                          redirect
                         </span>
                       )}
                       {(r.tags ?? []).slice(0, 2).map((t) => (

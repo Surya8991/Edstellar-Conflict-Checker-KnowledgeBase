@@ -3606,3 +3606,26 @@ DB (`GET /api/cannibalization/annotation` returns it).
 side effect (`fetch`/`localStorage`/`router`/`toast`) inside a `setState` updater,
 before its `return`. `saveAnno` was the only instance; nothing else to fix.
 Typecheck clean.
+
+## 29. Edstellar Database: "Redirect / 404" bucket (2026-07-08)
+
+New virtual type on `/corpus` for pages that **301/302 redirect elsewhere** (their
+`canonical_url` points to a different URL, set by `scripts/detect-redirects.ts`)
+or return a **4xx/5xx** (`pages.http_status`, from the audit-links cron). These
+pages are **moved out** of the normal content-type counts and the "all" view and
+live only under their own bucket, so the corpus reads as live pages by default.
+
+- `/api/pages` (+ `/api/pages/export`): a null-safe predicate
+  `COALESCE(http_status,0) >= 400 OR (canonical_url IS NOT NULL AND rtrim(canonical_url,'/') <> rtrim(url,'/'))`.
+  Normal views filter `NOT (predicate)`; `?type=redirect-404` filters the
+  predicate; `byType` counts exclude it; a new `redirect404` count is returned.
+  `http_status` added to the row select.
+- UI: a "Redirect / 404" breakdown card (count + click-to-filter), plus per-row
+  badges - a red HTTP-status chip for 4xx/5xx and a "redirect" chip when the
+  canonical points elsewhere.
+- Live-verified via the API: default total 2,464 → **2,458** (6 pulled out),
+  `redirect404` = **6** (all genuine redirects; 0 are 4xx today), the bucket
+  returns exactly those 6, and Blog **501 → 497** (redirected blogs left their
+  type). Typecheck clean. (The corpus page's client data-load wouldn't populate
+  on the local dev server this session - a persistent env flake, not the code -
+  so this was verified through the API round-trip + the rendered card.)

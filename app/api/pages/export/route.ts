@@ -36,15 +36,28 @@ export async function GET(request: NextRequest) {
     const tag = (params.get("tag") ?? "").trim();
     const like = `%${q}%`;
 
+    // Mirror /api/pages: the virtual "Redirect / 404" bucket (§29). Redirect/404
+    // pages are excluded from the normal views and shown only under their bucket.
+    const redir404 = sql`(
+      COALESCE(http_status, 0) >= 400
+      OR (canonical_url IS NOT NULL AND rtrim(canonical_url, '/') <> rtrim(url, '/'))
+    )`;
+    const search = sql`(${q} = '' OR title ILIKE ${like} OR url ILIKE ${like})`;
+    const filters =
+      type === "redirect-404"
+        ? sql`${search} AND ${redir404}`
+        : sql`${search}
+            AND NOT ${redir404}
+            AND (${type}       = '' OR content_type = ${type})
+            AND (${courseType} = '' OR course_type = ${courseType})
+            AND (${category}   = '' OR category    = ${category})
+            AND (${tag}        = '' OR ${tag} = ANY(tags))`;
+
     const res = await db.execute(sql`
       SELECT url, title, h1, meta_description, content_type, course_type,
              category, subcategory, tags, lastmod
       FROM pages
-      WHERE (${q}          = '' OR title ILIKE ${like} OR url ILIKE ${like})
-        AND (${type}       = '' OR content_type = ${type})
-        AND (${courseType} = '' OR course_type = ${courseType})
-        AND (${category}   = '' OR category    = ${category})
-        AND (${tag}        = '' OR ${tag} = ANY(tags))
+      WHERE ${filters}
       ORDER BY id
     `);
 

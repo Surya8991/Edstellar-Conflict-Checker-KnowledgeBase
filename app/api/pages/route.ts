@@ -19,36 +19,55 @@ export async function GET(request: NextRequest) {
     const offset = Number(params.get("offset")) || (page - 1) * limit;
 
     const like = `%${q}%`;
+
+    // A page belongs in the virtual "Redirect / 404" bucket when it 301/302
+    // redirects elsewhere (canonical_url points to a different URL) or returns a
+    // 4xx/5xx (http_status). COALESCE keeps it a real boolean so NULL statuses
+    // don't fall out of BOTH buckets. §29.
+    const redir404 = sql`(
+      COALESCE(http_status, 0) >= 400
+      OR (canonical_url IS NOT NULL AND rtrim(canonical_url, '/') <> rtrim(url, '/'))
+    )`;
+    const isRedirView = type === "redirect-404";
+
+    const search = sql`(${q} = '' OR title ILIKE ${like} OR url ILIKE ${like})`;
+    // In the normal views (all + each content type) redirect/404 pages are
+    // pulled OUT (NOT redir404) so they live only in their own bucket.
+    const filters = isRedirView
+      ? sql`${search} AND ${redir404}`
+      : sql`${search}
+          AND NOT ${redir404}
+          AND (${type}       = '' OR content_type = ${type})
+          AND (${courseType} = '' OR course_type = ${courseType})
+          AND (${category}   = '' OR category    = ${category})
+          AND (${tag}        = '' OR ${tag} = ANY(tags))`;
+
     const rows = await db.execute(sql`
       SELECT id, url, title, h1, meta_description, content_type, course_type,
              category, subcategory, tags, lastmod, token_count,
              (embedding IS NOT NULL) AS embedded,
-             owner_url, canonical_url, image_count, images_no_alt,
+             owner_url, canonical_url, http_status, image_count, images_no_alt,
              is_stale, stale_reason
       FROM pages
-      WHERE (${q}          = '' OR title ILIKE ${like} OR url ILIKE ${like})
-        AND (${type}       = '' OR content_type = ${type})
-        AND (${courseType} = '' OR course_type = ${courseType})
-        AND (${category}   = '' OR category    = ${category})
-        AND (${tag}        = '' OR ${tag} = ANY(tags))
+      WHERE ${filters}
       ORDER BY id
       LIMIT ${limit} OFFSET ${offset}
     `);
 
     const totalRows = await db.execute(sql`
-      SELECT count(*)::int AS total FROM pages
-      WHERE (${q}          = '' OR title ILIKE ${like} OR url ILIKE ${like})
-        AND (${type}       = '' OR content_type = ${type})
-        AND (${courseType} = '' OR course_type = ${courseType})
-        AND (${category}   = '' OR category    = ${category})
-        AND (${tag}        = '' OR ${tag} = ANY(tags))
+      SELECT count(*)::int AS total FROM pages WHERE ${filters}
     `);
 
     const byType = await db.execute(sql`
       SELECT content_type, count(*)::int AS n
       FROM pages
+      WHERE NOT ${redir404}
       GROUP BY content_type
       ORDER BY n DESC
+    `);
+
+    const redirRows = await db.execute(sql`
+      SELECT count(*)::int AS n FROM pages WHERE ${redir404}
     `);
 
     const byCourseType = await db.execute(sql`
@@ -73,6 +92,7 @@ export async function GET(request: NextRequest) {
     const byTypeArr = rowsOf<{ content_type: string; n: number }>(byType);
     const byCourseTypeArr = rowsOf<{ course_type: string; n: number }>(byCourseType);
     const topCategoriesArr = rowsOf<{ category: string; n: number }>(topCategories);
+    const redirect404 = rowsOf<{ n: number }>(redirRows)[0]?.n ?? 0;
     const totalPages = Math.max(1, Math.ceil(total / limit));
     return NextResponse.json({
       total,
@@ -80,6 +100,7 @@ export async function GET(request: NextRequest) {
       byType: byTypeArr,
       byCourseType: byCourseTypeArr,
       topCategories: topCategoriesArr,
+      redirect404,
       page,
       pageSize: limit,
       totalPages,
@@ -87,7 +108,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (e) {
     return NextResponse.json(
-      { error: (e as Error).message, rows: [], total: 0, byType: [], byCourseType: [], topCategories: [], page: 1, totalPages: 1 },
+      { error: (e as Error).message, rows: [], total: 0, byType: [], byCourseType: [], topCategories: [], redirect404: 0, page: 1, totalPages: 1 },
       { status: 500 },
     );
   }
