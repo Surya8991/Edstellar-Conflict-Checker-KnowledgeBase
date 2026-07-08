@@ -1,0 +1,71 @@
+name: Blog Master Import (production DB)
+
+# Manual, one-off. Applies migration drizzle/0020 (blog-master signals +
+# page_chunks) and imports scripts/data/blog-master-seed.json into the corpus.
+# Runs against the DATABASE_URL repo secret so the production connection string
+# never leaves CI. All DB writes are additive/idempotent (nullable columns,
+# IF NOT EXISTS, upsert by url) - safe to re-run.
+#
+# Required repo secret (Settings -> Secrets and variables -> Actions):
+#   DATABASE_URL - the production Neon pooled connection string
+#
+# To run: Actions tab -> "Blog Master Import (production DB)" -> Run workflow ->
+# type `production` in the confirm box.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "production" to confirm writing to the production DB'
+        required: true
+        default: ""
+
+concurrency:
+  group: blog-master-import
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Guard - require explicit confirmation
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event.inputs.confirm }}" != "production" ]; then
+            echo "::error::Confirmation failed. Type 'production' to run."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify DATABASE_URL secret is set
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "::error::DATABASE_URL repo secret is not set."
+            exit 1
+          fi
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Apply migrations (idempotent, incl. 0020)
+        run: npm run db:setup
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Import Blog Master Data (2 blogs)
+        run: npx tsx scripts/import-blog-master.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AI_EMBED_PROVIDER: local

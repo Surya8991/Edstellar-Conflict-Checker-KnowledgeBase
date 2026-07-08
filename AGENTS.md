@@ -19,8 +19,8 @@ This version has breaking changes - APIs, conventions, and file structure may al
 - `npm run ingest -- --limit=50` first. Full `npm run ingest` re-crawls 2,461 URLs and burns embedding quota.
 - `runConflictCheck` persists to DB by default (`opts.persist !== false`). REPL/script exploration silently writes rows.
 
-## Embedding dimension - encoded in 4 places
-`vector(384)` appears in: `drizzle/0000_init.sql`, `lib/db/schema.ts` (`EMBED_DIM`), `lib/conflict.ts` (`$5::vector`), and `scripts/ingest.ts` raw SQL. Switching to a different model (e.g. OpenAI `text-embedding-3-small` = 1536 dims) requires changing all four.
+## Embedding dimension - encoded in 5 places
+`vector(384)` appears in: `drizzle/0000_init.sql`, `lib/db/schema.ts` (`EMBED_DIM`), `lib/conflict.ts` (`$5::vector`), `scripts/ingest.ts` raw SQL, and `drizzle/0020_blog_master_signals.sql` (`page_chunks.embedding`). Switching to a different model (e.g. OpenAI `text-embedding-3-small` = 1536 dims) requires changing all five.
 
 ## Auth - three separate gates
 | Gate | Header/mechanism | Routes |
@@ -85,6 +85,13 @@ New `/api/*` routes that should be cron-callable must be added to `proxy.ts PUBL
 - Every run REPLACES (not appends to) the patterns of a single tracked `excluded_series` row (`LINK_AUDIT_EXCLUSION_NAME = "Auto: dead/redirected pages (link audit)"`), found by name. This makes it self-healing: a page that starts resolving 200 again drops out of the exclusion automatically next run.
 - **Runs via `.github/workflows/link-audit.yml`** (daily 9:00 AM IST = 3:30 UTC + `workflow_dispatch`), calling `GET /api/cron/link-audit` (same `CRON_SECRET` bearer auth as every other cron route) - NOT registered in `vercel.json`, so it doesn't count against Vercel's cron-schedule limit. Needs `APP_BASE_URL` + `CRON_SECRET` as **GitHub repo secrets** (must match the Vercel env var), not just Vercel env vars.
 - Manual trigger: `/api/settings/link-audit` (GET = last-run metadata from `app_settings` key `link_audit.last_run`; POST = run now), session-gated like every other `/api/settings/*` route, wired to a "Run now" button on `/settings`.
+
+## Blog Master Data import (§33)
+- `scripts/import-blog-master.ts` (`npx tsx scripts/import-blog-master.ts`; `--dry` = derive + print, no DB/embedder) merges the CMS "Blog Master Data" export into the corpus. Source rows live in `scripts/data/blog-master-seed.json` (committed; regenerate from the workbook when the blog set changes) - keeps the importer xlsx-free and path-agnostic.
+- Why it matters: the crawler embeds only `title+h1+body`, and the local embedder caps each input at **8k chars** (`lib/ai/embed-local.ts`) - almost every blog is longer, so the back half is invisible to the single per-page vector. The importer re-embeds from the clean CMS body (no nav/footer noise, no root-guessing - a quality gain over the crawl even at the same cap) and adds signals the crawler can't reliably reconstruct: `pages.meta_title` (distinct from title/h1), `headings` (jsonb h2/h3), `internal_links`/`outbound_links` (text[]), `word_count`, `table_count`, `content_hash` (all `drizzle/0020`, nullable - rest of corpus unaffected).
+- **`page_chunks`** (`drizzle/0020`) is the actual truncation fix: one section-level (H2) embedding per row (each section is well under the 8k cap, so together they cover the whole article) → sub-page cannibalization (section A of X vs section B of Y), which a single per-page vector misses. Idempotent: upsert by url (pages) + delete-then-insert by url (chunks). This is the **5th** `vector(384)` location (see Embedding dimension above).
+- Migration `0020` must be applied via `npm run db:setup`. Consumers (conflict/cannibalization signals, winner-picking) don't read the new columns yet - wire-up is follow-on work.
+- **Running it:** `.github/workflows/blog-master-import.yml` (`workflow_dispatch`, requires typing `production` to confirm) runs `db:setup` + the importer against the `DATABASE_URL` repo secret, so the production connection string never leaves CI. Local runs still work with a branch `DATABASE_URL`.
 
 ## Emergency run-book shortcuts
 - **LLM cost runaway** → set `LLM_KILL_SWITCH=1` env var + redeploy. Disables all AI calls instantly without a code push.

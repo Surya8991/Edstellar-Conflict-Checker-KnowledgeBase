@@ -98,7 +98,7 @@ function deriveSignals(html: string): DerivedSignals {
   const contentHash = createHash("sha256").update(bodyText).digest("hex");
 
   // Section split: everything from one H2 up to the next H2 is one chunk.
-  const sections = splitByH2($, html);
+  const sections = splitByH2($);
 
   return {
     bodyText,
@@ -116,58 +116,78 @@ function deriveSignals(html: string): DerivedSignals {
   };
 }
 
-/** Walk the DOM top-level order, grouping text under the preceding H2. */
-function splitByH2($: cheerio.CheerioAPI, _html: string): { heading: string | null; text: string }[] {
+/**
+ * Split the body into one section per H2. H2s in this CMS export are top-level
+ * siblings of the surrounding <p>/<div> blocks, so we section by sibling range:
+ * everything before the first H2 is an intro chunk; each H2 owns its following
+ * siblings up to the next H2. Falls back to a single whole-body chunk when there
+ * are no H2s.
+ */
+function splitByH2($: cheerio.CheerioAPI): { heading: string | null; text: string }[] {
   const out: { heading: string | null; text: string }[] = [];
-  let current: { heading: string | null; parts: string[] } = { heading: null, parts: [] };
-  const push = () => {
-    const text = normalizeWhitespace(current.parts.join(" "));
-    if (text) out.push({ heading: current.heading, text });
-  };
-  // Iterate the whole tree in document order; start a new section at each H2.
-  $("body").length ? $("body").children() : $.root().children();
-  const root = $("body").length ? $("body") : $.root();
-  root
-    .find("*")
-    .addBack()
-    .contents()
-    .each(() => {}); // no-op; walk explicitly below
-  const seen = new Set<any>();
-  const walk = (node: any) => {
-    $(node)
-      .children()
+  const h2s = $("h2").toArray();
+
+  if (h2s.length === 0) {
+    const text = normalizeWhitespace($.root().text());
+    return text ? [{ heading: null, text }] : [];
+  }
+
+  // Intro: siblings before the first H2 (prevAll is reverse document order).
+  const introParts: string[] = [];
+  $(h2s[0])
+    .prevAll()
+    .each((_, el) => {
+      const t = normalizeWhitespace($(el).text());
+      if (t) introParts.unshift(t);
+    });
+  const intro = normalizeWhitespace(introParts.join(" "));
+  if (intro) out.push({ heading: null, text: intro });
+
+  for (const h2 of h2s) {
+    const heading = normalizeWhitespace($(h2).text());
+    const bodyParts: string[] = [];
+    $(h2)
+      .nextUntil("h2")
       .each((_, el) => {
-        if (seen.has(el)) return;
-        const tag = (el as any).tagName?.toLowerCase();
-        if (tag === "h2") {
-          push();
-          current = { heading: normalizeWhitespace($(el).text()), parts: [] };
-          seen.add(el);
-          return;
-        }
         const t = normalizeWhitespace($(el).text());
-        if (t) current.parts.push(t);
-        seen.add(el);
+        if (t) bodyParts.push(t);
       });
-  };
-  walk(root);
-  push();
-  // Fallback: if no H2 produced any section, use the whole body as one chunk.
-  if (out.length === 0) {
-    const text = normalizeWhitespace(root.text());
-    if (text) out.push({ heading: null, text });
+    const text = normalizeWhitespace([heading, ...bodyParts].join(" "));
+    if (text) out.push({ heading, text });
   }
   return out;
 }
 
 async function main() {
+  const dry = process.argv.includes("--dry");
+
+  const seedPath = join(__dirname, "data", "blog-master-seed.json");
+  const blogs: SeedBlog[] = JSON.parse(readFileSync(seedPath, "utf8"));
+
+  // Dry run: derive + print signals only. No DB, no embedder (no model download).
+  if (dry) {
+    for (const blog of blogs) {
+      const d = deriveSignals(blog.contentHtml);
+      console.log(`\n${blog.url}`);
+      console.log(`  title=${(blog.name || d.h1)?.slice(0, 60)}`);
+      console.log(`  metaTitle=${blog.metaTitle}`);
+      console.log(
+        `  words=${d.wordCount} h2=${d.headings.h2.length} h3=${d.headings.h3.length} ` +
+          `internal=${d.internalLinks.length} outbound=${d.outboundLinks.length} tables=${d.tableCount} imgs=${d.imageCount} chunks=${d.sections.length}`,
+      );
+      console.log(`  hash=${d.contentHash.slice(0, 16)}…`);
+      console.log(
+        `  sections: ${d.sections.map((s) => (s.heading ? s.heading.slice(0, 32) : "(intro)")).join(" | ")}`,
+      );
+    }
+    console.log("\n(dry run - nothing written)");
+    return;
+  }
+
   const dbUrl = process.env.DATABASE_URL;
   if (!dbUrl) throw new Error("DATABASE_URL is not set.");
   const sql = neon(dbUrl);
   const embedder = getEmbedder();
-
-  const seedPath = join(__dirname, "data", "blog-master-seed.json");
-  const blogs: SeedBlog[] = JSON.parse(readFileSync(seedPath, "utf8"));
   console.log(`Importing ${blogs.length} blog(s) · embedder=${embedder.name}`);
 
   for (const blog of blogs) {
