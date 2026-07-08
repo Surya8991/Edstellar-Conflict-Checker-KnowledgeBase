@@ -4,7 +4,7 @@
 > and how the system fits together. Update this file with every meaningful
 > change.
 
-**Last updated:** 2026-07-08 (Session 18 - §22: Help dialog coverage swept - added missing `/settings`, `/keyword-cannibalization`, `/strategy` entries, fixed the stale `/` → `/dashboard` and removed the dead `/history` entry; every doc mentioning crons/exclusions now also covers Link Audit). 2026-07-08 (Session 17 - §21: Link Audit - daily 301/308/404/410 probe → auto-exclude via `excluded_series`, scheduled with GitHub Actions instead of `vercel.json`, plus a manual "Run now" trigger on `/settings`). 2026-07-07 (Session 16 - §20: fixed every critical/high/medium finding from the §19 audit - commercial-risk framing removed from Keyword Cannibalization, request-race guards across 4 pages, silent-error surfacing, filter-convention fixes, constant-time API-key comparisons). 2026-07-07 (Session 14 - §18E–K: Keyword Cannibalization promoted to a top-level tool + 4-tab upgrade, full keyword coverage, post-exclusion re-classification, sort + gap-window filters, "money page" wording removed from the UI while the SEO signal survives backend-only as `intentMismatch`, a project-wide filter-format policy - chips ≤5 options / `FilterSelect` dropdown for 6+ / native selects for run params, per-conflict status + notes persisted in `conflict_annotations`, CTR + clicks-at-risk surfaced, and the Score History page removed). 2026-07-06 (Session 13 - Content Clusters rewritten to topic-token leader clustering; §17K-N follow-ups: member-common labels, wider coverage, programmatic blog-series grouping (lib/series.ts), filter/UI rework; template-noise fix shared into the Conflict Checker; ingest/redirect durability fixes; checker UX incl. collapsible panels + sidebar cleanups)
+**Last updated:** 2026-07-08 (Session 18 - §22: Help dialog coverage swept - added missing `/settings`, `/keyword-cannibalization`, `/strategy` entries, fixed the stale `/` → `/dashboard` and removed the dead `/history` entry; every doc mentioning crons/exclusions now also covers Link Audit). 2026-07-08 (Session 17 - §21: Link Audit - daily 301/308/404/410 probe → auto-exclude via `excluded_series`, scheduled with GitHub Actions instead of `vercel.json`, plus a manual "Run now" trigger on `/settings`). 2026-07-07 (Session 16 - §20: fixed every critical/high/medium finding from the §19 audit - commercial-risk framing removed from Keyword Cannibalization, request-race guards across 4 pages, silent-error surfacing, filter-convention fixes, constant-time API-key comparisons). 2026-07-07 (Session 14 - §18E–P: Keyword Cannibalization promoted to a top-level tool + 4-tab upgrade, full keyword coverage, post-exclusion re-classification, sort + gap-window filters, "money page" wording removed from the UI while the SEO signal survives backend-only as `intentMismatch`, a project-wide filter-format policy - chips ≤5 options / `FilterSelect` dropdown for 6+ / native selects for run params, per-conflict status + notes persisted in `conflict_annotations`, CTR + clicks-at-risk surfaced, the Score History page removed, an AI Assistant tab (Groq, `cannibalization_chats`) that matches pasted URLs/keywords to conflicts, and a persistence layer - cannibalization trend history, position variance, annotation audit trail, best-effort cluster persistence, and a gsc_metrics 12-month window). 2026-07-06 (Session 13 - Content Clusters rewritten to topic-token leader clustering; §17K-N follow-ups: member-common labels, wider coverage, programmatic blog-series grouping (lib/series.ts), filter/UI rework; template-noise fix shared into the Conflict Checker; ingest/redirect durability fixes; checker UX incl. collapsible panels + sidebar cleanups)
 **Repo:** https://github.com/Layruss98266/Edstellar-Conflict-Checker-KnowledgeBase
 **Prod:** https://edstellar-conflict-checker-knowledg.vercel.app/
 
@@ -2954,6 +2954,70 @@ job4_gsc_metrics, job5_cannibalization, job6_http_status, total}_ms` in the JSON
 response + `log.info`) so each production run's budget is verifiable from the
 Vercel cron dashboard. Corpus HTTP-status health at audit: 2,461/2,464 audited,
 0 currently broken, 3 never-audited.
+
+### 18O. Keyword Cannibalization AI Assistant (Groq)
+
+New **AI Assistant** tab on `/keyword-cannibalization`. The user pastes a batch of
+URLs and/or keywords (one per line); the assistant matches each input to every
+cannibalization conflict it appears in across all tabs, tags which tabs
+(near-position / all / cross-type) each conflict belongs to, and asks **Groq** (the
+app's default chat provider, `getChat().generate` in JSON mode) for a written
+analysis. If Groq is unavailable / `LLM_KILL_SWITCH` is set it falls back to a
+deterministic summary. Every turn is stored.
+
+Pure matching logic lives in `lib/cannibalization-assistant.ts` (`classifyInput`
+URL-vs-keyword, `parseInputs`, `matchInputs`, `groupTabs`, `buildLlmContext`),
+unit-tested (`lib/cannibalization-assistant.test.ts`). A keyword matches a group
+when it equals a stored query OR the stored query CONTAINS the pasted phrase (NOT
+the reverse - a generic word like "training" must not pull hundreds of groups). A
+URL matches via `normalizeUrl` equality against the competing pages.
+
+Route `app/api/cannibalization/assistant` - POST `{ inputs, question?,
+conversationId? }` → `{ conversationId, matches, answer }`; GET `?conversationId=`
+returns that conversation's turns. It reuses the same live read as
+`/api/cannibalization` (drops branded/excluded/dead pages, re-classifies from the
+survivors). Session-gated, NOT a cron public path. New table `cannibalization_chats`
+(migration `drizzle/0015`, `lib/db/schema.ts`): one row per turn (`conversation_id`,
+`inputs` jsonb, `question`, `matches` jsonb, `answer` jsonb, `created_at`). UI
+component `app/(dashboard)/keyword-cannibalization/AssistantTab.tsx`.
+
+Live-verified: Groq returns a coherent analysis, matches render grouped per input
+with tab badges + severity, turns persist (`cannibalization_chats` populated). The
+"money page" wording ban (§18H) still applies - the assistant prompt forbids
+commercial framing.
+
+### 18P. Persistence layer: trend history, position variance, cluster + annotation persistence, gsc_metrics 12m
+
+Implements the "what to save more" list from the DB audit. All additive migrations,
+applied to Neon.
+
+- **gsc_metrics 12-month window.** `lib/gsc-metrics.snapshotGscMetrics` now also
+  writes a `12m` window (no migration - `range_label` is text);
+  `lib/gsc-cluster-metrics.fetchGscForUrls` returns `m12`; the Content Clusters GSC
+  panel (`app/(dashboard)/clusters/page.tsx`) shows a "12 months" row.
+- **Cannibalization trend history** (`drizzle/0016`, table
+  `keyword_conflicts_history`, drizzle `keywordConflictsHistory`). The snapshot
+  upserts one row per conflict per day (`ON CONFLICT (query, snapshot_date)`), so
+  "is this conflict getting worse?" is answerable over time. Populates on each
+  snapshot run.
+- **Position volatility** (`drizzle/0017`, `keyword_conflicts.position_variance`).
+  `classifyGroup` computes an impression-weighted variance of the competing pages'
+  positions; added to `ConflictGroup` + the `/api/cannibalization` payload;
+  unit-tested. Populates on the next snapshot.
+- **Annotation audit trail** (`drizzle/0018`, table `conflict_annotation_history`,
+  drizzle `conflictAnnotationHistory`). The annotation route POST appends a history
+  row on every status/note change (single + bulk). Verified: rows land.
+- **Cluster persistence** (`drizzle/0019`). `/api/groups` now persists computed
+  clusters (`clusters` table + `pages.cluster_id`) best-effort on fresh scans
+  (try/catch, cache hits skip). Verified: 265 clusters, 995 pages tagged. Lets other
+  tools cross-reference cluster membership cheaply.
+- **schema.ts drift reconciled.** Added `pages.http_status` / `last_audited_at` /
+  `cluster_id` and drizzle table defs for the previously-raw-only `gsc_daily_totals`,
+  `rate_limits`, `clusters` + the 3 new history tables, with `$inferSelect` types.
+
+Note: `position_variance` and `keyword_conflicts_history` are wired + unit-tested but
+stay empty locally until a snapshot runs with `GSC_SITE_URL` set (the prod cron
+populates them). Migrations `0015`-`0019` must be applied via `npm run db:setup`.
 
 ## 19. Session 15 - Full project audit + scoped non-"Additional Tools" audit (2026-07-07)
 
